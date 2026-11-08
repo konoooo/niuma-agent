@@ -81,6 +81,3 @@ AGENTS.md
 !.github/workflows/
 !.github/workflows/**
 
-# PixOffice 素材需单独取得授权；本机可保留，公开仓库默认不提交。
-/web/public/pixoffice/assets/
-/web/public/pixoffice/characters/

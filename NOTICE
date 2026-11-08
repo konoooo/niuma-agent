@@ -6,6 +6,7 @@ CCCC 的 Apache License 2.0 文本与原有版权、许可声明保留在 LICENS
 本项目集成 PixOffice（https://github.com/workbzw/pixoffice）的场景软件。
 PixOffice 的 MIT License、Copyright (c) 2026 teejoo 及各软件包声明保留在
 web/vendor/pixoffice/ 与 web/public/pixoffice/THIRD_PARTY_NOTICES.txt 中。
+本版本的配套图片已按维护者确认的公开分发授权纳入，并保留来源及校验清单；
 图片和其他非代码素材不因这些软件声明获得额外分发许可。
 
 本修改版本增加了真实状态动画、任务黑板、成员离岗交接、模型配置、消息朗读、

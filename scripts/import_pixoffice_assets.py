@@ -47,7 +47,7 @@ def main() -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         if original != target:
             shutil.copy2(original, target)
-    print(f"已导入并校验 {len(files)} 个素材文件。素材目录默认不会提交到 Git。")
+    print(f"已导入并校验 {len(files)} 个素材文件。请继续遵循素材来源的许可与分发约定。")
     return 0
 
 
