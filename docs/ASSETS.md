@@ -9,6 +9,9 @@ PixOffice 上游 README 明确说明：软件许可与图片授权分别处理�
 ```bash
 python3 scripts/import_pixoffice_assets.py --from /path/to/authorized/pixoffice-assets
 python3 scripts/import_pixoffice_assets.py --check
+# 将新导入的素材打包到 Web 页面和本机程序，再重新启动
+npm -C web run build
+cargo build --release --locked -p cccc --bin cccc
 ```
 
 输入目录应直接包含 `assets/` 与 `characters/`，相对路径与 `resources/pixoffice-assets.json` 相同。脚本不从网络下载图片，不判断或授予素材许可；它会先验证完整清单与校验和，再导入本机目录。

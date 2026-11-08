@@ -38,6 +38,9 @@ cargo build --release --locked -p cccc --bin cccc
 ```bash
 python3 scripts/import_pixoffice_assets.py --from /path/to/authorized/pixoffice-assets
 python3 scripts/import_pixoffice_assets.py --check
+# 将新导入的素材打包到 Web 页面和本机程序，再重新启动
+npm -C web run build
+cargo build --release --locked -p cccc --bin cccc
 ```
 
 素材目录应包含 `assets/` 与 `characters/`，与 `resources/pixoffice-assets.json` 对应。导入脚本先校验文件及 SHA-256，再复制到本机 Web 资源目录。缺少图片时，消息、终端、成员配置等功能仍可使用，动画会提示资源加载状态。详见 [素材说明](docs/ASSETS.md)。
