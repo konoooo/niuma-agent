@@ -1,0 +1,55 @@
+.message-read-aloud {
+  display: inline-flex;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+}
+
+.message-read-aloud:hover,
+.message-read-aloud[aria-pressed="true"] {
+  border-color: var(--glass-border-subtle);
+  background: var(--glass-tab-bg-active);
+  color: var(--color-text-primary);
+}
+
+.message-read-aloud:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 1px;
+}
+
+.message-read-aloud:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.message-read-aloud-loading {
+  animation: message-read-aloud-spin 1.2s linear infinite;
+}
+
+@keyframes message-read-aloud-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-read-aloud-loading {
+    animation: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .message-read-aloud {
+    width: 44px;
+    height: 44px;
+  }
+}

@@ -1,0 +1,963 @@
+use cccc_contracts::{DaemonRequest, DaemonResponse};
+use cccc_core::HomeLayout;
+use serde_json::{Map, Value, json};
+
+#[test]
+fn user_profiles_are_isolated_for_list_get_upsert_secrets_and_delete() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({"profile_id":"a-profile","scope":"user","owner_id":"user-a","name":"A"}),
+    );
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({"profile_id":"b-profile","scope":"user","owner_id":"user-b","name":"B"}),
+    );
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({"profile_id":"global-profile","scope":"global","name":"Global"}),
+    );
+    let group_a = call(&home, "group_create", json!({"title":"A"})).result["group"]["group_id"]
+        .as_str()
+        .expect("group A")
+        .to_owned();
+    let group_b = call(&home, "group_create", json!({"title":"B"})).result["group"]["group_id"]
+        .as_str()
+        .expect("group B")
+        .to_owned();
+    call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_b,
+            "actor_id":"secret-source",
+            "env_private":{"TOKEN":"secret"},
+            "by":"user"
+        }),
+    );
+
+    let b_list = call(
+        &home,
+        "actor_profile_list",
+        json!({"view":"accessible","caller_id":"user-b","is_admin":false}),
+    );
+    let ids = b_list.result["profiles"]
+        .as_array()
+        .expect("profiles")
+        .iter()
+        .filter_map(|profile| profile["id"].as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(ids, vec!["b-profile", "global-profile"]);
+
+    for (op, args) in [
+        (
+            "actor_profile_get",
+            json!({"profile_id":"a-profile","profile_scope":"user","profile_owner":"user-a"}),
+        ),
+        (
+            "actor_profile_secret_keys",
+            json!({"profile_id":"a-profile","profile_scope":"user","profile_owner":"user-a"}),
+        ),
+        (
+            "actor_profile_delete",
+            json!({"profile_id":"a-profile","profile_scope":"user","profile_owner":"user-a"}),
+        ),
+    ] {
+        let mut args = args.as_object().cloned().expect("args");
+        args.insert("caller_id".into(), json!("user-b"));
+        args.insert("is_admin".into(), json!(false));
+        assert_denied(raw_call(&home, op, Value::Object(args)));
+    }
+
+    let same_id_other_owner = call(
+        &home,
+        "actor_profile_upsert",
+        json!({
+            "profile_id":"a-profile",
+            "scope":"user",
+            "owner_id":"user-b",
+            "name":"same id, different owner",
+            "caller_id":"user-b",
+            "is_admin":false
+        }),
+    );
+    assert_eq!(same_id_other_owner.result["profile"]["owner_id"], "user-b");
+    assert_denied(raw_call(
+        &home,
+        "actor_profile_copy_actor_secrets",
+        json!({
+            "profile_id":"a-profile",
+            "profile_scope":"user",
+            "profile_owner":"user-a",
+            "group_id":group_b,
+            "actor_id":"secret-source",
+            "caller_id":"user-a",
+            "is_admin":false,
+            "allowed_groups":[group_a]
+        }),
+    ));
+    let empty = call(
+        &home,
+        "actor_profile_secret_keys",
+        json!({
+            "profile_id":"a-profile",
+            "profile_scope":"user",
+            "profile_owner":"user-a"
+        }),
+    );
+    assert_eq!(empty.result["keys"], json!([]));
+    let copied = call(
+        &home,
+        "actor_profile_copy_actor_secrets",
+        json!({
+            "profile_id":"a-profile",
+            "profile_scope":"user",
+            "profile_owner":"user-a",
+            "group_id":group_b,
+            "actor_id":"secret-source"
+        }),
+    );
+    assert_eq!(copied.result["keys"], json!(["TOKEN"]));
+    let a = call(
+        &home,
+        "actor_profile_get",
+        json!({
+            "profile_id":"a-profile",
+            "profile_scope":"user",
+            "profile_owner":"user-a"
+        }),
+    );
+    assert_eq!(a.result["profile"]["name"], "A");
+    assert_eq!(a.result["profile"]["owner_id"], "user-a");
+}
+
+#[test]
+fn actor_requests_cannot_borrow_human_profile_authority() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    let group_id = call(
+        &home,
+        "group_create",
+        json!({"title":"profile request authority","by":"user"}),
+    )
+    .result["group"]["group_id"]
+        .as_str()
+        .expect("group")
+        .to_owned();
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":group_id,"actor_id":"lead","enabled":false,"by":"user"}),
+    );
+    for (profile_id, scope, owner) in [
+        ("shared", "global", ""),
+        ("private", "user", "alice"),
+        ("owned", "user", "bob"),
+    ] {
+        call(
+            &home,
+            "actor_profile_upsert",
+            json!({
+                "profile_id":profile_id,
+                "name":profile_id,
+                "scope":scope,
+                "owner_id":owner,
+                "runtime":"custom",
+                "command":["/bin/true"],
+                "by":"user"
+            }),
+        );
+    }
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({
+            "profile_id":"shared",
+            "name":"private profile sharing the global id",
+            "scope":"user",
+            "owner_id":"alice",
+            "runtime":"custom",
+            "command":["/bin/true"],
+            "by":"user"
+        }),
+    );
+
+    let spoofed_list = raw_call(
+        &home,
+        "actor_profile_list",
+        json!({
+            "group_id":group_id,
+            "by":"lead",
+            "view":"all",
+            "caller_id":"alice",
+            "is_admin":true,
+            "allowed_groups":[group_id]
+        }),
+    );
+    assert_denied(spoofed_list);
+    let visible = call(
+        &home,
+        "actor_profile_list",
+        json!({"group_id":group_id,"by":"lead"}),
+    );
+    assert_eq!(
+        visible.result["profiles"]
+            .as_array()
+            .expect("profiles")
+            .iter()
+            .filter_map(|profile| profile["id"].as_str())
+            .collect::<Vec<_>>(),
+        vec!["shared"]
+    );
+
+    assert_denied(raw_call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"agent-private",
+            "profile_id":"private",
+            "profile_scope":"user",
+            "profile_owner":"alice",
+            "enabled":false,
+            "by":"lead",
+            "caller_id":"alice",
+            "is_admin":true
+        }),
+    ));
+    let global = call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"agent-global",
+            "profile_id":"shared",
+            "enabled":false,
+            "by":"lead"
+        }),
+    );
+    assert_eq!(global.result["actor"]["profile_id"], "shared");
+    let sanitized = call(
+        &home,
+        "actor_update",
+        json!({
+            "group_id":group_id,
+            "actor_id":"agent-global",
+            "patch":{
+                "title":"renamed",
+                "group_id":"other",
+                "actor_id":"other",
+                "by":"lead",
+                "caller_id":"alice",
+                "is_admin":true,
+                "allowed_groups":["other"],
+                "profile_id":"private",
+                "profile_action":"convert_to_custom"
+            },
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    );
+    assert_eq!(sanitized.result["actor"]["title"], "renamed");
+    assert_eq!(
+        sanitized.result["event"]["data"]["patch"],
+        json!({"title":"renamed"})
+    );
+    assert_denied(raw_call(
+        &home,
+        "actor_update",
+        json!({
+            "group_id":group_id,
+            "actor_id":"agent-global",
+            "profile_scope":"user",
+            "profile_owner":"alice",
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    ));
+
+    assert_denied(raw_call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"bob-steals",
+            "profile_id":"private",
+            "profile_scope":"user",
+            "profile_owner":"alice",
+            "enabled":false,
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    ));
+    let owned = call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"bob-owned",
+            "profile_id":"owned",
+            "profile_scope":"user",
+            "profile_owner":"bob",
+            "enabled":false,
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    );
+    assert_eq!(owned.result["actor"]["profile_owner"], "bob");
+
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":group_id,"actor_id":"plain","enabled":false,"by":"user"}),
+    );
+    let patch_link = call(
+        &home,
+        "actor_update",
+        json!({
+            "group_id":group_id,
+            "actor_id":"plain",
+            "patch":{
+                "profile_id":"private",
+                "profile_scope":"user",
+                "profile_owner":"alice"
+            },
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    );
+    assert_eq!(patch_link.result["actor"]["profile_id"], "");
+    assert_eq!(
+        patch_link.result["event"]["data"]["patch"],
+        json!({"profile_scope":"user","profile_owner":"alice"})
+    );
+    assert_denied(raw_call(
+        &home,
+        "actor_update",
+        json!({
+            "group_id":group_id,
+            "actor_id":"plain",
+            "profile_id":"private",
+            "profile_scope":"user",
+            "profile_owner":"alice",
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    ));
+
+    call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"alice-linked",
+            "profile_id":"private",
+            "profile_scope":"user",
+            "profile_owner":"alice",
+            "enabled":false,
+            "by":"user",
+            "caller_id":"alice",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    );
+    assert_denied(raw_call(
+        &home,
+        "actor_update",
+        json!({
+            "group_id":group_id,
+            "actor_id":"alice-linked",
+            "profile_action":"convert_to_custom",
+            "by":"user",
+            "caller_id":"bob",
+            "is_admin":false,
+            "allowed_groups":[group_id]
+        }),
+    ));
+}
+
+#[test]
+fn only_an_admin_can_copy_voice_analyst_secrets_to_a_runtime_profile() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({"profile_id":"voice-profile","name":"Voice Profile"}),
+    );
+    cccc_core::codex_voice_settings::replace_private_environment(
+        &home,
+        &std::collections::BTreeMap::from([("ZAI_API_KEY".into(), "secret".into())]),
+    )
+    .expect("Voice Analyst secrets");
+
+    assert_denied(raw_call(
+        &home,
+        "actor_profile_copy_voice_analyst_secrets",
+        json!({"profile_id":"voice-profile","caller_id":"user-a","is_admin":false}),
+    ));
+    assert_denied(raw_call(
+        &home,
+        "actor_profile_copy_voice_analyst_secrets",
+        json!({
+            "profile_id":"voice-profile",
+            "by":"lead",
+            "caller_id":"user-a",
+            "is_admin":true
+        }),
+    ));
+    let copied = call(
+        &home,
+        "actor_profile_copy_voice_analyst_secrets",
+        json!({"profile_id":"voice-profile","is_admin":true}),
+    );
+    assert_eq!(copied.result["keys"], json!(["ZAI_API_KEY"]));
+    assert_eq!(
+        cccc_core::profiles::ProfileStore::new(home)
+            .expect("profiles")
+            .secret_values("voice-profile")
+            .expect("profile secrets")
+            .get("ZAI_API_KEY")
+            .map(String::as_str),
+        Some("secret")
+    );
+}
+
+#[test]
+fn force_delete_converts_linked_actor_with_profile_secrets_intact() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({
+            "profile_id":"detach-profile",
+            "name":"Detach Profile",
+            "runtime":"codex",
+        }),
+    );
+    call(
+        &home,
+        "actor_profile_secret_update",
+        json!({"profile_id":"detach-profile","set":{"TOKEN":"secret"}}),
+    );
+    let group_id =
+        call(&home, "group_create", json!({"title":"detach"})).result["group"]["group_id"]
+            .as_str()
+            .expect("group id")
+            .to_owned();
+    call(
+        &home,
+        "group_stop",
+        json!({"group_id":group_id,"by":"user"}),
+    );
+    call(
+        &home,
+        "actor_add",
+        json!({
+            "group_id":group_id,
+            "actor_id":"linked",
+            "profile_id":"detach-profile",
+            "enabled":false,
+            "by":"user"
+        }),
+    );
+
+    let rejected = raw_call(
+        &home,
+        "actor_profile_delete",
+        json!({"profile_id":"detach-profile","by":"user"}),
+    );
+    assert!(!rejected.ok);
+    let deleted = call(
+        &home,
+        "actor_profile_delete",
+        json!({"profile_id":"detach-profile","force_detach":true,"by":"user"}),
+    );
+    assert_eq!(deleted.result["detached_count"], 1);
+    let actors = call(
+        &home,
+        "actor_list",
+        json!({"group_id":group_id,"by":"user"}),
+    );
+    let actor = actors.result["actors"]
+        .as_array()
+        .expect("actors")
+        .iter()
+        .find(|actor| actor["id"] == "linked")
+        .expect("linked actor");
+    assert_eq!(actor["profile_id"], "");
+    assert_eq!(actor["profile_scope"], "global");
+    assert_eq!(actor["profile_owner"], "");
+    assert_eq!(actor["runtime"], "codex");
+    assert_eq!(actor["runner"], "pty");
+    let keys = call(
+        &home,
+        "actor_env_private_keys",
+        json!({"group_id":group_id,"actor_id":"linked","by":"user"}),
+    );
+    assert_eq!(keys.result["keys"], json!(["TOKEN"]));
+}
+
+fn assert_denied(response: DaemonResponse) {
+    assert!(!response.ok);
+    assert!(
+        matches!(
+            response.error.expect("error").code.as_str(),
+            "permission_denied" | "profile_not_found"
+        ),
+        "unauthorized profile access must fail closed"
+    );
+}
+
+#[test]
+fn legacy_profile_without_runtime_does_not_block_web_model_creation() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    home.initialize().expect("initialize");
+    cccc_core::fs::write_json(
+        &home.root().join("profiles.json"),
+        &json!({"profiles":{"legacy":{"id":"legacy","name":"Legacy","env":{}}}}),
+    )
+    .expect("legacy fixture");
+    let gid =
+        call(&home, "group_create", json!({"title":"legacy profile"})).result["group"]["group_id"]
+            .clone();
+    let linked = call(
+        &home,
+        "actor_add",
+        json!({"group_id":gid,"actor_id":"legacy-agent","profile_id":"legacy","by":"user"}),
+    );
+    assert_eq!(linked.result["actor"]["runtime"], "codex");
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":gid,"actor_id":"web","runtime":"web_model","by":"user"}),
+    );
+    let duplicate = raw_call(
+        &home,
+        "actor_add",
+        json!({"group_id":gid,"actor_id":"second-web","runtime":"web_model","by":"user"}),
+    );
+    assert!(duplicate.ok, "{:?}", duplicate.error);
+}
+
+#[test]
+fn profile_switching_to_web_model_allows_independent_actors() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    let group_a = call(&home, "group_create", json!({"title":"a"})).result["group"]["group_id"]
+        .as_str()
+        .expect("group a")
+        .to_owned();
+    let group_b = call(&home, "group_create", json!({"title":"b"})).result["group"]["group_id"]
+        .as_str()
+        .expect("group b")
+        .to_owned();
+    let upsert = |runtime: &str| {
+        raw_call(
+            &home,
+            "actor_profile_upsert",
+            json!({"profile_id":"shared","name":"Shared","runtime":runtime}),
+        )
+    };
+    assert!(upsert("codex").ok);
+    // An unlinked profile may switch freely: no actor runs with it yet.
+    assert!(upsert("web_model").ok);
+    assert!(upsert("codex").ok);
+    for (group, actor) in [(&group_a, "one"), (&group_b, "two")] {
+        call(
+            &home,
+            "actor_add",
+            json!({"group_id":group,"actor_id":actor,"profile_id":"shared","by":"user"}),
+        );
+    }
+    let two_linked = upsert("web_model");
+    assert!(two_linked.ok, "{:?}", two_linked.error);
+    call(
+        &home,
+        "actor_remove",
+        json!({"group_id":group_b,"actor_id":"two","by":"user"}),
+    );
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":group_b,"actor_id":"web","runtime":"web_model","by":"user"}),
+    );
+    let slot_taken = upsert("web_model");
+    assert!(slot_taken.ok, "{:?}", slot_taken.error);
+    call(
+        &home,
+        "actor_remove",
+        json!({"group_id":group_b,"actor_id":"web","by":"user"}),
+    );
+    assert!(upsert("web_model").ok, "one linked actor and a free slot");
+    let duplicate = raw_call(
+        &home,
+        "actor_add",
+        json!({"group_id":group_b,"actor_id":"second-web","runtime":"web_model","by":"user"}),
+    );
+    assert!(duplicate.ok, "{:?}", duplicate.error);
+}
+
+#[test]
+fn linked_actor_edits_and_snapshots_follow_profile_ownership() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    let gid = call(
+        &home,
+        "group_create",
+        json!({"title":"profile transitions"}),
+    )
+    .result["group"]["group_id"]
+        .clone();
+    for id in ["source", "target", "copy"] {
+        call(
+            &home,
+            "actor_profile_upsert",
+            json!({"profile_id":id,"name":id,"runtime":"codex"}),
+        );
+    }
+    call(
+        &home,
+        "actor_profile_secret_update",
+        json!({"profile_id":"target","set":{"PROFILE_ONLY":"synthetic","SHARED":"profile"}}),
+    );
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":gid,"actor_id":"agent","enabled":false,
+        "env_private":{"OLD_ONLY":"synthetic","SHARED":"old"},"by":"user"}),
+    );
+    call(
+        &home,
+        "actor_update",
+        json!({"group_id":gid,"actor_id":"agent","profile_id":"source"}),
+    );
+    let renamed = call(
+        &home,
+        "actor_update",
+        json!({"group_id":gid,"actor_id":"agent",
+        "title":"Renamed","capability_autoload":[]}),
+    );
+    assert_eq!(renamed.result["actor"]["title"], "Renamed");
+    let linked = call(
+        &home,
+        "actor_update",
+        json!({"group_id":gid,"actor_id":"agent",
+        "profile_id":"target","capability_autoload":[]}),
+    );
+    assert_eq!(linked.result["actor"]["profile_id"], "target");
+    let denied = raw_call(
+        &home,
+        "actor_update",
+        json!({"group_id":gid,"actor_id":"agent","runtime":"custom"}),
+    );
+    assert_eq!(
+        denied.error.expect("readonly").code,
+        "actor_profile_linked_readonly"
+    );
+    call(
+        &home,
+        "actor_profile_copy_actor_secrets",
+        json!({"profile_id":"copy","group_id":gid,"actor_id":"agent"}),
+    );
+    let profiles = cccc_core::profiles::ProfileStore::new(home.clone()).expect("profiles");
+    let expected = profiles.secret_values("target").expect("target secrets");
+    assert_eq!(
+        profiles.secret_values("copy").expect("copied secrets"),
+        expected
+    );
+    let converted = call(
+        &home,
+        "actor_update",
+        json!({"group_id":gid,"actor_id":"agent",
+        "profile_action":"convert_to_custom","capability_autoload":[]}),
+    );
+    assert_eq!(converted.result["actor"]["profile_id"], "");
+    call(
+        &home,
+        "actor_profile_copy_actor_secrets",
+        json!({"profile_id":"copy","group_id":gid,"actor_id":"agent"}),
+    );
+    assert_eq!(
+        profiles.secret_values("copy").expect("snapshot secrets"),
+        expected
+    );
+    let keys = call(
+        &home,
+        "actor_env_private_keys",
+        json!({"group_id":gid,"actor_id":"agent"}),
+    );
+    assert_eq!(keys.result["keys"], json!(["PROFILE_ONLY", "SHARED"]));
+}
+
+fn call(home: &HomeLayout, op: &str, args: Value) -> DaemonResponse {
+    let response = raw_call(home, op, args);
+    assert!(response.ok, "{op}: {:?}", response.error);
+    response
+}
+
+fn raw_call(home: &HomeLayout, op: &str, args: Value) -> DaemonResponse {
+    cccc_daemon::handle_request(
+        home,
+        &DaemonRequest {
+            v: 1,
+            op: op.into(),
+            args: args.as_object().cloned().unwrap_or_else(Map::new),
+        },
+    )
+}
+
+#[test]
+fn secretary_profile_secret_copy_is_admin_only_and_keeps_voice_identities_separate() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    call(
+        &home,
+        "actor_profile_upsert",
+        json!({"profile_id":"secretary-profile","name":"Secretary Profile"}),
+    );
+    cccc_core::voice_secretary_settings::replace_private_environment(
+        &home,
+        &std::collections::BTreeMap::from([(
+            "SECRETARY_FIXTURE".into(),
+            "secretary-fixture".into(),
+        )]),
+    )
+    .expect("Secretary environment");
+    cccc_core::codex_voice_settings::replace_private_environment(
+        &home,
+        &std::collections::BTreeMap::from([("ANALYST_FIXTURE".into(), "analyst-fixture".into())]),
+    )
+    .expect("Analyst environment");
+    assert_denied(raw_call(
+        &home,
+        "actor_profile_copy_voice_secretary_secrets",
+        json!({"profile_id":"secretary-profile","caller_id":"user-a","is_admin":false}),
+    ));
+    let response = call(
+        &home,
+        "actor_profile_copy_voice_secretary_secrets",
+        json!({"profile_id":"secretary-profile","is_admin":true}),
+    );
+    assert_eq!(response.result["keys"], json!(["SECRETARY_FIXTURE"]));
+    let secrets = cccc_core::profiles::ProfileStore::new(home)
+        .expect("store")
+        .secret_values("secretary-profile")
+        .expect("profile secrets");
+    assert_eq!(secrets.len(), 1);
+    assert_eq!(
+        secrets.get("SECRETARY_FIXTURE").map(String::as_str),
+        Some("secretary-fixture")
+    );
+}
+
+#[test]
+fn legacy_profile_without_identity_fields_is_addressable_as_global_and_deletable() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    let gid =
+        call(&home, "group_create", json!({"title":"G","by":"user"})).result["group"]["group_id"]
+            .as_str()
+            .expect("group")
+            .to_owned();
+    // A record from before scope/owner_id were stored: keyed by its bare id.
+    let path = home.root().join("state/actor_profiles/profiles.json");
+    std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+    std::fs::write(
+        &path,
+        json!({"profiles":{"legacy":{"id":"legacy","name":"Legacy","runtime":"claude",
+            "command":["claude"],"submit":"enter","runner":"pty","revision":2,"env":{}}}})
+        .to_string(),
+    )
+    .expect("legacy fixture");
+    call(&home, "group_stop", json!({"group_id":gid,"by":"user"}));
+    call(
+        &home,
+        "actor_add",
+        json!({"group_id":gid,"actor_id":"linked","profile_id":"legacy","enabled":false,"by":"user"}),
+    );
+    let global = json!({"profile_id":"legacy","profile_scope":"global","profile_owner":""});
+
+    // The Web UI addresses every listed global profile with an explicit scope.
+    let read = call(&home, "actor_profile_get", global.clone());
+    assert_eq!(read.result["profile"]["id"], "legacy");
+    // Another identity with the same id still does not resolve to it.
+    let other = raw_call(
+        &home,
+        "actor_profile_get",
+        json!({"profile_id":"legacy","profile_scope":"user","profile_owner":"user-a"}),
+    );
+    assert!(!other.ok);
+
+    let in_use = raw_call(&home, "actor_profile_delete", global.clone());
+    assert_eq!(in_use.error.expect("in use").code, "profile_in_use");
+    let mut forced = global.as_object().cloned().expect("args");
+    forced.insert("force_detach".into(), json!(true));
+    call(&home, "actor_profile_delete", Value::Object(forced));
+    assert!(!raw_call(&home, "actor_profile_get", global).ok);
+}
+
+#[test]
+fn legacy_profile_can_be_saved_with_web_identity_without_changing_access_or_secrets() {
+    for identity in [json!({}), json!({"scope":"global"}), json!({"owner_id":""})] {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+        home.initialize().expect("initialize");
+        let mut legacy = json!({"id":"legacy","name":"Legacy","runtime":"claude",
+            "command":["claude"],"submit":"enter","revision":2,"env":{}});
+        legacy
+            .as_object_mut()
+            .expect("profile")
+            .extend(identity.as_object().expect("identity").clone());
+        let path = home.root().join("state/actor_profiles/profiles.json");
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("dir");
+        std::fs::write(&path, json!({"profiles":{"legacy":legacy}}).to_string())
+            .expect("legacy fixture");
+        let global = json!({"profile_id":"legacy","profile_scope":"global","profile_owner":""});
+        let mut secret_args = global.as_object().cloned().expect("args");
+        secret_args.insert(
+            "set".into(),
+            json!({"TOKEN":"profile-fixture-private-value"}),
+        );
+        call(
+            &home,
+            "actor_profile_secret_update",
+            Value::Object(secret_args),
+        );
+
+        // This is the explicit identity sent by the Web profile editor, even
+        // when the old record it listed omitted either identity field.
+        let edit = json!({"profile_id":"legacy","scope":"global","owner_id":"",
+            "name":"Edited","runtime":"claude","command":["claude"],"env":{},
+            "expected_revision":2});
+        let mut guest_edit = edit.as_object().cloned().expect("edit");
+        guest_edit.insert("caller_id".into(), json!("user-a"));
+        guest_edit.insert("is_admin".into(), json!(false));
+        assert_denied(raw_call(
+            &home,
+            "actor_profile_upsert",
+            Value::Object(guest_edit),
+        ));
+
+        let saved = call(&home, "actor_profile_upsert", edit.clone());
+        assert_eq!(saved.result["profile"]["scope"], "global");
+        assert_eq!(saved.result["profile"]["owner_id"], "");
+        assert_eq!(saved.result["profile"]["name"], "Edited");
+        assert_eq!(saved.result["profile"]["revision"], 3);
+        assert_eq!(saved.result["profile"]["env"], json!({}));
+        assert!(
+            !raw_call(&home, "actor_profile_upsert", edit).ok,
+            "stale revision must fail"
+        );
+
+        let list = call(&home, "actor_profile_list", json!({}));
+        assert_eq!(
+            list.result["profiles"].as_array().expect("profiles").len(),
+            1
+        );
+        let keys = call(&home, "actor_profile_secret_keys", global.clone());
+        assert_eq!(keys.result["keys"], json!(["TOKEN"]));
+        assert_eq!(keys.result["masked_values"]["TOKEN"], "********");
+        let profiles = cccc_core::profiles::ProfileStore::new(home.clone()).expect("store");
+        assert!(
+            profiles.secret_values("legacy").expect("secrets")["TOKEN"]
+                == "profile-fixture-private-value",
+            "existing secret must be preserved"
+        );
+        call(&home, "actor_profile_delete", global);
+        assert!(
+            call(&home, "actor_profile_list", json!({})).result["profiles"]
+                .as_array()
+                .expect("profiles")
+                .is_empty()
+        );
+    }
+}
+
+#[test]
+fn profile_secret_copy_checks_source_identity_independently_of_target() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    for (id, scope, owner, key) in [
+        ("shared", "global", "", "SHARED_KEY"),
+        ("personal", "user", "user-a", "PREVIOUS_KEY"),
+        ("owned", "user", "user-a", "OWNED_KEY"),
+        ("other", "user", "user-b", "OTHER_KEY"),
+    ] {
+        call(
+            &home,
+            "actor_profile_upsert",
+            json!({"profile_id":id,"name":id,
+            "scope":scope,"owner_id":owner}),
+        );
+        call(
+            &home,
+            "actor_profile_secret_update",
+            json!({"profile_id":id,
+                "scope":scope,"owner_id":owner,"set":{key:"copy-fixture-private-value"}}),
+        );
+    }
+    // Cover both IPC names and the selectors sent by the Web copy workflow.
+    for (scope_field, owner_field) in [
+        ("source_profile_scope", "source_profile_owner"),
+        ("source_scope", "source_owner_id"),
+    ] {
+        let mut copy = json!({"profile_id":"personal","scope":"user","owner_id":"user-a",
+            "source_profile_id":"shared","caller_id":"user-a","is_admin":false})
+        .as_object()
+        .cloned()
+        .expect("args");
+        copy.insert(scope_field.into(), json!("global"));
+        copy.insert(owner_field.into(), json!(""));
+        let copied = call(
+            &home,
+            "actor_profile_copy_profile_secrets",
+            Value::Object(copy.clone()),
+        );
+        assert_eq!(copied.result["keys"], json!(["SHARED_KEY"]));
+
+        copy.insert("source_profile_id".into(), json!("owned"));
+        copy.insert(scope_field.into(), json!("user"));
+        copy.insert(owner_field.into(), json!("user-a"));
+        let owned = call(
+            &home,
+            "actor_profile_copy_profile_secrets",
+            Value::Object(copy.clone()),
+        );
+        assert_eq!(owned.result["keys"], json!(["OWNED_KEY"]));
+
+        copy.insert("source_profile_id".into(), json!("other"));
+        copy.insert(owner_field.into(), json!("user-b"));
+        assert_denied(raw_call(
+            &home,
+            "actor_profile_copy_profile_secrets",
+            Value::Object(copy),
+        ));
+        let keys = call(
+            &home,
+            "actor_profile_secret_keys",
+            json!({"profile_id":"personal",
+            "scope":"user","owner_id":"user-a","caller_id":"user-a","is_admin":false}),
+        );
+        assert_eq!(keys.result["keys"], json!(["OWNED_KEY"]));
+        assert_eq!(keys.result["masked_values"]["OWNED_KEY"], "********");
+    }
+}

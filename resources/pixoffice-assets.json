@@ -1,0 +1,211 @@
+{
+  "format": 1,
+  "source": "PixOffice 兼容素材包；本清单不包含图片，也不授予素材分发权。",
+  "files": [
+    {
+      "path": "assets/office/chair.webp",
+      "sha256": "db1888b26d7246b9004ea43c203b2f928056f27e6f6f1611eed2b81dafb6a0a3",
+      "bytes": 62154
+    },
+    {
+      "path": "assets/office/desk.webp",
+      "sha256": "5686a19413f915194d7ad8ff0748dec7600c4e2c693ec10374ef60a29d25573b",
+      "bytes": 140570
+    },
+    {
+      "path": "assets/office/effects/work-crafting-lite-v1.webp",
+      "sha256": "cacbfa2a05c0acc4f8160213ceef988007c6873f10325f7df8c4a4b0a390bf13",
+      "bytes": 33886
+    },
+    {
+      "path": "assets/office/office.webp",
+      "sha256": "245bcbe9e02a733e55f63b4f9d2bbcdb58006b46da00ae46b899488960f82e0d",
+      "bytes": 805980
+    },
+    {
+      "path": "assets/office/reference-v1/conference-table.webp",
+      "sha256": "c2b62904dda707b8ed6912f76c1651210bc6142d5cf56c20d99a220e714bb65d",
+      "bytes": 761982
+    },
+    {
+      "path": "assets/office/reference-v1/desk-accessories.webp",
+      "sha256": "e3118240e0bfc9d2f70913de42f7ca9f0c578ad0bd660db76b62b65b9aa563cf",
+      "bytes": 334812
+    },
+    {
+      "path": "assets/office/reference-v1/room-whiteboard-v3.webp",
+      "sha256": "e5b6ba51f7133bd15387fc35743ddfa5f04323a7eba23941d8493d4a9eb6dd53",
+      "bytes": 1042200
+    },
+    {
+      "path": "assets/office/workstation-trial-v1/chair.webp",
+      "sha256": "a6912a1455b2b0047334b504fe76baf2c65c63a3a5810551c14f17420912bef8",
+      "bytes": 519546
+    },
+    {
+      "path": "assets/office/workstation-trial-v1/computer.webp",
+      "sha256": "d8eade721dc864c78307bdec23c6476ae8d0b55378e75372ffe9eed2de4fb0b3",
+      "bytes": 449318
+    },
+    {
+      "path": "assets/office/workstation-trial-v1/desk.webp",
+      "sha256": "d057f3a4052fc1f3095af464c8250b9ad63a7783e4ae767aa7eaea3d39d2b3e6",
+      "bytes": 260296
+    },
+    {
+      "path": "characters/app-agent/atlas-0-4dd3fc3e2d21e537.webp",
+      "sha256": "4dd3fc3e2d21e53744afb0ae46013723f31bb7cfff6c64c65f4230fffd1cebe4",
+      "bytes": 227950
+    },
+    {
+      "path": "characters/app-agent/atlas-1-d17eabb8b0062500.webp",
+      "sha256": "d17eabb8b0062500cdb450f908ea44bbaf653acbce0b0d9f001a48943858344f",
+      "bytes": 1475720
+    },
+    {
+      "path": "characters/app-agent/manifest-6fef6afeb508a1c9.json",
+      "sha256": "dbc0d1e08047fe677754c31b54100e646409ccf9540084129fcda43dfd4d8714",
+      "bytes": 23369
+    },
+    {
+      "path": "characters/app-agent/portrait-d3e7c98fb728aef2.webp",
+      "sha256": "d3e7c98fb728aef27ef0a6298a4d8f471ea5e63fccdf02696d281fee8cb2da07",
+      "bytes": 9028
+    },
+    {
+      "path": "characters/code-agent/atlas-0-55ae466e92f09bd3.webp",
+      "sha256": "55ae466e92f09bd30e7b9ae3c2506513eb152550529fc7668f14736483eac957",
+      "bytes": 194904
+    },
+    {
+      "path": "characters/code-agent/atlas-1-a8afd11c687c45b3.webp",
+      "sha256": "a8afd11c687c45b3005eb067a9055ec2ef1a23677952bdee7d51ce1b4964824b",
+      "bytes": 1254834
+    },
+    {
+      "path": "characters/code-agent/manifest-abce309793416a3f.json",
+      "sha256": "f99829ac259680e34025b5f12a0ea1e3e092d40983f6395ac514f8a3889b65fb",
+      "bytes": 23390
+    },
+    {
+      "path": "characters/code-agent/portrait-e5c586ecc283c930.webp",
+      "sha256": "e5c586ecc283c930fa5a2ebb2269b928c472e1d05f8a1459be6eaca5f158f5d7",
+      "bytes": 7702
+    },
+    {
+      "path": "characters/data-agent/atlas-0-8cc1bebd2aefe4b9.webp",
+      "sha256": "8cc1bebd2aefe4b9462dd54e8011231d50084ec3a825232d63ed3a26f48c9b72",
+      "bytes": 200274
+    },
+    {
+      "path": "characters/data-agent/atlas-1-3817c5f90611f8bb.webp",
+      "sha256": "3817c5f90611f8bba57985b4adbcfb26fbfb044e2579f81a74280875913e62cf",
+      "bytes": 1245066
+    },
+    {
+      "path": "characters/data-agent/manifest-7216062b621cf913.json",
+      "sha256": "8d6759c2bd642595328a3625ca070b3f32320e6820ce54d89dcadf4ecc094897",
+      "bytes": 23374
+    },
+    {
+      "path": "characters/data-agent/portrait-1bfd2fe2d704762c.webp",
+      "sha256": "1bfd2fe2d704762c61560d6e53000bf625ca672994e6f9d905084aba300d613d",
+      "bytes": 8296
+    },
+    {
+      "path": "characters/file-agent/atlas-0-09da88eafb09eb6a.webp",
+      "sha256": "09da88eafb09eb6ae957ace2b1931ec8be1690db9d8ddaa3858020c47d37dd46",
+      "bytes": 172818
+    },
+    {
+      "path": "characters/file-agent/atlas-1-9db0d28070abef8c.webp",
+      "sha256": "9db0d28070abef8cbb24dcbfaad56a3cf3901a7eb52177298227eb52825e8dd8",
+      "bytes": 1126930
+    },
+    {
+      "path": "characters/file-agent/manifest-3f585be42009924d.json",
+      "sha256": "4f0559f13461a536d3e8f0ae03105f774d4d8b3abc8c665809dfd506215a5fe3",
+      "bytes": 23367
+    },
+    {
+      "path": "characters/file-agent/portrait-6d7d96ae3b9f2875.webp",
+      "sha256": "6d7d96ae3b9f28756a1a6434c400932d5f48ae9128e690dcc6746e9feb9cb159",
+      "bytes": 7366
+    },
+    {
+      "path": "characters/office-lead/atlas-0-863298928c045fd8.webp",
+      "sha256": "863298928c045fd8c32672ed5378794cc387c5d76dc4501f003f584bc4b638e3",
+      "bytes": 107508
+    },
+    {
+      "path": "characters/office-lead/atlas-1-f7eda0b45c59b3ae.webp",
+      "sha256": "f7eda0b45c59b3ae21825b91f9483dbdff6254e243c4ab3307d86b0062bd67d4",
+      "bytes": 2190802
+    },
+    {
+      "path": "characters/office-lead/manifest-b83329cc2421559d.json",
+      "sha256": "6ca04f1b453b8bbca6807ad9740775607c6fc1c2c613cdc1f6e3d6182e4fe38c",
+      "bytes": 31225
+    },
+    {
+      "path": "characters/office-lead/portrait-928e77fec3a477d2.webp",
+      "sha256": "928e77fec3a477d2d590edbb13312741bfa7dcb3dd8ce39c90504287010194d8",
+      "bytes": 7726
+    },
+    {
+      "path": "characters/registry.json",
+      "sha256": "4559fe7192de5c080b10103aec946561b6178b1555201c874aa9cd0049bbe0f3",
+      "bytes": 7339
+    },
+    {
+      "path": "characters/review-agent/atlas-0-5b499948a0467777.webp",
+      "sha256": "5b499948a0467777fc21553d96ddc9075fcfa74efabdad83a1564903f0ba9653",
+      "bytes": 183260
+    },
+    {
+      "path": "characters/review-agent/atlas-1-f558aa5175da316b.webp",
+      "sha256": "f558aa5175da316bd4685d4582f316de4e87ea17d30fb70bdaf6b715de6d3111",
+      "bytes": 1215962
+    },
+    {
+      "path": "characters/review-agent/manifest-e5f1de8458af7d23.json",
+      "sha256": "f3a5d45517b47156e52d93590af21e10252305f2ee346f5beb56364ee9bb75fb",
+      "bytes": 23379
+    },
+    {
+      "path": "characters/review-agent/portrait-a47b423631da6a4f.webp",
+      "sha256": "a47b423631da6a4f5298fa57a6a3fa88bc01b90c9838b068c352951ae43a0ab2",
+      "bytes": 7398
+    },
+    {
+      "path": "characters/visuals/app-agent.json",
+      "sha256": "7b22a6d07f22167c25f7e61c0ff82a8c3f8f3cd4d51f6d37f8a30e553832227f",
+      "bytes": 9914
+    },
+    {
+      "path": "characters/visuals/code-agent.json",
+      "sha256": "dd8c2aba148d15af18753320cf6522e07b8f71f549654bb97c10f584cc52e773",
+      "bytes": 9916
+    },
+    {
+      "path": "characters/visuals/data-agent.json",
+      "sha256": "8f39d961786e1a3d0c7f3956008202f42f7777c5c39b9bcbad9b1a07b1082394",
+      "bytes": 9916
+    },
+    {
+      "path": "characters/visuals/file-agent.json",
+      "sha256": "0b2047c60fbc171550ee01f215f0db44525879b8024b6d499f93d0f52ab12bf4",
+      "bytes": 9916
+    },
+    {
+      "path": "characters/visuals/office-lead.json",
+      "sha256": "9b8c4c8857473b6f547653a774203a806bef3d43a10fef0329f7f63328f3f585",
+      "bytes": 9918
+    },
+    {
+      "path": "characters/visuals/review-agent.json",
+      "sha256": "091c788bdae74a64491db68bbe98838643d68d09ac8cfdb8612ef8a5c89a9c18",
+      "bytes": 9920
+    }
+  ]
+}

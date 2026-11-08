@@ -1,0 +1,1357 @@
+import { openEventStream, type EventStreamSource } from "../services/realtime/eventStream";
+import { readRetryDetail } from "./useSseErrorDetailText";
+// Ledger and headless subscriptions on the shared realtime connection.
+import { useEffect, useRef } from "react";
+import { useGroupStore, useUIStore, useModalStore } from "../stores";
+import { getChatSession, groupMessagesVisible } from "../stores/useUIStore";
+import { mergeStreamingActivity } from "../stores/chatStreamingSessions";
+import { beginContextRequest, isLatestContextRequest } from "../stores/groupStoreCore";
+import * as api from "../services/api";
+import type { FetchContextOptions } from "../services/api";
+import type { HeadlessStreamEvent, GroupContext, LedgerEvent, StreamingActivity } from "../types";
+import { runReconnectCatchup, scheduleContextOverviewCatchup } from "./sseCatchup";
+import { getRecipientActorIdsForEvent, shouldIncrementUnread } from "../utils/ledgerEventHandlers";
+import { replayHeadlessSnapshotEvents } from "../utils/headlessSnapshotReplay";
+import { parseHeadlessActivity } from "../utils/headlessActivity";
+import { hasManagedRuntimeOutput } from "../utils/headlessRuntimeSupport";
+import { createSseConnectionRegistry } from "./sseConnectionRegistry";
+import {
+  computeGroupRuntimeFromActorActivityUpdate,
+  getRuntimeStatusFallbackForGroup,
+  type ActorActivityUpdate,
+} from "./sse/runtimeStatus";
+import {
+  formatHeadlessErrorMessage,
+  headlessActorKey,
+  translateActorLabel,
+} from "./sse/headlessEventUtils";
+import { processLedgerEvent } from "./sse/ledgerEventProcessor";
+import { reconcileLedgerTail } from "./sse/reconcileLedgerTail";
+import { getGroupStreamsHiddenDisconnectDelayMs, shouldStartGroupStreams } from "./sse/visibility";
+import type { UseSSEOptions } from "./sse/types";
+import {
+  RUNTIME_CONFIRMATION_REFRESH_EVENTS,
+  runtimeConfirmationEnded,
+} from "./runtimeConfirmation";
+
+// Covers overlapping HTTP and socket catch-up beyond the 800-row UI cache.
+const MAX_RECENT_PROCESSED_IDS = 10000;
+// Server heartbeats are sent every 15 seconds; allow 10 seconds for scheduling.
+const FOCUS_STALE_STREAM_MS = 25000;
+const FOCUS_RECOVERY_DEBOUNCE_MS = 500;
+
+export {
+  computeGroupRuntimeFromActorActivityUpdate,
+  computeGroupRuntimeFromActorActivityUpdates,
+  getRuntimeStatusFallbackForGroup,
+} from "./sse/runtimeStatus";
+export {
+  GROUP_STREAMS_HIDDEN_DISCONNECT_GRACE_MS,
+  getGroupStreamsHiddenDisconnectDelayMs,
+  shouldStartGroupStreams,
+} from "./sse/visibility";
+
+export { getRecipientActorIdsForEvent };
+
+export function useSSE({ activeTabRef, chatAtBottomRef, actorsRef }: UseSSEOptions) {
+  const selectedGroupId = useGroupStore((s) => s.selectedGroupId);
+  const appendEvent = useGroupStore((s) => s.appendEvent);
+  const appendHeadlessEvent = useGroupStore((s) => s.appendHeadlessEvent);
+  const updateReadStatus = useGroupStore((s) => s.updateReadStatus);
+  const updateObligationStatus = useGroupStore((s) => s.updateObligationStatus);
+  const incrementActorUnread = useGroupStore((s) => s.incrementActorUnread);
+  const incrementWebModelQueued = useGroupStore((s) => s.incrementWebModelQueued);
+  const updateActorActivity = useGroupStore((s) => s.updateActorActivity);
+  const upsertStreamingActivity = useGroupStore((s) => s.upsertStreamingActivity);
+  const promoteStreamingEventToStream = useGroupStore((s) => s.promoteStreamingEventToStream);
+  const promoteStreamingEventsByPrefix = useGroupStore((s) => s.promoteStreamingEventsByPrefix);
+  const reconcileStreamingMessage = useGroupStore((s) => s.reconcileStreamingMessage);
+  const completeStreamingEventsForActor = useGroupStore((s) => s.completeStreamingEventsForActor);
+  const removeStreamingEvent = useGroupStore((s) => s.removeStreamingEvent);
+  const clearStreamingEventsForActor = useGroupStore((s) => s.clearStreamingEventsForActor);
+  const clearEmptyStreamingEventsForActor = useGroupStore(
+    (s) => s.clearEmptyStreamingEventsForActor,
+  );
+  const clearTransientStreamingEventsForActor = useGroupStore(
+    (s) => s.clearTransientStreamingEventsForActor,
+  );
+  const setGroupContext = useGroupStore((s) => s.setGroupContext);
+  const updateGroupRuntimeState = useGroupStore((s) => s.updateGroupRuntimeState);
+  const refreshActors = useGroupStore((s) => s.refreshActors);
+  const refreshPresentation = useGroupStore((s) => s.refreshPresentation);
+
+  const incrementChatUnread = useUIStore((s) => s.incrementChatUnread);
+  const setSSEStatus = useUIStore((s) => s.setSSEStatus);
+  const setSSEError = useUIStore((s) => s.setSSEError);
+  const markPresentationSlotAttention = useModalStore((s) => s.markPresentationSlotAttention);
+  const clearPresentationSlotAttention = useModalStore((s) => s.clearPresentationSlotAttention);
+
+  const eventSourceRef = useRef<EventStreamSource | null>(null);
+  const headlessEventSourceRef = useRef<EventStreamSource | null>(null);
+  const sseRegistryRef = useRef(createSseConnectionRegistry<EventStreamSource>());
+  const contextRefreshTimerRef = useRef<number | null>(null);
+  const selectedGroupIdRef = useRef<string>("");
+  const groupVisitRef = useRef(0);
+  const scopeRefreshEpoch = useRef(0);
+  const headlessReconnectDelayRef = useRef<number>(1000);
+  const headlessReconnectTimerRef = useRef<number | null>(null);
+  const hiddenDisconnectTimerRef = useRef<number | null>(null);
+  const hasConnectedOnceRef = useRef<boolean>(false);
+  const needsVisibilityCatchupRef = useRef<boolean>(false);
+  const ledgerCursorByGroupRef = useRef(new Map<string, string>());
+  const ledgerSyncsByGroupRef = useRef(new Map<string, number>());
+  const processedIdsRef = useRef(new Set<string>());
+  const lastLedgerReconcileAtRef = useRef<number | null>(null);
+  const headlessThreadIdByActorRef = useRef(new Map<string, string>());
+  const pendingHeadlessMessageFlushRef = useRef<number | null>(null);
+  const pendingHeadlessActivityFlushRef = useRef<number | null>(null);
+  const pendingHeadlessMessagesRef = useRef(
+    new Map<
+      string,
+      {
+        groupId: string;
+        actorId: string;
+        streamId: string;
+        pendingEventId: string;
+        ts: string;
+        firstTextTs?: string;
+        explicitText: string | null;
+        deltaText: string;
+        completed: boolean;
+        shouldClearPlaceholder: boolean;
+        transientStream: boolean;
+        phase: string;
+      }
+    >(),
+  );
+  const pendingHeadlessActivitiesRef = useRef(
+    new Map<
+      string,
+      {
+        actorId: string;
+        groupId: string;
+        match: { pendingEventId?: string; streamId?: string };
+        activities: Map<string, StreamingActivity>;
+      }
+    >(),
+  );
+
+  useEffect(() => {
+    scopeRefreshEpoch.current += 1;
+    groupVisitRef.current += 1;
+    selectedGroupIdRef.current = selectedGroupId;
+    processedIdsRef.current.clear();
+    lastLedgerReconcileAtRef.current = null;
+    return () => {
+      scopeRefreshEpoch.current += 1;
+      groupVisitRef.current += 1;
+    };
+  }, [selectedGroupId]);
+
+  async function refreshGroupScope(groupId: string) {
+    const epoch = ++scopeRefreshEpoch.current;
+    const response = await api.fetchGroup(groupId, { noCache: true });
+    if (
+      response.ok &&
+      response.result.group?.group_id === groupId &&
+      scopeRefreshEpoch.current === epoch &&
+      selectedGroupIdRef.current === groupId
+    ) {
+      useGroupStore.getState().setGroupDoc(response.result.group);
+    }
+  }
+
+  async function fetchContext(groupId: string, opts?: FetchContextOptions) {
+    if (opts?.fresh && contextRefreshTimerRef.current) {
+      window.clearTimeout(contextRefreshTimerRef.current);
+      contextRefreshTimerRef.current = null;
+    }
+    const contextEpoch = beginContextRequest(groupId);
+    const resp = await api.fetchContext(groupId, {
+      fresh: opts?.fresh,
+      detail: opts?.detail ?? "overview",
+    });
+    if (
+      resp.ok &&
+      resp.result &&
+      typeof resp.result === "object" &&
+      selectedGroupIdRef.current === groupId &&
+      isLatestContextRequest(groupId, contextEpoch)
+    ) {
+      setGroupContext(resp.result as GroupContext);
+    }
+  }
+
+  async function reconcileGroupLedger(groupId: string) {
+    const syncs = ledgerSyncsByGroupRef.current;
+    const visit = groupVisitRef.current;
+    const isCurrentVisit = () =>
+      groupVisitRef.current === visit &&
+      selectedGroupIdRef.current === groupId &&
+      useGroupStore.getState().selectedGroupId === groupId;
+    syncs.set(groupId, (syncs.get(groupId) || 0) + 1);
+    try {
+      const startCursor = String(ledgerCursorByGroupRef.current.get(groupId) || "").trim();
+      const nextCursor = await reconcileLedgerTail(
+        groupId,
+        isCurrentVisit,
+        startCursor,
+        (events, newForwardEvents) => {
+          lastLedgerReconcileAtRef.current = Date.now();
+          const ids = processedIdsRef.current;
+          const ui = useUIStore.getState();
+          const chatActive = activeTabRef.current === "chat" && groupMessagesVisible(groupId, ui);
+          const added = newForwardEvents.filter(
+            (event) =>
+              !ids.has(String(event.id || "").trim()) &&
+              shouldIncrementUnread(event, chatActive, chatAtBottomRef.current),
+          ).length;
+          for (const event of events) {
+            const id = String(event.id || "").trim();
+            if (!id) continue;
+            ids.delete(id);
+            ids.add(id);
+          }
+          while (ids.size > MAX_RECENT_PROCESSED_IDS) ids.delete(ids.values().next().value!);
+          if (added) {
+            const current = getChatSession(groupId, ui.chatSessions).chatUnreadCount;
+            ui.setChatUnreadCount(groupId, current + added);
+          }
+          // A backlog larger than the bounded dedupe set cannot safely be
+          // replayed on this subscription. Start a fresh EOF subscription and
+          // catch up once more from the durable boundary to cover the gap.
+          if (events.length > MAX_RECENT_PROCESSED_IDS && eventSourceRef.current) {
+            const boundary = String(events.at(-1)?.id || "").trim();
+            if (boundary) {
+              ledgerCursorByGroupRef.current.set(groupId, boundary);
+              connectStream(groupId);
+            }
+          }
+        },
+      );
+      if (
+        nextCursor &&
+        isCurrentVisit() &&
+        String(ledgerCursorByGroupRef.current.get(groupId) || "").trim() === startCursor
+      ) {
+        ledgerCursorByGroupRef.current.set(groupId, nextCursor);
+      }
+    } finally {
+      const remaining = (syncs.get(groupId) || 1) - 1;
+      if (remaining) syncs.set(groupId, remaining);
+      else syncs.delete(groupId);
+    }
+  }
+
+  async function resyncAfterReconnect(groupId: string) {
+    const visit = groupVisitRef.current;
+    await runReconnectCatchup(groupId, {
+      invalidateContextRead: api.invalidateContextRead,
+      reconcileLedgerTail: reconcileGroupLedger,
+      refreshActors: (id, opts) =>
+        groupVisitRef.current === visit &&
+        selectedGroupIdRef.current === id &&
+        useGroupStore.getState().selectedGroupId === id
+          ? refreshActors(id, opts)
+          : Promise.resolve(),
+      fetchContextOverview: fetchContext,
+    });
+  }
+
+  function flushPendingHeadlessMessages(
+    targetGroupId?: string,
+    targetActorId?: string,
+    targetStreamId?: string,
+  ) {
+    if (targetGroupId == null && targetActorId == null) {
+      pendingHeadlessMessageFlushRef.current = null;
+    }
+    const pendingEntries = pendingHeadlessMessagesRef.current;
+    if (pendingEntries.size <= 0) return;
+
+    for (const [key, entry] of pendingEntries.entries()) {
+      if (targetGroupId && entry.groupId !== targetGroupId) continue;
+      if (targetActorId && entry.actorId !== targetActorId) continue;
+      if (targetStreamId && entry.streamId !== targetStreamId) continue;
+      const streamingEvents =
+        useGroupStore.getState().chatByGroup[entry.groupId]?.streamingEvents || [];
+      const placeholder = entry.pendingEventId
+        ? streamingEvents.find((item) => {
+            if (String(item.by || "").trim() !== entry.actorId) return false;
+            const itemData =
+              item.data && typeof item.data === "object"
+                ? (item.data as { pending_event_id?: unknown; pending_placeholder?: unknown })
+                : undefined;
+            return (
+              Boolean(itemData?.pending_placeholder) &&
+              String(itemData?.pending_event_id || "").trim() === entry.pendingEventId
+            );
+          })
+        : undefined;
+      const existing = streamingEvents.find((item) => {
+        const itemStreamId =
+          item.data && typeof item.data === "object"
+            ? String((item.data as { stream_id?: unknown }).stream_id || "").trim()
+            : "";
+        return itemStreamId === entry.streamId;
+      });
+      const bucket = useGroupStore.getState().chatByGroup[entry.groupId];
+      const previousStreamText = String(bucket?.streamingTextByStreamId?.[entry.streamId] || "");
+      const previousEventText =
+        existing?.data && typeof existing.data === "object"
+          ? String((existing.data as { text?: unknown }).text || "")
+          : "";
+      const existingData =
+        existing?.data && typeof existing.data === "object"
+          ? (existing.data as {
+              pending_event_id?: unknown;
+              pending_placeholder?: unknown;
+              text?: unknown;
+              transient_stream?: unknown;
+              stream_phase?: unknown;
+            })
+          : undefined;
+      const previousPhase = String(existingData?.stream_phase || "")
+        .trim()
+        .toLowerCase();
+      const nextPhase = String(entry.phase || "")
+        .trim()
+        .toLowerCase();
+      const hasIncomingPhaseText =
+        entry.explicitText != null ? entry.explicitText.length > 0 : entry.deltaText.length > 0;
+      const shouldResetTextForPhaseTransition =
+        !!nextPhase &&
+        previousPhase !== nextPhase &&
+        previousPhase.length > 0 &&
+        hasIncomingPhaseText;
+      const previousText = shouldResetTextForPhaseTransition
+        ? ""
+        : previousStreamText || previousEventText;
+      let previousActivities = (() => {
+        const source = existing ?? placeholder;
+        if (!source?.data || typeof source.data !== "object") return [];
+        const activities = (source.data as { activities?: unknown }).activities;
+        return Array.isArray(activities) ? activities : [];
+      })();
+      const fullText = entry.explicitText ?? `${previousText}${entry.deltaText}`;
+      // Recover retained activities when the first text creates this stream row.
+      // Tool-only turns continue to use the raw trace and create no new row.
+      if (
+        !entry.pendingEventId &&
+        !previousStreamText.trim() &&
+        !previousEventText.trim() &&
+        fullText.trim()
+      ) {
+        const raw = bucket?.rawHeadlessEventsByActorId[entry.actorId] || [];
+        const recovered = new Map<string, StreamingActivity>();
+        for (const event of raw) {
+          if (
+            event.actor_id !== entry.actorId ||
+            (event.group_id && event.group_id !== entry.groupId)
+          )
+            continue;
+          if (String(event.data?.stream_id || "").trim() !== entry.streamId) continue;
+          const activity = parseHeadlessActivity(event);
+          if (!activity) continue;
+          const merged = mergeStreamingActivity(recovered.get(activity.id), activity);
+          if (merged) recovered.set(activity.id, merged);
+        }
+        previousActivities = [...previousActivities, ...recovered.values()];
+      }
+      const nextPlaceholderState = !fullText.trim() && previousActivities.length <= 0;
+      const nextEventText = fullText
+        ? fullText
+        : shouldResetTextForPhaseTransition
+          ? ""
+          : previousEventText;
+      const existingPendingEventId = String(existingData?.pending_event_id || "").trim();
+      const needsEventUpsert =
+        !existing ||
+        !!existing._streaming !== !entry.completed ||
+        existingPendingEventId !== entry.pendingEventId ||
+        String(existingData?.text || "") !== nextEventText ||
+        Boolean(existingData?.transient_stream) !== entry.transientStream ||
+        String(existingData?.stream_phase || "") !== entry.phase ||
+        Boolean(existingData?.pending_placeholder) !== nextPlaceholderState ||
+        previousStreamText !== fullText;
+      if (needsEventUpsert) {
+        reconcileStreamingMessage({
+          actorId: entry.actorId,
+          pendingEventId: entry.pendingEventId,
+          streamId: entry.streamId,
+          ts: entry.ts,
+          firstTextTs: entry.firstTextTs,
+          fullText,
+          eventText: nextEventText,
+          activities: previousActivities,
+          completed: entry.completed,
+          transientStream: entry.transientStream,
+          phase: entry.phase || undefined,
+          groupId: entry.groupId,
+        });
+      }
+      pendingEntries.delete(key);
+    }
+  }
+
+  function schedulePendingHeadlessMessageFlush(groupId: string) {
+    if (pendingHeadlessMessageFlushRef.current != null) return;
+    pendingHeadlessMessageFlushRef.current = window.requestAnimationFrame(() => {
+      pendingHeadlessMessageFlushRef.current = null;
+      flushPendingHeadlessMessages(groupId);
+    });
+  }
+
+  function flushPendingHeadlessActivities(
+    targetGroupId?: string,
+    targetActorId?: string,
+    targetStreamId?: string,
+  ) {
+    if (targetGroupId == null && targetActorId == null) {
+      pendingHeadlessActivityFlushRef.current = null;
+    }
+    const pendingEntries = pendingHeadlessActivitiesRef.current;
+    if (pendingEntries.size <= 0) return;
+
+    for (const [key, entry] of pendingEntries.entries()) {
+      if (targetGroupId && entry.groupId !== targetGroupId) continue;
+      if (targetActorId && entry.actorId !== targetActorId) continue;
+      if (targetStreamId && entry.match.streamId !== targetStreamId) continue;
+      for (const activity of entry.activities.values()) {
+        upsertStreamingActivity(entry.actorId, entry.match, activity, entry.groupId);
+      }
+      pendingEntries.delete(key);
+    }
+  }
+
+  function schedulePendingHeadlessActivityFlush() {
+    if (pendingHeadlessActivityFlushRef.current != null) return;
+    pendingHeadlessActivityFlushRef.current = window.requestAnimationFrame(() => {
+      pendingHeadlessActivityFlushRef.current = null;
+      flushPendingHeadlessActivities();
+    });
+  }
+
+  function clearPendingHeadlessBuffers(groupId: string, actorId: string, streamId?: string) {
+    const targetGroupId = String(groupId || "").trim();
+    const targetActorId = String(actorId || "").trim();
+    if (!targetGroupId || !targetActorId) return;
+
+    for (const [key, entry] of pendingHeadlessMessagesRef.current.entries()) {
+      if (
+        key.startsWith(`${targetGroupId}:`) &&
+        entry.actorId === targetActorId &&
+        (!streamId || entry.streamId === streamId)
+      ) {
+        pendingHeadlessMessagesRef.current.delete(key);
+      }
+    }
+
+    for (const [key, entry] of pendingHeadlessActivitiesRef.current.entries()) {
+      if (
+        entry.groupId === targetGroupId &&
+        entry.actorId === targetActorId &&
+        (!streamId || entry.match.streamId === streamId)
+      ) {
+        pendingHeadlessActivitiesRef.current.delete(key);
+      }
+    }
+
+    if (
+      pendingHeadlessMessagesRef.current.size === 0 &&
+      pendingHeadlessMessageFlushRef.current != null
+    ) {
+      window.cancelAnimationFrame(pendingHeadlessMessageFlushRef.current);
+      pendingHeadlessMessageFlushRef.current = null;
+    }
+    if (
+      pendingHeadlessActivitiesRef.current.size === 0 &&
+      pendingHeadlessActivityFlushRef.current != null
+    ) {
+      window.cancelAnimationFrame(pendingHeadlessActivityFlushRef.current);
+      pendingHeadlessActivityFlushRef.current = null;
+    }
+  }
+
+  function clearHeadlessLiveOutput(groupId: string, actorId: string) {
+    const targetGroupId = String(groupId || "").trim();
+    const targetActorId = String(actorId || "").trim();
+    if (!targetGroupId || !targetActorId) return;
+    clearPendingHeadlessBuffers(targetGroupId, targetActorId);
+    clearStreamingEventsForActor(targetActorId, targetGroupId);
+  }
+
+  function reconcileHydratedHeadlessLiveOutput(groupId: string, events: HeadlessStreamEvent[]) {
+    const targetGroupId = String(groupId || "").trim();
+    if (!targetGroupId) return;
+    const snapshotActorIds = new Set<string>();
+    for (const event of Array.isArray(events) ? events : []) {
+      const actorId = String(event?.actor_id || "").trim();
+      if (actorId) snapshotActorIds.add(actorId);
+    }
+    const bucket = useGroupStore.getState().chatByGroup[targetGroupId];
+    const liveActorIds = new Set<string>();
+    for (const actor of actorsRef.current) {
+      if (!hasManagedRuntimeOutput(actor)) continue;
+      const actorId = String(actor.id || "").trim();
+      if (!actorId) continue;
+      const hasLiveStream =
+        Array.isArray(bucket?.streamingEvents) &&
+        bucket.streamingEvents.some(
+          (event) => String(event.by || "").trim() === actorId && !!event._streaming,
+        );
+      if (hasLiveStream) {
+        liveActorIds.add(actorId);
+      }
+    }
+
+    for (const actorId of liveActorIds) {
+      if (snapshotActorIds.has(actorId)) continue;
+      clearHeadlessLiveOutput(targetGroupId, actorId);
+      headlessThreadIdByActorRef.current.delete(headlessActorKey(targetGroupId, actorId));
+    }
+  }
+
+  function handleHeadlessEvent(groupId: string, ev: HeadlessStreamEvent, live = true) {
+    try {
+      const actorId = String(ev.actor_id || "").trim();
+      const eventType = String(ev.type || "").trim();
+      if (!actorId || !eventType || !ev.id?.trim() || (ev.group_id && ev.group_id !== groupId))
+        return;
+      const previous =
+        useGroupStore.getState().chatByGroup[groupId]?.rawHeadlessEventsByActorId[actorId] || [];
+      // The retained per-Actor trace covers the server's bounded replay window.
+      // Deduplicate before applying deltas or lifecycle effects, not just in the raw trace.
+      if (previous.some((event) => event.id === ev.id)) return;
+      const data = ev.data && typeof ev.data === "object" ? ev.data : {};
+      const streamId = typeof data.stream_id === "string" ? data.stream_id.trim() : "";
+      const pendingEventId = typeof data.event_id === "string" ? data.event_id.trim() : "";
+      if (!actorId || !eventType) return;
+      appendHeadlessEvent({ ...ev, _receivedAt: live ? Date.now() : undefined }, groupId);
+
+      const currentGroup = useGroupStore.getState();
+      if (
+        live &&
+        currentGroup.selectedGroupId === groupId &&
+        ((RUNTIME_CONFIRMATION_REFRESH_EVENTS.has(eventType) &&
+          currentGroup.actors.some(
+            (actor) => actor.id === actorId && actor.runtime_confirmation_required,
+          )) ||
+          runtimeConfirmationEnded(eventType, data))
+      ) {
+        // Admission/exit changes PTY ownership; ordinary output must not poll Actors.
+        void refreshActors(groupId);
+      }
+
+      // Status freshness and output settlement are separate: a newer daemon
+      // snapshot must not suppress cleanup of the matching terminated stream.
+      // Parse RFC3339 timestamps rather than comparing text.
+      let projectsCurrentRuntime = live;
+      const projectsRuntime =
+        eventType.startsWith("headless.turn.") ||
+        eventType.startsWith("headless.control.") ||
+        eventType.startsWith("headless.thread.") ||
+        eventType.startsWith("headless.session.");
+      if (live && projectsRuntime) {
+        const actor = useGroupStore.getState().actors.find((item) => item.id === actorId);
+        if (!actor) {
+          void refreshActors(groupId);
+          return;
+        }
+        const eventTime = Date.parse(ev.ts || "");
+        const stateTime = Date.parse(actor?.effective_working_updated_at || "");
+        const terminal = [
+          "headless.turn.completed",
+          "headless.turn.failed",
+          "headless.turn.cancelled",
+        ].includes(eventType);
+        const activeTurn = actor?.effective_active_task_id;
+        const stoppedWithoutTimestamp =
+          actor.running === false && !actor.effective_working_updated_at;
+        projectsCurrentRuntime = !(
+          stoppedWithoutTimestamp ||
+          (Number.isFinite(eventTime) && Number.isFinite(stateTime) && eventTime < stateTime) ||
+          ((terminal || eventType === "headless.session.stopped") && actor.running === false) ||
+          (terminal && activeTurn && data.turn_id && data.turn_id !== activeTurn)
+        );
+        if (stoppedWithoutTimestamp) void refreshActors(groupId);
+        if (!projectsCurrentRuntime) {
+          const stoppedSession =
+            eventType === "headless.session.stopped" && actor.running === false;
+          const matchingOutput =
+            terminal &&
+            streamId &&
+            (useGroupStore
+              .getState()
+              .chatByGroup[groupId]?.streamingEvents.some(
+                (event) =>
+                  event.by === actorId &&
+                  event._streaming &&
+                  (event.data as { stream_id?: unknown })?.stream_id === streamId,
+              ) ||
+              pendingHeadlessMessagesRef.current.get(`${groupId}:${streamId}`)?.actorId ===
+                actorId ||
+              [...pendingHeadlessActivitiesRef.current.values()].some(
+                (entry) =>
+                  entry.groupId === groupId &&
+                  entry.actorId === actorId &&
+                  entry.match.streamId === streamId,
+              ));
+          if (!stoppedSession && !matchingOutput) return;
+        }
+      }
+
+      function updateHeadlessActorRuntime(update: ActorActivityUpdate) {
+        // Journal replay restores history, not current runtime authority.
+        // Native successful turns may update daemon status without a journal event.
+        if (!projectsCurrentRuntime) return;
+        const storeState = useGroupStore.getState();
+        const actorsSnapshot = storeState.actors;
+        updateActorActivity([update], groupId);
+        updateGroupRuntimeState(
+          groupId,
+          computeGroupRuntimeFromActorActivityUpdate(
+            actorsSnapshot.length > 0 ? actorsSnapshot : actorsRef.current,
+            update,
+            getRuntimeStatusFallbackForGroup(storeState, groupId),
+          ),
+        );
+      }
+
+      function queueHeadlessActivity(activity: StreamingActivity) {
+        const activityKey = `${groupId}:${actorId}:${streamId || pendingEventId || "pending"}`;
+        const existingActivityBatch = pendingHeadlessActivitiesRef.current.get(activityKey);
+        if (existingActivityBatch) {
+          existingActivityBatch.match = { pendingEventId, streamId };
+          const existingActivity = existingActivityBatch.activities.get(activity.id);
+          existingActivityBatch.activities.set(
+            activity.id,
+            mergeStreamingActivity(existingActivity, activity) || activity,
+          );
+        } else {
+          pendingHeadlessActivitiesRef.current.set(activityKey, {
+            actorId,
+            groupId,
+            match: { pendingEventId, streamId },
+            activities: new Map([[activity.id, activity]]),
+          });
+        }
+        schedulePendingHeadlessActivityFlush();
+      }
+
+      if (
+        eventType === "headless.thread.resume_failed" ||
+        eventType === "headless.session.resume_failed"
+      ) {
+        const resumeError = String(data.error || data.message || data.detail || "").trim();
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: false,
+          idle_seconds: null,
+          effective_working_state: "blocked",
+          effective_working_reason: "headless_runtime_resume_failed",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: null,
+          runtime_session_status: "resume_failed",
+          runtime_session_resume_eligible: false,
+          runtime_session_last_resume_error: resumeError || null,
+        });
+        return;
+      }
+
+      if (eventType === "headless.thread.started" || eventType === "headless.thread.resumed") {
+        const threadId = typeof data.thread_id === "string" ? data.thread_id.trim() : "";
+        const actorKey = headlessActorKey(groupId, actorId);
+        const previousThreadId = String(
+          headlessThreadIdByActorRef.current.get(actorKey) || "",
+        ).trim();
+        if (eventType === "headless.thread.started" && threadId && threadId !== previousThreadId) {
+          clearHeadlessLiveOutput(groupId, actorId);
+        }
+        if (threadId) {
+          headlessThreadIdByActorRef.current.set(actorKey, threadId);
+        }
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: true,
+          idle_seconds: null,
+          effective_working_state: "idle",
+          effective_working_reason:
+            eventType === "headless.thread.resumed"
+              ? "headless_thread_resumed"
+              : "headless_thread_started",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: null,
+          runtime_session_status: "usable",
+          runtime_session_resume_eligible: true,
+          runtime_session_last_resume_error: null,
+        });
+        return;
+      }
+
+      if (eventType === "headless.session.stopped") {
+        clearHeadlessLiveOutput(groupId, actorId);
+        headlessThreadIdByActorRef.current.delete(headlessActorKey(groupId, actorId));
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: false,
+          idle_seconds: null,
+          effective_working_state: "stopped",
+          effective_working_reason: "headless_session_stopped",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: null,
+        });
+        return;
+      }
+
+      if (eventType === "headless.turn.started" || eventType === "headless.turn.progress") {
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: true,
+          idle_seconds: null,
+          effective_working_state: "working",
+          effective_working_reason: "headless_turn_active",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: typeof data.turn_id === "string" ? data.turn_id : null,
+        });
+        return;
+      }
+
+      if (eventType === "headless.turn.stalled") {
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: true,
+          idle_seconds: null,
+          effective_working_state: "waiting",
+          effective_working_reason: "headless_turn_stalled",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: typeof data.turn_id === "string" ? data.turn_id : null,
+        });
+        return;
+      }
+
+      // A terminal turn retires its live output without claiming that the
+      // provider process stopped. Cancellation is a deliberate interruption;
+      // only a failed turn leaves the owned session in an error state.
+      if (
+        eventType === "headless.turn.completed" ||
+        eventType === "headless.turn.failed" ||
+        eventType === "headless.turn.cancelled"
+      ) {
+        const failed = eventType === "headless.turn.failed";
+        const turnId = typeof data.turn_id === "string" ? data.turn_id.trim() : "";
+        const errorMessage = formatHeadlessErrorMessage(data.error);
+        const terminalStreamId = streamId || undefined;
+        flushPendingHeadlessActivities(groupId, actorId, terminalStreamId);
+        flushPendingHeadlessMessages(groupId, actorId, terminalStreamId);
+        clearPendingHeadlessBuffers(groupId, actorId, terminalStreamId);
+        completeStreamingEventsForActor(actorId, groupId, terminalStreamId);
+        clearTransientStreamingEventsForActor(actorId, groupId, terminalStreamId);
+        updateHeadlessActorRuntime({
+          id: actorId,
+          running: true,
+          idle_seconds: null,
+          effective_working_state: failed ? "error" : "idle",
+          effective_working_reason: failed
+            ? errorMessage || "headless_turn_failed"
+            : "headless_turn_idle",
+          effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+          effective_active_task_id: null,
+        });
+        if (failed) {
+          clearStreamingEventsForActor(actorId, groupId, terminalStreamId);
+          const activityTs = typeof ev.ts === "string" ? ev.ts : new Date().toISOString();
+          const activity: StreamingActivity = {
+            id: `error:${pendingEventId || turnId || actorId}`,
+            kind: "error",
+            status: "completed",
+            summary: translateActorLabel("headlessTurnFailed", "Model request failed"),
+            detail:
+              errorMessage ||
+              translateActorLabel(
+                "headlessTurnFailedFallback",
+                "The model runtime reported an error.",
+              ),
+            ts: activityTs,
+            raw_item_type: "turn_error",
+          };
+          if (pendingEventId) {
+            upsertStreamingActivity(
+              actorId,
+              { pendingEventId, streamId: streamId || turnId },
+              activity,
+              groupId,
+            );
+            // The error activity is retained for display, but its turn is terminal.
+            completeStreamingEventsForActor(
+              actorId,
+              groupId,
+              streamId || turnId || `pending:${pendingEventId}:${actorId}`,
+            );
+          } else if (streamId || turnId) {
+            reconcileStreamingMessage({
+              actorId,
+              streamId: streamId || turnId,
+              ts: activityTs,
+              fullText: "",
+              eventText: "",
+              activities: [activity],
+              completed: true,
+              transientStream: false,
+              groupId,
+            });
+          }
+        } else {
+          clearEmptyStreamingEventsForActor(actorId, groupId, terminalStreamId);
+        }
+        return;
+      }
+
+      if (
+        eventType === "headless.control.queued" ||
+        eventType === "headless.control.started" ||
+        eventType === "headless.control.requeued" ||
+        eventType === "headless.control.stalled" ||
+        eventType === "headless.control.completed" ||
+        eventType === "headless.control.failed"
+      ) {
+        const controlKind =
+          typeof data.control_kind === "string" ? data.control_kind.trim() : "control";
+        const turnId = typeof data.turn_id === "string" ? data.turn_id.trim() : "";
+        const controlEventId = typeof data.event_id === "string" ? data.event_id.trim() : "";
+        const errorMessage = formatHeadlessErrorMessage(data.error);
+        const controlStatusLabel = (() => {
+          switch (eventType) {
+            case "headless.control.queued":
+              return translateActorLabel("headlessControlQueued", "Control task queued");
+            case "headless.control.started":
+              return translateActorLabel("headlessControlStarted", "Processing control task");
+            case "headless.control.requeued":
+              return translateActorLabel("headlessControlRequeued", "Retrying control task");
+            case "headless.control.stalled":
+              return translateActorLabel("headlessControlStalled", "Control task is waiting");
+            case "headless.control.completed":
+              return translateActorLabel("headlessControlCompleted", "Control task completed");
+            case "headless.control.failed":
+              return translateActorLabel("headlessControlFailed", "Control task failed");
+            default:
+              return translateActorLabel("headlessControlUpdated", "Control task updated");
+          }
+        })();
+        const activity: StreamingActivity = {
+          id: `control:${controlEventId || turnId || controlKind || actorId}`,
+          kind: eventType === "headless.control.queued" ? "queued" : "thinking",
+          status:
+            eventType === "headless.control.completed" || eventType === "headless.control.failed"
+              ? "completed"
+              : eventType === "headless.control.started"
+                ? "started"
+                : "updated",
+          summary: controlStatusLabel,
+          detail:
+            [controlKind ? `kind ${controlKind}` : "", errorMessage].filter(Boolean).join(" | ") ||
+            undefined,
+          ts: typeof ev.ts === "string" ? ev.ts : new Date().toISOString(),
+        };
+        queueHeadlessActivity(activity);
+
+        if (eventType === "headless.control.completed" || eventType === "headless.control.failed") {
+          flushPendingHeadlessActivities(groupId, actorId);
+          flushPendingHeadlessMessages(groupId, actorId);
+          clearPendingHeadlessBuffers(groupId, actorId);
+          updateHeadlessActorRuntime({
+            id: actorId,
+            running: true,
+            idle_seconds: null,
+            effective_working_state: "idle",
+            effective_working_reason:
+              eventType === "headless.control.failed"
+                ? "headless_control_failed"
+                : "headless_control_idle",
+            effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+            effective_active_task_id: null,
+          });
+          clearEmptyStreamingEventsForActor(actorId, groupId);
+        } else if (eventType === "headless.control.stalled") {
+          updateHeadlessActorRuntime({
+            id: actorId,
+            running: true,
+            idle_seconds: null,
+            effective_working_state: "waiting",
+            effective_working_reason: "headless_control_stalled",
+            effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+            effective_active_task_id: turnId || controlEventId || null,
+          });
+        } else {
+          updateHeadlessActorRuntime({
+            id: actorId,
+            running: true,
+            idle_seconds: null,
+            effective_working_state: "working",
+            effective_working_reason: "headless_control_active",
+            effective_working_updated_at: typeof ev.ts === "string" ? ev.ts : null,
+            effective_active_task_id: turnId || controlEventId || null,
+          });
+        }
+        return;
+      }
+
+      if (
+        eventType === "headless.activity.started" ||
+        eventType === "headless.activity.updated" ||
+        eventType === "headless.activity.completed"
+      ) {
+        const activity = parseHeadlessActivity(ev);
+        if (activity) queueHeadlessActivity(activity);
+        return;
+      }
+
+      if (
+        eventType === "headless.message.started" ||
+        eventType === "headless.message.delta" ||
+        eventType === "headless.message.completed"
+      ) {
+        if (!streamId) return;
+        const delta = typeof data.delta === "string" ? data.delta : "";
+        const explicitTextRaw = typeof data.text === "string" ? data.text : null;
+        const explicitText =
+          explicitTextRaw === "" && eventType === "headless.message.started"
+            ? null
+            : explicitTextRaw;
+        const phase = typeof data.phase === "string" ? data.phase.trim().toLowerCase() : "";
+        const transientStream = !!phase && phase !== "final_answer";
+        const shouldBindToPendingPlaceholder = !!pendingEventId;
+        if (pendingEventId && shouldBindToPendingPlaceholder) {
+          promoteStreamingEventToStream(actorId, pendingEventId, streamId, groupId);
+        }
+        const messageKey = `${groupId}:${streamId}`;
+        const existingMessageBatch = pendingHeadlessMessagesRef.current.get(messageKey);
+        const eventTs = typeof ev.ts === "string" ? ev.ts : new Date().toISOString();
+        const hasIncomingText = explicitText != null ? explicitText.length > 0 : delta.length > 0;
+        if (existingMessageBatch) {
+          existingMessageBatch.pendingEventId =
+            pendingEventId || existingMessageBatch.pendingEventId;
+          existingMessageBatch.ts = typeof ev.ts === "string" ? ev.ts : existingMessageBatch.ts;
+          if (!existingMessageBatch.firstTextTs && hasIncomingText)
+            existingMessageBatch.firstTextTs = eventTs;
+          existingMessageBatch.transientStream = transientStream;
+          existingMessageBatch.phase = phase || existingMessageBatch.phase;
+          if (explicitText != null) {
+            existingMessageBatch.explicitText = explicitText;
+            existingMessageBatch.deltaText = "";
+          } else if (delta) {
+            existingMessageBatch.deltaText += delta;
+          }
+          if (pendingEventId && shouldBindToPendingPlaceholder) {
+            existingMessageBatch.shouldClearPlaceholder = true;
+          }
+          if (eventType === "headless.message.completed") {
+            existingMessageBatch.completed = true;
+          }
+        } else {
+          pendingHeadlessMessagesRef.current.set(messageKey, {
+            groupId,
+            actorId,
+            streamId,
+            pendingEventId,
+            ts: eventTs,
+            firstTextTs: hasIncomingText ? eventTs : undefined,
+            explicitText,
+            deltaText: explicitText == null ? delta : "",
+            completed: eventType === "headless.message.completed",
+            shouldClearPlaceholder: !!pendingEventId && shouldBindToPendingPlaceholder,
+            transientStream,
+            phase,
+          });
+        }
+        schedulePendingHeadlessMessageFlush(groupId);
+      }
+    } catch {
+      /* ignore parse errors */
+    }
+  }
+
+  function hydrateHeadlessSnapshot(groupId: string, events: HeadlessStreamEvent[]) {
+    reconcileHydratedHeadlessLiveOutput(groupId, events);
+    replayHeadlessSnapshotEvents(events, (event) => {
+      handleHeadlessEvent(groupId, event, false);
+    });
+    flushPendingHeadlessActivities(groupId);
+    flushPendingHeadlessMessages(groupId);
+  }
+
+  function closeLedgerStream() {
+    sseRegistryRef.current.close("ledger");
+    eventSourceRef.current = null;
+  }
+
+  function closeHeadlessStream() {
+    sseRegistryRef.current.close("headless");
+    headlessEventSourceRef.current = null;
+  }
+
+  function connectHeadlessStream(groupId: string, options?: { replay?: boolean }) {
+    if (headlessReconnectTimerRef.current) {
+      window.clearTimeout(headlessReconnectTimerRef.current);
+      headlessReconnectTimerRef.current = null;
+    }
+    closeHeadlessStream();
+
+    const replay = options?.replay !== false;
+    const params = new URLSearchParams();
+    if (!replay) params.set("replay", "false");
+    const headlessPath = `/api/v1/groups/${encodeURIComponent(groupId)}/headless/stream${params.toString() ? `?${params.toString()}` : ""}`;
+    const headlessEs = openEventStream(api.withAuthToken(headlessPath));
+    const headlessToken = sseRegistryRef.current.set("headless", groupId, headlessEs);
+    headlessEs.onopen = () => {
+      if (!sseRegistryRef.current.isCurrent(headlessToken)) return;
+      headlessReconnectDelayRef.current = 1000;
+    };
+    headlessEs.onerror = () => {
+      if (!sseRegistryRef.current.isCurrent(headlessToken)) return;
+      closeHeadlessStream();
+      if (headlessReconnectTimerRef.current) {
+        window.clearTimeout(headlessReconnectTimerRef.current);
+      }
+      const delay = headlessReconnectDelayRef.current;
+      headlessReconnectTimerRef.current = window.setTimeout(() => {
+        headlessReconnectTimerRef.current = null;
+        if (selectedGroupIdRef.current === groupId) {
+          connectHeadlessStream(groupId, { replay: true });
+        }
+      }, delay);
+      headlessReconnectDelayRef.current = Math.min(delay * 2, 30000);
+    };
+    headlessEs.addEventListener("headless", (e) => {
+      if (!sseRegistryRef.current.isCurrent(headlessToken)) return;
+      const msg = e as MessageEvent;
+      try {
+        handleHeadlessEvent(groupId, JSON.parse(String(msg.data || "{}")) as HeadlessStreamEvent);
+      } catch {
+        /* ignore parse errors */
+      }
+    });
+    headlessEs.addEventListener("headless.snapshot", (e) => {
+      if (!sseRegistryRef.current.isCurrent(headlessToken)) return;
+      try {
+        const snapshot = JSON.parse(String((e as MessageEvent).data || "{}"));
+        if (Array.isArray(snapshot.events)) hydrateHeadlessSnapshot(groupId, snapshot.events);
+      } catch {
+        /* ignore malformed snapshots */
+      }
+    });
+    headlessEventSourceRef.current = headlessEs;
+  }
+
+  function clearHiddenGroupStreamDisconnectTimer() {
+    if (hiddenDisconnectTimerRef.current == null) return;
+    window.clearTimeout(hiddenDisconnectTimerRef.current);
+    hiddenDisconnectTimerRef.current = null;
+  }
+
+  function scheduleHiddenGroupStreamDisconnect() {
+    clearHiddenGroupStreamDisconnectTimer();
+    const delayMs = getGroupStreamsHiddenDisconnectDelayMs(document.hidden);
+    if (delayMs == null) return;
+    hiddenDisconnectTimerRef.current = window.setTimeout(() => {
+      hiddenDisconnectTimerRef.current = null;
+      if (!document.hidden) return;
+      disconnectGroupStreams({ resetConnected: false });
+    }, delayMs);
+  }
+
+  function connectStream(groupId: string) {
+    if (shouldStartGroupStreams(document.hidden)) {
+      clearHiddenGroupStreamDisconnectTimer();
+    }
+    if (headlessReconnectTimerRef.current) {
+      window.clearTimeout(headlessReconnectTimerRef.current);
+      headlessReconnectTimerRef.current = null;
+    }
+    closeLedgerStream();
+    closeHeadlessStream();
+
+    if (!shouldStartGroupStreams(document.hidden)) {
+      needsVisibilityCatchupRef.current = true;
+      setSSEStatus("disconnected");
+      setSSEError(null);
+      return;
+    }
+
+    setSSEStatus("connecting");
+    const es = openEventStream(
+      api.withAuthToken(`/api/v1/groups/${encodeURIComponent(groupId)}/ledger/stream`),
+    );
+    const ledgerToken = sseRegistryRef.current.set("ledger", groupId, es);
+    let officeLive = false;
+    let officeGeneration = 0;
+    const enableOfficeLive = (generation: number) => {
+      if (generation === officeGeneration && sseRegistryRef.current.isCurrent(ledgerToken)) {
+        officeLive = true;
+      }
+    };
+
+    es.onopen = () => {
+      if (!sseRegistryRef.current.isCurrent(ledgerToken)) return;
+      officeLive = false;
+      const generation = ++officeGeneration;
+      const isReconnect = hasConnectedOnceRef.current || needsVisibilityCatchupRef.current;
+      setSSEStatus("connected");
+      setSSEError(null);
+      hasConnectedOnceRef.current = true;
+      needsVisibilityCatchupRef.current = false;
+      // Group scope changes may have happened before this subscription opened.
+      void refreshGroupScope(groupId);
+
+      // New ledger subscriptions start at EOF, so every reconnect needs a
+      // cursor-based catch-up to cover the disconnect window. The first
+      // connection also establishes the durable boundary used by later tabs.
+      if (isReconnect) {
+        void resyncAfterReconnect(groupId).then(
+          () => enableOfficeLive(generation),
+          () => {},
+        );
+      } else {
+        void reconcileGroupLedger(groupId).then(
+          () => {
+            // A snapshot can win the race with a live Mail or queue event.
+            // Its duplicate will not increment badges, so refresh their source
+            // of truth after the snapshot has settled.
+            if (
+              sseRegistryRef.current.isCurrent(ledgerToken) &&
+              selectedGroupIdRef.current === groupId &&
+              useGroupStore.getState().selectedGroupId === groupId
+            ) {
+              void refreshActors(groupId, { includeUnread: true });
+            }
+            enableOfficeLive(generation);
+          },
+          () => {},
+        );
+      }
+    };
+
+    es.onerror = () => {
+      if (!sseRegistryRef.current.isCurrent(ledgerToken)) return;
+      officeLive = false;
+      officeGeneration++;
+      setSSEStatus("disconnected");
+      // Keep this logical subscription alive: the shared transport reconnects
+      // with its delivered cursor so Rust can replay the missed ledger events.
+    };
+
+    es.addEventListener("retry", (e) => {
+      if (!sseRegistryRef.current.isCurrent(ledgerToken)) return;
+      const detail = readRetryDetail(e);
+      if (detail) setSSEError(detail);
+    });
+
+    es.addEventListener("ledger", (e) => {
+      if (!sseRegistryRef.current.isCurrent(ledgerToken)) return;
+      const msg = e as MessageEvent;
+      try {
+        const event = JSON.parse(String(msg.data || "{}")) as LedgerEvent;
+        const eventId = String(event.id || "").trim();
+        const ids = processedIdsRef.current;
+        const alreadyProcessed = !!eventId && ids.has(eventId);
+        if (officeLive && !alreadyProcessed && event.kind === "chat.message") {
+          event._officeLiveAt = Date.now();
+        }
+        if (eventId && !alreadyProcessed) ledgerCursorByGroupRef.current.set(groupId, eventId);
+        processLedgerEvent(groupId, event, {
+          alreadyProcessed,
+          actors: actorsRef.current,
+          activeTab: activeTabRef.current,
+          chatAtBottom: chatAtBottomRef.current,
+          onGroupScopeChanged: () => {
+            void refreshGroupScope(groupId);
+          },
+          onContextSync: () => {
+            contextRefreshTimerRef.current = scheduleContextOverviewCatchup(groupId, {
+              invalidateContextRead: api.invalidateContextRead,
+              existingTimer: contextRefreshTimerRef.current,
+              clearTimer: window.clearTimeout,
+              setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+              fetchContextOverview: (gid, options) => void fetchContext(gid, options),
+            });
+          },
+          appendEvent,
+          updateReadStatus,
+          updateObligationStatus,
+          incrementActorUnread,
+          incrementWebModelQueued,
+          updateActorActivity,
+          updateGroupRuntimeState,
+          promoteStreamingEventsByPrefix,
+          removeStreamingEvent,
+          clearEmptyStreamingEventsForActor,
+          refreshActors,
+          refreshPresentation,
+          incrementChatUnread,
+          markPresentationSlotAttention,
+          clearPresentationSlotAttention,
+        });
+        if (eventId && !alreadyProcessed) {
+          ids.add(eventId);
+          if (ids.size > MAX_RECENT_PROCESSED_IDS) ids.delete(ids.values().next().value!);
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    });
+    eventSourceRef.current = es;
+
+    connectHeadlessStream(groupId);
+  }
+
+  function disconnectGroupStreams(options?: { resetConnected?: boolean }) {
+    clearHiddenGroupStreamDisconnectTimer();
+    if (headlessReconnectTimerRef.current) {
+      window.clearTimeout(headlessReconnectTimerRef.current);
+      headlessReconnectTimerRef.current = null;
+    }
+    closeLedgerStream();
+    closeHeadlessStream();
+    if (pendingHeadlessMessageFlushRef.current != null) {
+      window.cancelAnimationFrame(pendingHeadlessMessageFlushRef.current);
+      pendingHeadlessMessageFlushRef.current = null;
+    }
+    if (pendingHeadlessActivityFlushRef.current != null) {
+      window.cancelAnimationFrame(pendingHeadlessActivityFlushRef.current);
+      pendingHeadlessActivityFlushRef.current = null;
+    }
+    // Received IDs survive disconnects in the Group cache. Apply their buffered
+    // projections to the original Groups before replay can deduplicate them.
+    flushPendingHeadlessActivities();
+    flushPendingHeadlessMessages();
+    pendingHeadlessMessagesRef.current.clear();
+    pendingHeadlessActivitiesRef.current.clear();
+    headlessThreadIdByActorRef.current.clear();
+    if (contextRefreshTimerRef.current) {
+      window.clearTimeout(contextRefreshTimerRef.current);
+      contextRefreshTimerRef.current = null;
+    }
+    headlessReconnectDelayRef.current = 1000;
+    if (options?.resetConnected !== false) {
+      hasConnectedOnceRef.current = false;
+      needsVisibilityCatchupRef.current = false;
+      setSSEError(null);
+    } else {
+      needsVisibilityCatchupRef.current = true;
+    }
+    setSSEStatus("disconnected");
+  }
+
+  useEffect(() => {
+    let probe: { source: EventStreamSource; controller: AbortController } | null = null;
+    let lastProbe: { source: EventStreamSource; at: number } | null = null;
+    let lastRetry: { source: EventStreamSource; at: number } | null = null;
+
+    async function checkFocusedLedger() {
+      if (document.hidden) return;
+      const groupId = String(selectedGroupIdRef.current || "").trim();
+      const source = eventSourceRef.current;
+      if (
+        !groupId ||
+        !source ||
+        source.groupId !== groupId ||
+        useGroupStore.getState().selectedGroupId !== groupId
+      )
+        return;
+      if (source.readyState !== 1) {
+        const now = Date.now();
+        if (
+          source.readyState === 0 &&
+          !(
+            lastRetry?.source === source &&
+            now >= lastRetry.at &&
+            now - lastRetry.at < FOCUS_RECOVERY_DEBOUNCE_MS
+          ) &&
+          source.transport.retryPendingSocket()
+        ) {
+          lastRetry = { source, at: now };
+        }
+        return;
+      }
+      if (ledgerSyncsByGroupRef.current.has(groupId)) return;
+      if (source.transport.reconnectIfStale(FOCUS_STALE_STREAM_MS)) return;
+      if (probe?.source === source) return;
+      const now = Date.now();
+      const recent = (at: number | null) =>
+        at !== null && now >= at && now - at < FOCUS_RECOVERY_DEBOUNCE_MS;
+      if (
+        recent(lastLedgerReconcileAtRef.current) ||
+        (lastProbe?.source === source && recent(lastProbe.at))
+      )
+        return;
+      lastProbe = { source, at: now };
+      probe?.controller.abort();
+      const controller = new AbortController();
+      const current = { source, controller };
+      probe = current;
+      const startCursor = String(ledgerCursorByGroupRef.current.get(groupId) || "").trim();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await api.fetchLedgerBoundary(groupId, controller.signal);
+        if (
+          !response.ok ||
+          controller.signal.aborted ||
+          document.hidden ||
+          selectedGroupIdRef.current !== groupId ||
+          useGroupStore.getState().selectedGroupId !== groupId ||
+          eventSourceRef.current !== source ||
+          source.readyState !== 1
+        )
+          return;
+        const boundary = String(response.result.events?.at(-1)?.id || "").trim();
+        const cursor = String(ledgerCursorByGroupRef.current.get(groupId) || "").trim();
+        if (boundary && boundary !== cursor && cursor === startCursor) {
+          // The all-event boundary can include activity omitted from replay;
+          // an empty catch-up advances the cursor after one extra reconnect.
+          source.transport.reconnect();
+        }
+      } finally {
+        window.clearTimeout(timeout);
+        if (probe === current) probe = null;
+      }
+    }
+
+    function handleFocus() {
+      void checkFocusedLedger();
+    }
+
+    function handleVisibilityChange() {
+      if (!shouldStartGroupStreams(document.hidden)) {
+        probe?.controller.abort();
+        scheduleHiddenGroupStreamDisconnect();
+        return;
+      }
+      clearHiddenGroupStreamDisconnectTimer();
+      const gid = String(selectedGroupIdRef.current || "").trim();
+      if (!gid) return;
+      if (!eventSourceRef.current) {
+        connectStream(gid);
+        return;
+      }
+      if (!headlessEventSourceRef.current) {
+        connectHeadlessStream(gid);
+      }
+      void checkFocusedLedger();
+    }
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      probe?.controller.abort();
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uses refs and stable store actions; selected group changes are handled by App lifecycle.
+  }, []);
+
+  function cleanup() {
+    disconnectGroupStreams({ resetConnected: true });
+  }
+
+  return { connectStream, fetchContext, cleanup, contextRefreshTimerRef };
+}

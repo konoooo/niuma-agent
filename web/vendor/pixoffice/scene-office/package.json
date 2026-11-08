@@ -1,0 +1,106 @@
+{
+  "name": "@pixoffice/scene-office",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    "./whiteboard": {
+      "types": "./lib/whiteboard.d.ts",
+      "import": "./lib/whiteboard.js"
+    },
+    "./task-board": {
+      "types": "./lib/taskBoard.d.ts",
+      "import": "./lib/taskBoard.js"
+    },
+    ".": {
+      "types": "./lib/core/index.d.ts",
+      "import": "./lib/core/index.js"
+    },
+    "./pixi": {
+      "types": "./lib/pixi/index.d.ts",
+      "import": "./lib/pixi/index.js"
+    },
+    "./core/poseSupport": {
+      "types": "./lib/core/poseSupport.d.ts",
+      "import": "./lib/core/poseSupport.js"
+    },
+    "./adapters/office": {
+      "types": "./lib/adapters/office.d.ts",
+      "import": "./lib/adapters/office.js"
+    },
+    "./types": {
+      "types": "./lib/types.d.ts",
+      "import": "./lib/types.js"
+    },
+    "./core": {
+      "types": "./lib/core/index.d.ts",
+      "import": "./lib/core/index.js"
+    },
+    "./core/officeFloor": {
+      "types": "./lib/core/officeFloor.d.ts",
+      "import": "./lib/core/officeFloor.js"
+    },
+    "./core/pack": {
+      "types": "./lib/core/pack.d.ts",
+      "import": "./lib/core/pack.js"
+    },
+    "./pixi/assets/loadOfficeAssets": {
+      "types": "./lib/pixi/assets/loadOfficeAssets.d.ts",
+      "import": "./lib/pixi/assets/loadOfficeAssets.js"
+    },
+    "./pixi/assets/loadOfficeTexture": {
+      "types": "./lib/pixi/assets/loadOfficeTexture.d.ts",
+      "import": "./lib/pixi/assets/loadOfficeTexture.js"
+    },
+    "./pixi/assets/loadWorkstationTrialAssets": {
+      "types": "./lib/pixi/assets/loadWorkstationTrialAssets.d.ts",
+      "import": "./lib/pixi/assets/loadWorkstationTrialAssets.js"
+    },
+    "./pixi/posePolicy": {
+      "types": "./lib/pixi/posePolicy.d.ts",
+      "import": "./lib/pixi/posePolicy.js"
+    },
+    "./pixi/views/DeskEntity": {
+      "types": "./lib/pixi/views/DeskEntity.d.ts",
+      "import": "./lib/pixi/views/DeskEntity.js"
+    },
+    "./pixi/projection": {
+      "types": "./lib/pixi/projection.d.ts",
+      "import": "./lib/pixi/projection.js"
+    },
+    "./core/roster": {
+      "types": "./lib/core/roster.d.ts",
+      "import": "./lib/core/roster.js"
+    },
+    "./pixi/workstationArtwork": {
+      "types": "./lib/pixi/workstationArtwork.d.ts",
+      "import": "./lib/pixi/workstationArtwork.js"
+    },
+    "./pixi/workstationSurface": {
+      "types": "./lib/pixi/workstationSurface.d.ts",
+      "import": "./lib/pixi/workstationSurface.js"
+    },
+    "./pixi/depth": {
+      "types": "./lib/pixi/depth.d.ts",
+      "import": "./lib/pixi/depth.js"
+    },
+    "./pixi/views": {
+      "types": "./lib/pixi/views/index.d.ts",
+      "import": "./lib/pixi/views/index.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/protocol": "0.1.0",
+    "@pixoffice/contracts": "0.1.0",
+    "@pixoffice/renderer-pixi": "0.1.0",
+    "@pixoffice/runtime": "0.1.0",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.18.1"
+  }
+}

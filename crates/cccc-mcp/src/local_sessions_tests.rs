@@ -1,0 +1,705 @@
+use super::*;
+use serde_json::json;
+
+struct OwnedCommands(HomeLayout);
+
+impl Drop for OwnedCommands {
+    fn drop(&mut self) {
+        shutdown(&self.0).expect("clean up owned authority command fixtures");
+    }
+}
+
+struct Fixture {
+    temp: tempfile::TempDir,
+    home: HomeLayout,
+    group: String,
+}
+impl Fixture {
+    fn new() -> Self {
+        let temp = tempfile::tempdir().expect("fixture");
+        let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+        Self {
+            temp,
+            home,
+            group: format!("g_{}", uuid::Uuid::new_v4().simple()),
+        }
+    }
+    async fn start(&self, script: &str, mut extra: Value) -> Value {
+        extra["group_id"] = json!(self.group);
+        extra["command"] = json!(["sh", "-c", script]);
+        start(
+            &self.home,
+            self.temp.path(),
+            extra.as_object().expect("fixture operation"),
+        )
+        .await
+        .expect("start")
+    }
+    async fn poll(&self, id: &str, mut extra: Value) -> Value {
+        extra["group_id"] = json!(self.group);
+        extra["session_id"] = json!(id);
+        write(&self.home, extra.as_object().expect("fixture operation"))
+            .await
+            .expect("poll")
+    }
+}
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        shutdown(&self.home).expect("cleanup");
+    }
+}
+
+#[tokio::test]
+async fn model_pty_ignores_git_configured_pager_but_honors_per_call_override() {
+    use std::os::unix::fs::PermissionsExt;
+    use std::process::Command;
+
+    let fixture = Fixture::new();
+    let root = fixture.temp.path();
+    let path = std::env::var_os("PATH").expect("PATH for git fixture");
+    let git = |args: &[&str]| {
+        let result = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .env_clear()
+            .env("PATH", &path)
+            .env("HOME", root)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_AUTHOR_NAME", "Fixture")
+            .env("GIT_AUTHOR_EMAIL", "fixture@example.invalid")
+            .env("GIT_COMMITTER_NAME", "Fixture")
+            .env("GIT_COMMITTER_EMAIL", "fixture@example.invalid")
+            .output()
+            .expect("git fixture command");
+        assert!(result.status.success(), "git fixture command failed");
+    };
+    git(&["init", "-q"]);
+    for _ in 0..65 {
+        git(&[
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "fixture",
+        ]);
+    }
+
+    let pager = root.join("fixture-pager");
+    std::fs::write(&pager, "#!/bin/sh\nprintf 'fixture-pager-used\\n'\ncat\n").expect("pager");
+    std::fs::set_permissions(&pager, std::fs::Permissions::from_mode(0o755)).expect("pager mode");
+    let configured = format!("core.pager={}", pager.display());
+    let script = format!("git -c {} log --oneline", shell_words::quote(&configured));
+    let home = root.to_string_lossy().to_string();
+    let pager = pager.to_string_lossy().to_string();
+    let cases = [
+        (
+            json!({"HOME":home, "GIT_CONFIG_NOSYSTEM":"1", "GIT_CONFIG_GLOBAL":"/dev/null"}),
+            false,
+        ),
+        (
+            json!({"HOME":home, "GIT_CONFIG_NOSYSTEM":"1", "GIT_CONFIG_GLOBAL":"/dev/null", "PAGER":pager}),
+            true,
+        ),
+        (
+            json!({"HOME":home, "GIT_CONFIG_NOSYSTEM":"1", "GIT_CONFIG_GLOBAL":"/dev/null", "PAGER":"cat", "GIT_PAGER":pager}),
+            true,
+        ),
+    ];
+    for (env, should_use_pager) in cases {
+        let mut result = fixture.start(&script, json!({"env":env})).await;
+        let id = result["session_id"].as_str().expect("session").to_owned();
+        let mut output = String::new();
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                output.push_str(result["output"].as_str().expect("output"));
+                if result["closed"] == true {
+                    assert_eq!(result["status"]["exit_code"], 0);
+                    break;
+                }
+                result = fixture.poll(&id, json!({"yield_time_ms":100})).await;
+            }
+        })
+        .await
+        .expect("git log should not block on a pager");
+        assert_eq!(output.contains("fixture-pager-used"), should_use_pager);
+        assert_eq!(
+            output
+                .lines()
+                .filter(|line| line.ends_with(" fixture"))
+                .count(),
+            65
+        );
+    }
+}
+
+#[tokio::test]
+async fn dots_command_sessions_cannot_be_reused_by_another_task() {
+    let fixture = crate::local_tools::authority_tests::Fixture::new();
+    let _owned = OwnedCommands(fixture.home.clone());
+    let binding = fixture.binding.clone();
+    let started = start(
+        &fixture.home,
+        &fixture.root,
+        &fixture.args(json!({"command":["sh","-c","read value; printf 'old=%s' \"$value\"; read keepalive"],"yield_time_ms":0})),
+    )
+    .await
+    .expect("start command with current persistent Dots authority");
+    let id = started["session_id"].as_str().expect("session");
+    for field in ["dots_epoch", "dots_wake_id", "dots_turn_id"] {
+        let mut replacement = binding.clone();
+        replacement[field] = json!("replacement");
+        let mut args = fixture.args(json!({"session_id":id,"yield_time_ms":0}));
+        args.insert("_cccc_web_binding".into(), replacement);
+        let result = write(&fixture.home, &args).await;
+        assert!(
+            result.is_err(),
+            "another Dots task must not access this command's input or output"
+        );
+    }
+    let mut same_task = binding;
+    same_task["last_activity_at"] = json!("later");
+    let mut args = fixture.args(json!({"session_id":id,"chars":"ok\n"}));
+    args.insert("_cccc_web_binding".into(), same_task.clone());
+    let response = write(&fixture.home, &args)
+        .await
+        .expect("same task retains command input authority");
+    // PTY input echo can arrive before the shell's output. Write once, then
+    // collect the original owner's output without treating echo as completion.
+    let mut output = response["output"].as_str().unwrap_or_default().to_owned();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while !output.contains("old=ok") {
+            let mut args = fixture.args(json!({"session_id":id,"yield_time_ms":100}));
+            args.insert("_cccc_web_binding".into(), same_task.clone());
+            let response = write(&fixture.home, &args)
+                .await
+                .expect("same task retains command output authority");
+            output.push_str(response["output"].as_str().unwrap_or_default());
+        }
+    })
+    .await
+    .expect("original Dots task did not receive its command output");
+}
+
+#[tokio::test]
+async fn dots_command_start_rejects_authority_revoked_before_process_creation() {
+    let fixture = crate::local_tools::authority_tests::Fixture::new();
+    let _owned = OwnedCommands(fixture.home.clone());
+    let args = fixture.args(
+        json!({"command":["sh","-c","printf started > revoked-start-marker"],"yield_time_ms":0}),
+    );
+    fixture.stop();
+    let result = start(&fixture.home, &fixture.root, &args).await;
+    assert!(
+        result.is_err(),
+        "a stopped Dots task must not create a local command process"
+    );
+    assert!(
+        sessions()
+            .lock()
+            .expect("command registry")
+            .values()
+            .all(|session| session.home != fixture.home.root()),
+        "rejected authority must not leave a command registration"
+    );
+    assert!(!fixture.root.join("revoked-start-marker").exists());
+}
+
+#[tokio::test]
+async fn dots_stdin_waiting_for_io_rechecks_authority_after_actor_stop() {
+    use std::future::Future;
+    use std::task::{Context, Waker};
+
+    let fixture = crate::local_tools::authority_tests::Fixture::new();
+    let _owned = OwnedCommands(fixture.home.clone());
+    let started = start(
+        &fixture.home,
+        &fixture.root,
+        &fixture.args(json!({"command":["sh","-c","read value; printf '%s' \"$value\" > stdin-marker"],"yield_time_ms":0})),
+    )
+    .await
+    .expect("start command under valid authority");
+    let id = started["session_id"].as_str().expect("owned session ID");
+    let args = fixture.args(json!({"session_id":id,"chars":"forbidden\n","yield_time_ms":0}));
+    let (_, session) = session(&fixture.home, &args).expect("owned command session");
+    let held = session.io.lock().await;
+    let mut pending = Box::pin(write(&fixture.home, &args));
+    let mut context = Context::from_waker(Waker::noop());
+    assert!(
+        pending.as_mut().poll(&mut context).is_pending(),
+        "stdin request must be parked behind the held IO lock"
+    );
+    fixture.stop();
+    drop(held);
+    assert!(
+        pending.await.is_err(),
+        "a request parked before Stop must not write or return old-task output"
+    );
+    // Finish the owned fixture through its direct test handle. The marker must
+    // contain only this control input, proving the rejected request wrote no bytes.
+    session
+        .command
+        .write(b"cleanup-control\n")
+        .expect("finish owned command fixture");
+    wait_for_command_exit(&session.command).await;
+    assert_eq!(
+        std::fs::read_to_string(fixture.root.join("stdin-marker")).expect("fixture input marker"),
+        "cleanup-control"
+    );
+}
+
+async fn wait_for_command_exit(command: &CommandSession) -> cccc_runtime::SessionStatus {
+    tokio::time::timeout(Duration::from_secs(10), async {
+        loop {
+            let command = command.clone();
+            let status = blocking(move || command.status().map_err(|error| error.to_string()))
+                .await
+                .expect("fixture command status");
+            if !status.running {
+                return status;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("fixture command did not exit within 10 seconds")
+}
+
+#[tokio::test]
+async fn waits_for_output_and_does_not_replay_consumed_bytes() {
+    let f = Fixture::new();
+    let result = f
+        .start(
+            "sleep 0.12; printf first; sleep 0.2; printf second; sleep 0.2",
+            json!({}),
+        )
+        .await;
+    assert_eq!(result["output"], "first");
+    let id = result["session_id"].as_str().expect("fixture operation");
+    let empty = f.poll(id, json!({"yield_time_ms":0})).await;
+    assert_eq!(empty["output"], "");
+    let result = f.poll(id, json!({})).await;
+    assert_eq!(result["output"], "second");
+    let ended = f.poll(id, json!({})).await;
+    assert_eq!(ended["output"], "");
+    assert_eq!(ended["closed"], true);
+    assert_eq!(ended["status"]["exit_code"], 0);
+}
+
+#[tokio::test]
+async fn budgets_and_pages_finished_output_without_losing_the_tail() {
+    let f = Fixture::new();
+    let started = f
+        .start(
+            "printf 0123456789ABCDEFGHIJ",
+            json!({"yield_time_ms":0,"max_output_bytes":4}),
+        )
+        .await;
+    let id = started["session_id"]
+        .as_str()
+        .expect("fixture operation")
+        .to_owned();
+    let mut output = started["output"]
+        .as_str()
+        .expect("fixture operation")
+        .to_owned();
+    let mut result = started;
+    while result["closed"] != true {
+        result = f.poll(&id, json!({"max_output_bytes":4})).await;
+        let text = result["output"].as_str().expect("fixture operation");
+        assert!(text.len() <= 4);
+        output.push_str(text);
+    }
+    assert_eq!(output, "0123456789ABCDEFGHIJ");
+    assert_eq!(result["status"]["exit_code"], 0);
+    assert!(
+        session(
+            &f.home,
+            json!({"session_id":id})
+                .as_object()
+                .expect("fixture operation")
+        )
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn timeout_runs_without_polling_and_preserves_output() {
+    let f = Fixture::new();
+    let result = f
+        .start(
+            "printf before-timeout; sleep 30",
+            json!({"timeout_s":1,"yield_time_ms":0}),
+        )
+        .await;
+    let id = result["session_id"].as_str().expect("fixture operation");
+    let (_, owner) = session(
+        &f.home,
+        json!({"session_id":id})
+            .as_object()
+            .expect("fixture operation"),
+    )
+    .expect("fixture operation");
+    wait_for_command_exit(&owner.command).await;
+    let final_output = f.poll(id, json!({})).await;
+    assert_eq!(
+        format!(
+            "{}{}",
+            result["output"].as_str().expect("fixture operation"),
+            final_output["output"].as_str().expect("fixture operation")
+        ),
+        "before-timeout"
+    );
+    assert_eq!(final_output["timed_out"], true);
+    assert_eq!(final_output["closed"], true);
+}
+
+#[tokio::test]
+async fn termination_returns_unread_output_and_keeps_a_natural_exit_code() {
+    let f = Fixture::new();
+    let result = f
+        .start(
+            "printf final-marker; sleep 0.1; exit 7",
+            json!({"yield_time_ms":0}),
+        )
+        .await;
+    let id = result["session_id"].as_str().expect("fixture operation");
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    let ended = f
+        .poll(id, json!({"terminate":true,"chars":"ignored"}))
+        .await;
+    assert_eq!(ended["status"]["exit_code"], 7);
+    assert_eq!(ended["timed_out"], false);
+    assert_eq!(
+        format!(
+            "{}{}",
+            result["output"].as_str().expect("fixture operation"),
+            ended["output"].as_str().expect("fixture operation")
+        ),
+        "final-marker"
+    );
+}
+
+#[tokio::test]
+async fn polling_waits_without_blocking_other_sessions_and_stdin_works() {
+    let f = Fixture::new();
+    let waiting = f
+        .start(
+            "read value; printf 'answer=%s' \"$value\"",
+            json!({"yield_time_ms":0}),
+        )
+        .await;
+    let id = waiting["session_id"].as_str().expect("fixture operation");
+    let begin = Instant::now();
+    let (quiet, quick) = tokio::join!(
+        f.poll(id, json!({"yield_time_ms":180})),
+        f.start("printf independent", json!({}))
+    );
+    assert!(begin.elapsed() >= Duration::from_millis(150));
+    assert_eq!(quiet["output"], "");
+    assert_eq!(quick["output"], "independent");
+    let mut result = f.poll(id, json!({"chars":"ok\n"})).await;
+    let mut output = result["output"]
+        .as_str()
+        .expect("fixture operation")
+        .to_owned();
+    while result["closed"] != true {
+        result = f.poll(id, json!({})).await;
+        output.push_str(result["output"].as_str().expect("fixture operation"));
+    }
+    assert!(output.contains("answer=ok"), "{output}");
+}
+
+#[tokio::test]
+async fn ownership_shutdown_and_reaping_do_not_touch_other_sessions() {
+    let f = Fixture::new();
+    let other = Fixture::new();
+    let first = f.start("sleep 30", json!({"yield_time_ms":0})).await;
+    let second = other.start("sleep 30", json!({"yield_time_ms":0})).await;
+    let id = first["session_id"].as_str().expect("fixture operation");
+    let (_, first_owner) = session(
+        &f.home,
+        json!({"session_id":id})
+            .as_object()
+            .expect("fixture operation"),
+    )
+    .expect("fixture operation");
+    let (_, other_owner) = session(
+        &other.home,
+        json!({"session_id":second["session_id"]})
+            .as_object()
+            .expect("fixture operation"),
+    )
+    .expect("fixture operation");
+    assert!(
+        write(
+            &other.home,
+            json!({"session_id":id})
+                .as_object()
+                .expect("fixture operation")
+        )
+        .await
+        .is_err()
+    );
+    assert!(
+        write(
+            &f.home,
+            json!({"session_id":id,"group_id":"wrong"})
+                .as_object()
+                .expect("fixture operation")
+        )
+        .await
+        .is_err()
+    );
+    // Local commands must not join the Actor registry or its global reaper.
+    assert!(cccc_runtime::status(&f.group, id).is_err());
+    crate::shutdown(&f.home).await;
+    assert!(
+        !first_owner
+            .command
+            .status()
+            .expect("fixture operation")
+            .running
+    );
+    assert!(
+        other_owner
+            .command
+            .status()
+            .expect("fixture operation")
+            .running
+    );
+}
+
+#[tokio::test]
+async fn cwd_environment_and_invalid_arguments_are_handled_before_launch() {
+    let f = Fixture::new();
+    std::fs::create_dir(f.temp.path().join("subdir")).expect("fixture operation");
+    let result = f
+        .start(
+            "printf '%s:%s' \"${PWD##*/}\" \"$CCCC_TOOL_CONTRACT_VALUE\"",
+            json!({"workdir":"subdir","env":{"CCCC_TOOL_CONTRACT_VALUE":"fixture"}}),
+        )
+        .await;
+    assert_eq!(result["output"], "subdir:fixture");
+    for args in [
+        json!({"yield_time_ms":-1}),
+        json!({"timeout_s":0}),
+        json!({"max_output_bytes":"8"}),
+    ] {
+        assert!(
+            start(
+                &f.home,
+                f.temp.path(),
+                args.as_object().expect("fixture operation")
+            )
+            .await
+            .is_err()
+        );
+    }
+}
+
+#[tokio::test]
+async fn concurrent_polls_consume_each_output_byte_once() {
+    let f = Fixture::new();
+    let start = f
+        .start(
+            "sleep 0.1; printf abcdefgh; sleep 1",
+            json!({"yield_time_ms":0}),
+        )
+        .await;
+    let id = start["session_id"].as_str().expect("fixture operation");
+    let (a, b) = tokio::join!(
+        f.poll(id, json!({"max_output_bytes":4})),
+        f.poll(id, json!({"max_output_bytes":4}))
+    );
+    assert_eq!(
+        format!(
+            "{}{}",
+            a["output"].as_str().expect("fixture operation"),
+            b["output"].as_str().expect("fixture operation")
+        ),
+        "abcdefgh"
+    );
+}
+
+#[tokio::test]
+async fn unicode_paging_and_incomplete_final_utf8_make_forward_progress() {
+    let f = Fixture::new();
+    let mut result = f
+        .start(
+            "printf '你好abc'; printf '\\342'",
+            json!({"yield_time_ms":0,"max_output_bytes":1}),
+        )
+        .await;
+    let id = result["session_id"]
+        .as_str()
+        .expect("fixture operation")
+        .to_owned();
+    let mut output = result["output"]
+        .as_str()
+        .expect("fixture operation")
+        .to_owned();
+    for _ in 0..12 {
+        if result["closed"] == true {
+            break;
+        }
+        result = f.poll(&id, json!({"max_output_bytes":1})).await;
+        assert!(result["output"].as_str().expect("fixture operation").len() <= 4);
+        output.push_str(result["output"].as_str().expect("fixture operation"));
+    }
+    assert_eq!(output, "你好abc?");
+    assert_eq!(result["closed"], true);
+}
+
+#[tokio::test]
+async fn termination_interrupts_a_pending_long_poll() {
+    let f = Fixture::new();
+    let result = f.start("sleep 30", json!({"yield_time_ms":0})).await;
+    let id = result["session_id"].as_str().expect("fixture operation");
+    let begin = Instant::now();
+    let (_, stopped) = tokio::join!(f.poll(id, json!({"yield_time_ms":30000})), async {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        f.poll(id, json!({"terminate":true})).await
+    });
+    assert!(begin.elapsed() < Duration::from_secs(2));
+    assert_eq!(stopped["closed"], true);
+}
+
+#[tokio::test]
+async fn dropped_waits_keep_deadline_cleanup() {
+    let f = Fixture::new();
+    let args = json!({"group_id":f.group,"command":["sh","-c","sleep 30"],"timeout_s":1,"yield_time_ms":30000});
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(80),
+            start(
+                &f.home,
+                f.temp.path(),
+                args.as_object().expect("fixture operation")
+            )
+        )
+        .await
+        .is_err()
+    );
+    let abandoned = sessions()
+        .lock()
+        .expect("fixture operation")
+        .values()
+        .find(|s| s.home == f.home.root())
+        .cloned()
+        .expect("fixture operation");
+    wait_for_command_exit(&abandoned.command).await;
+    assert!(abandoned.timed_out.load(Ordering::Acquire));
+}
+
+#[tokio::test]
+async fn large_output_reports_expiration_without_consuming_the_cursor() {
+    let f = Fixture::new();
+    let initial = f
+        .start(
+            "head -c 2200000 /dev/zero | tr '\\000' x",
+            json!({"yield_time_ms":0,"max_output_bytes":1}),
+        )
+        .await;
+    let id = initial["session_id"].as_str().expect("fixture operation");
+    let (_, owner) = session(
+        &f.home,
+        json!({"session_id":id})
+            .as_object()
+            .expect("fixture operation"),
+    )
+    .expect("fixture operation");
+    // Elapsed time does not prove the PTY reader has filled the bounded buffer.
+    // Status drains completed output without advancing the MCP consumption cursor.
+    let status = wait_for_command_exit(&owner.command).await;
+    assert_eq!(status.exit_code, Some(0));
+    assert_eq!(
+        owner
+            .command
+            .history_since(2_200_000, 1)
+            .expect("fixture history")
+            .end_cursor,
+        2_200_000
+    );
+    assert_eq!(
+        *owner.cursor.lock().expect("fixture cursor"),
+        initial["cursor"].as_u64().expect("initial cursor")
+    );
+    let page = f.poll(id, json!({"max_output_bytes":1000})).await;
+    assert_eq!(page["cursor_expired"], true);
+    assert_eq!(page["output"], "x".repeat(1000));
+    assert_eq!(page["has_more"], true);
+}
+
+#[tokio::test]
+async fn timeout_breaks_backpressured_input_and_stops_descendants() {
+    let f = Fixture::new();
+    let started = f
+        .start(
+            "stty -icanon -echo; (sleep 2; printf leaked > child-leak) & printf ready; sleep 30",
+            json!({"timeout_s":1}),
+        )
+        .await;
+    let id = started["session_id"].as_str().expect("fixture operation");
+    let args = json!({"session_id":id,"chars":"x".repeat(2_000_000)});
+    let result = tokio::time::timeout(
+        Duration::from_secs(3),
+        write(&f.home, args.as_object().expect("fixture operation")),
+    )
+    .await;
+    assert!(
+        result.is_ok(),
+        "backpressured input prevented deadline cleanup"
+    );
+    let ended = f.poll(id, json!({})).await;
+    assert_eq!(ended["timed_out"], true);
+    assert_eq!(ended["status"]["running"], false);
+    tokio::time::sleep(Duration::from_millis(1300)).await;
+    assert!(!f.temp.path().join("child-leak").exists());
+}
+
+#[tokio::test]
+async fn session_output_and_stdin_remain_owned_by_the_original_actor_and_binding() {
+    let f = crate::local_tools::authority_tests::Fixture::new();
+    let _owned = OwnedCommands(f.home.clone());
+    let started = start(
+        &f.home,
+        &f.root,
+        &f.args(
+            json!({"command":["sh","-c","read value; printf '%s' \"$value\""],"yield_time_ms":0}),
+        ),
+    )
+    .await
+    .expect("start with persistent Actor binding");
+    let id = started["session_id"].as_str().expect("session");
+    for replace_actor in [true, false] {
+        let mut args = f.args(json!({"session_id":id,"chars":"stolen\n"}));
+        if replace_actor {
+            args.insert("by".into(), json!("another-actor"));
+        } else {
+            args.get_mut("_cccc_web_binding")
+                .expect("captured authority")["revision"] = json!("another-revision");
+        }
+        assert!(
+            write(&f.home, &args).await.is_err(),
+            "another Actor or binding must not access this command"
+        );
+    }
+    let output = write(&f.home, &f.args(json!({"session_id":id,"chars":"owned\n"})))
+        .await
+        .expect("original Actor and binding retain command authority");
+    assert!(
+        output["output"]
+            .as_str()
+            .expect("valid test fixture")
+            .contains("owned")
+    );
+    assert!(
+        !output["output"]
+            .as_str()
+            .expect("valid test fixture")
+            .contains("stolen")
+    );
+}

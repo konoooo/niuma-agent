@@ -1,0 +1,126 @@
+// @vitest-environment happy-dom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+
+import { ActorQuickControls } from "./ActorQuickControls";
+
+async function render(
+  running: boolean,
+  onRemove: () => void,
+  pauseCcccAccess = false,
+  onStop = vi.fn(),
+  extra: Partial<React.ComponentProps<typeof ActorQuickControls>> = {},
+) {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => {
+    root.render(
+      <ActorQuickControls
+        actorTitle="Claude"
+        running={running}
+        busy={false}
+        readOnly={false}
+        hasTerminal={!pauseCcccAccess}
+        pauseCcccAccess={pauseCcccAccess}
+        writable
+        connected
+        connectionFailed={false}
+        canStartNewSession={false}
+        unreadCount={0}
+        onInterrupt={vi.fn()}
+        onLaunch={vi.fn()}
+        onReconnect={vi.fn()}
+        onTakeover={vi.fn()}
+        onHistory={vi.fn()}
+        onNewSession={vi.fn()}
+        onRestart={vi.fn()}
+        onStop={onStop}
+        onEdit={vi.fn()}
+        onInbox={vi.fn()}
+        onRemove={onRemove}
+        {...extra}
+      />,
+    );
+  });
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="actorControls"]');
+  if (!trigger) throw new Error("menu trigger missing");
+  await act(async () => {
+    trigger.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+    trigger.click();
+  });
+  const removeButton = Array.from(document.querySelectorAll("button")).find(
+    (button) => button.textContent === "removeAgent",
+  );
+  if (!removeButton) throw new Error("remove entry missing");
+  return { root, host, removeButton };
+}
+
+describe("ActorQuickControls", () => {
+  beforeEach(() => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    document.body.innerHTML = "";
+  });
+
+  it("离岗成员提供召回入口并隐藏普通启动和新会话", async () => {
+    const onLeave = vi.fn();
+    const { root, host } = await render(false, vi.fn(), false, vi.fn(), {
+      availability: "away",
+      onLeave,
+      leaveLabel: "leave.recall",
+      canStartNewSession: true,
+    });
+    expect(document.querySelector('button[aria-label="launchAgentLabel"]')).toBeNull();
+    expect(
+      [...document.querySelectorAll("button")].some((e) => e.textContent === "newSession"),
+    ).toBe(false);
+    const recall = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+      (e) => e.textContent === "leave.recall",
+    );
+    expect(recall).toBeDefined();
+    await act(async () => recall!.click());
+    expect(onLeave).toHaveBeenCalledOnce();
+    await act(async () => root.unmount());
+    host.remove();
+  });
+
+  it("allows removing a running Actor and invokes the removal callback", async () => {
+    const onRemove = vi.fn();
+    const { root, host, removeButton } = await render(true, onRemove);
+    expect(removeButton.disabled).toBe(false);
+    expect(removeButton.closest("[data-lcd-menu]")).not.toBeNull();
+    await act(async () => {
+      removeButton.click();
+    });
+    expect(onRemove).toHaveBeenCalledTimes(1);
+    await act(async () => root.unmount());
+    host.remove();
+  });
+  it("offers only local access pause for Dots without terminal, restart or new-session controls", async () => {
+    const onStop = vi.fn();
+    const { root, host } = await render(true, vi.fn(), true, onStop);
+    const buttons = [...document.querySelectorAll("button")];
+    expect(buttons.some((button) => button.textContent === "relaunch")).toBe(false);
+    expect(buttons.some((button) => button.textContent === "newSession")).toBe(false);
+    expect(buttons.some((button) => button.textContent === "terminalHistory")).toBe(false);
+    const pause = buttons.find((button) => button.textContent === "dotsPause")!;
+    expect(pause.title).toBe("dotsPauseHint");
+    await act(async () => pause.click());
+    expect(onStop).toHaveBeenCalledOnce();
+    await act(async () => root.unmount());
+    host.remove();
+  });
+  it("describes starting a paused Dot as resuming CCCC access in both compact entries", async () => {
+    const { root, host } = await render(false, vi.fn(), true);
+    expect(host.querySelector('button[aria-label="dotsResume"]')).not.toBeNull();
+    const labels = [...document.querySelectorAll("button")].map((button) => button.textContent);
+    expect(labels).toContain("dotsResume");
+    expect(labels).not.toContain("launchAgentLabel");
+    await act(async () => root.unmount());
+    host.remove();
+  });
+});

@@ -1,0 +1,1359 @@
+import { ComposerSendControl } from "./ComposerSendControl";
+import { ComposerTypingPlaceholder } from "./ComposerTypingPlaceholder";
+import { ComposerResizeHandle } from "./ComposerResizeHandle";
+import { ComposerFailedSends } from "./ComposerFailedSends";
+import { useComposerHeightResize } from "./useComposerHeightResize";
+
+// ChatComposer renders the chat message composer.
+import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useId } from "react";
+import {
+  Actor,
+  GroupMeta,
+  LedgerEvent,
+  PresentationMessageRef,
+  ReplyTarget,
+  VoiceDocumentMessageRef,
+} from "../../types";
+import { classNames } from "../../utils/classNames";
+import { insertTextareaNewline, isComposingKey, isPlainEnter } from "../../utils/textareaSubmit";
+import { AttachmentIcon, ReplyIcon, CloseIcon, SparklesIcon } from "../../components/Icons";
+import { getPresentationRefChipLabel } from "../../utils/presentationRefs";
+import { getVoiceDocumentRefLabel } from "../../utils/voiceDocumentRefs";
+import { useTranslation } from "react-i18next";
+import {
+  LazyVoiceSecretaryComposerControl,
+  type VoiceSecretaryCaptureMode,
+} from "./LazyVoiceSecretaryComposerControl";
+import { SlashCommandMenu } from "./SlashCommandMenu";
+import { useGroupStore } from "../../stores";
+import { getChatSession, useUIStore } from "../../stores/useUIStore";
+import {
+  filterSlashCommands,
+  normalizeSlashCommandInput,
+  getVisibleSlashCommandPage,
+  type SlashCommandItem,
+} from "../../utils/slashCommands";
+import { getComposerCanSend, hasConcreteReplyRecipients } from "./chatComposerActions";
+import { ComposerFilePreview } from "./ComposerFilePreview";
+import { ComposerMentionOverlay } from "./ComposerMentionOverlay";
+import { getMentionMenuLeft, getMentionTriggerX } from "./mentionMenuPosition";
+import { ChatMentionMenu } from "./ChatMentionMenu";
+import { useComposerMentionInput } from "./useComposerMentionInput";
+import {
+  resolveComposerHashRouting,
+  type ComposerMentionKind,
+  type ComposerMentionSuggestion,
+} from "./chatMentionSuggestions";
+import type {
+  ComposerAgentMentionToken,
+  ComposerGroupMentionToken,
+} from "../../hooks/composerGroupMentions";
+import {
+  pruneComposerAgentMentionTokens,
+  pruneComposerGroupMentionTokens,
+} from "../../hooks/composerGroupMentions";
+import {
+  composerTargetAllowsSuggestedUserMessage,
+  consumeSuggestedUserMessage,
+  latestSuggestedUserMessage,
+  readConsumedSuggestedUserMessageIds,
+} from "../../utils/suggestedUserMessage";
+import { ComposerRecipientsRow } from "./ComposerRecipientsRow";
+import { useComposerTextareaAutoResize } from "./useComposerTextareaAutoResize";
+import { mergeVoiceComposerDraftText } from "./voice-secretary/voiceComposerDraftRouting";
+import { useShortTouchViewport } from "../../hooks/useShortTouchViewport";
+import { CHET_SELECTOR } from "../../utils/chetIdentity";
+import { messageModeForRecipients } from "../../stores/composerMessageMode";
+import {
+  buildComposerHistoryEntries,
+  canStartComposerHistory,
+  getComposerHistoryText,
+  moveComposerHistory,
+  startComposerHistory,
+  type ComposerHistorySession,
+} from "./chatComposerHistory";
+import {
+  normalizeReplyMessageMode,
+  useComposerStore,
+  type ComposerMessageMode,
+} from "../../stores/useComposerStore";
+
+const SLASH_COMMAND_PAGE_SIZE = 8;
+const MENTION_MENU_DESKTOP_WIDTH = 320;
+
+function cleanVoicePromptContextText(value: unknown, maxLen = 240): string {
+  const text = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, Math.max(1, maxLen - 1)).trimEnd()}…`;
+}
+
+function buildRecentChatExcerptForVoicePrompt(events: LedgerEvent[]): string {
+  const rows: string[] = [];
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (String(event?.kind || "") !== "chat.message") continue;
+    const data =
+      event?.data && typeof event.data === "object" ? (event.data as Record<string, unknown>) : {};
+    const text = cleanVoicePromptContextText(data.text, 220);
+    if (!text) continue;
+    const by = cleanVoicePromptContextText(event.by || data.by || "unknown", 40) || "unknown";
+    rows.push(`${by}: ${text}`);
+    if (rows.length >= 4) break;
+  }
+  return rows.reverse().join("\n").slice(0, 1000);
+}
+
+export interface ChatComposerProps {
+  isDark: boolean;
+  isSmallScreen: boolean;
+  keepExpanded?: boolean;
+  selectedGroupId: string;
+  actors: Actor[];
+  recipientActorsBusy?: boolean;
+  destGroupId: string;
+  setDestGroupId: (groupId: string) => void;
+  composerGroupSettled: boolean;
+  composerRouteGroups?: GroupMeta[];
+  selectedGroupActorsHydrating?: boolean;
+  destGroupScopeLabel?: string;
+  busy: string;
+  sendInFlight: boolean;
+  uploadInFlight?: boolean;
+  onStopUploadWaiting?: () => void;
+  recentMessages?: LedgerEvent[];
+  suggestionSourceMessages?: LedgerEvent[];
+
+  // Reply
+  replyTarget: ReplyTarget;
+  onCancelReply: () => void;
+  quotedPresentationRef: PresentationMessageRef | null;
+  onClearQuotedPresentationRef: () => void;
+  quotedVoiceDocumentRef: VoiceDocumentMessageRef | null;
+  onQuoteVoiceDocumentRef: (ref: VoiceDocumentMessageRef) => void;
+  onClearQuotedVoiceDocumentRef: () => void;
+
+  // Recipients
+  toTokens: string[];
+  unavailableRecipients?: string[];
+  onToggleRecipient: (token: string) => void;
+  onClearRecipients: () => void;
+
+  // Files
+  composerFiles: File[];
+  onRemoveComposerFile: (index: number) => void;
+  appendComposerFiles: (files: File[]) => void;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+
+  // Text input
+  composerRef: RefObject<HTMLTextAreaElement | null>;
+  setComposerText: Dispatch<SetStateAction<string>>;
+  messageMode: ComposerMessageMode;
+  setMessageMode: (mode: ComposerMessageMode) => void;
+  onSendMessage: () => void;
+
+  // Mention menu
+  showMentionMenu: boolean;
+  setShowMentionMenu: Dispatch<SetStateAction<boolean>>;
+  mentionSuggestions: ComposerMentionSuggestion[];
+  connectMentionStatus?: "loading" | "incomplete";
+  mentionSelectedIndex: number;
+  setMentionSelectedIndex: Dispatch<SetStateAction<number>>;
+  setMentionFilter: Dispatch<SetStateAction<string>>;
+  setMentionKind: Dispatch<SetStateAction<ComposerMentionKind>>;
+  setMentionActorScope: Dispatch<SetStateAction<"selected" | "destination">>;
+  setMentionTargetGroupId: Dispatch<SetStateAction<string>>;
+  setMentionTriggerIndex?: Dispatch<SetStateAction<number | null>>;
+  composerGroupMentionTokens: ComposerGroupMentionToken[];
+  setComposerGroupMentionTokens: Dispatch<SetStateAction<ComposerGroupMentionToken[]>>;
+  composerAgentMentionTokens: ComposerAgentMentionToken[];
+  setComposerAgentMentionTokens: Dispatch<SetStateAction<ComposerAgentMentionToken[]>>;
+  slashCommands: SlashCommandItem[];
+}
+
+export function ChatComposer({
+  isDark,
+  isSmallScreen,
+  keepExpanded = false,
+  selectedGroupId,
+  actors,
+  recipientActorsBusy,
+  destGroupId,
+  setDestGroupId,
+  composerGroupSettled,
+  composerRouteGroups = [],
+  selectedGroupActorsHydrating,
+  destGroupScopeLabel: _destGroupScopeLabel,
+  busy,
+  sendInFlight,
+  uploadInFlight,
+  onStopUploadWaiting,
+  recentMessages = [],
+  suggestionSourceMessages,
+  replyTarget,
+  onCancelReply,
+  quotedPresentationRef,
+  onClearQuotedPresentationRef,
+  quotedVoiceDocumentRef,
+  onQuoteVoiceDocumentRef,
+  onClearQuotedVoiceDocumentRef,
+  toTokens,
+  unavailableRecipients = [],
+  onToggleRecipient,
+  onClearRecipients,
+  composerFiles,
+  onRemoveComposerFile,
+  appendComposerFiles,
+  fileInputRef,
+  composerRef,
+  setComposerText,
+  messageMode,
+  setMessageMode,
+  onSendMessage,
+  showMentionMenu,
+  setShowMentionMenu,
+  mentionSuggestions,
+  connectMentionStatus,
+  mentionSelectedIndex,
+  setMentionSelectedIndex,
+  setMentionFilter,
+  setMentionKind,
+  setMentionActorScope,
+  setMentionTargetGroupId,
+  setMentionTriggerIndex,
+  composerGroupMentionTokens,
+  setComposerGroupMentionTokens,
+  composerAgentMentionTokens,
+  setComposerAgentMentionTokens,
+  slashCommands,
+}: ChatComposerProps) {
+  // The draft text is owned here, not by ChatTab: only the composer needs a
+  // re-render per keystroke.
+  const composerText = useComposerStore((s) => s.composerText);
+  const isWebAdmin = useUIStore((s) => s.isWebAdmin);
+  const composerHistoryRef = useRef<ComposerHistorySession | null>(null);
+  const [showModeMenu, setShowModeMenu] = useState(false);
+  const [composerFocused, setComposerFocused] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState("");
+  const [voiceBlocksCompact, setVoiceBlocksCompact] = useState(false);
+  const shortTouchViewport = useShortTouchViewport();
+  const compactViewport = isSmallScreen || shortTouchViewport;
+  const composerHelpId = useId();
+  const [hintMinHeight, setHintMinHeight] = useState(0);
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+  const [slashVisibleCount, setSlashVisibleCount] = useState(SLASH_COMMAND_PAGE_SIZE);
+  const [voiceStatusTarget, setVoiceStatusTarget] = useState<HTMLDivElement | null>(null);
+  const voiceCaptureMode = useUIStore(
+    (state) => getChatSession(selectedGroupId, state.chatSessions).voiceCaptureMode,
+  );
+  const setVoiceCaptureMode = useCallback(
+    (mode: VoiceSecretaryCaptureMode) => {
+      useUIStore.getState().setChatVoicePreferences(selectedGroupId, { voiceCaptureMode: mode });
+    },
+    [selectedGroupId],
+  );
+  const [mentionMenuLeft, setMentionMenuLeft] = useState(8);
+  const [composerScrollTop, setComposerScrollTop] = useState(0);
+  const [sessionConsumedSuggestedUserMessageIds, setSessionConsumedSuggestedUserMessageIds] =
+    useState<Set<string>>(() => new Set());
+  const { t } = useTranslation("chat");
+  const groupSettings = useGroupStore((state) => state.groupSettings);
+  const groups = useGroupStore((state) => state.groups);
+  const routeGroups = composerRouteGroups.length > 0 ? composerRouteGroups : groups;
+  const refreshSettings = useGroupStore((state) => state.refreshSettings);
+  const readRootFontScale = () => {
+    if (typeof document === "undefined") return 1;
+    const rootFontSize = parseFloat(window.getComputedStyle(document.documentElement).fontSize);
+    if (!Number.isFinite(rootFontSize) || rootFontSize <= 0) return 1;
+    return rootFontSize / 16;
+  };
+
+  const [rootFontScale, setRootFontScale] = useState(readRootFontScale);
+  const footerRef = useRef<HTMLElement>(null);
+  const composerResize = useComposerHeightResize({
+    footerRef,
+    composerRef,
+    enabled: !compactViewport,
+    scale: rootFontScale,
+  });
+  const composerFontSize = (isSmallScreen ? 15 : 13) * rootFontScale;
+  const composerLineHeight = (isSmallScreen ? 24 : 20) * rootFontScale;
+  const minComposerHeight = compactViewport
+    ? Math.max(44, composerLineHeight + 16 * rootFontScale)
+    : composerResize.minHeight;
+  const maxComposerHeight = compactViewport ? 128 * rootFontScale : composerResize.maxHeight;
+  const expandedMinHeight = compactViewport
+    ? `${minComposerHeight}px`
+    : `var(--composer-min-height, ${minComposerHeight}px)`;
+  const expandedMaxHeight = compactViewport
+    ? `${maxComposerHeight}px`
+    : `var(--composer-max-height, ${maxComposerHeight}px)`;
+  useEffect(() => {
+    if (!compactViewport) return;
+    const closeWhenOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || footerRef.current?.contains(target)) return;
+      if (target.closest('[role="dialog"], [role="menu"], [role="listbox"]')) return;
+      setExpandedGroup("");
+    };
+    document.addEventListener("pointerdown", closeWhenOutside, true);
+    return () => document.removeEventListener("pointerdown", closeWhenOutside, true);
+  }, [compactViewport]);
+
+  const exitComposerHistory = useCallback(() => {
+    composerHistoryRef.current = null;
+  }, []);
+
+  const applyComposerHistoryText = useCallback(
+    (text: string) => {
+      // History recalls text only. Structured mention tokens encode routing context
+      // from an older draft and must never be revived implicitly.
+      setComposerGroupMentionTokens([]);
+      setComposerAgentMentionTokens([]);
+      setComposerText(text);
+      requestAnimationFrame(() => {
+        const textarea = composerRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        const end = textarea.value.length;
+        textarea.setSelectionRange(end, end);
+        textarea.scrollTop = textarea.scrollHeight;
+        setComposerScrollTop(textarea.scrollTop);
+      });
+    },
+    [composerRef, setComposerAgentMentionTokens, setComposerGroupMentionTokens, setComposerText],
+  );
+
+  useEffect(() => {
+    exitComposerHistory();
+  }, [exitComposerHistory, selectedGroupId]);
+
+  useEffect(() => {
+    const session = composerHistoryRef.current;
+    if (!session) return;
+    if (session.groupId !== selectedGroupId || composerText !== getComposerHistoryText(session)) {
+      exitComposerHistory();
+    }
+  }, [composerText, exitComposerHistory, selectedGroupId]);
+
+  const updateMentionMenuPosition = useCallback(
+    (textToTrigger: string) => {
+      const el = composerRef.current;
+      if (!el || isSmallScreen) {
+        setMentionMenuLeft(8);
+        return;
+      }
+      setMentionMenuLeft(
+        getMentionMenuLeft({
+          triggerX: getMentionTriggerX(el, textToTrigger),
+          containerWidth: el.clientWidth,
+          menuWidth: MENTION_MENU_DESKTOP_WIDTH,
+        }),
+      );
+    },
+    [composerRef, isSmallScreen],
+  );
+  const { clearActiveMention, rememberSelection, selectMention, updateMenu, updateText } =
+    useComposerMentionInput({
+      text: composerText,
+      composerRef,
+      setText: setComposerText,
+      setGroupTokens: setComposerGroupMentionTokens,
+      setAgentTokens: setComposerAgentMentionTokens,
+      setShowMenu: setShowMentionMenu,
+      setSelectedIndex: setMentionSelectedIndex,
+      setFilter: setMentionFilter,
+      setKind: setMentionKind,
+      setActorScope: setMentionActorScope,
+      setTargetGroupId: setMentionTargetGroupId,
+      setTriggerIndex: setMentionTriggerIndex,
+      updateMenuPosition: updateMentionMenuPosition,
+    });
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setRootFontScale(readRootFontScale());
+    });
+
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["style"] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedGroupId || groupSettings) return;
+    void refreshSettings(selectedGroupId);
+  }, [groupSettings, refreshSettings, selectedGroupId]);
+
+  // Get display name for reply target
+  const replyByDisplayName = useMemo(() => {
+    if (!replyTarget?.by) return "";
+    if (replyTarget.by === "user") return "user";
+    const actor = actors.find((a) => a.id === replyTarget.by);
+    return actor?.title || replyTarget.by;
+  }, [replyTarget, actors]);
+  const quotedPresentationRefLabel = useMemo(
+    () => (quotedPresentationRef ? getPresentationRefChipLabel(quotedPresentationRef) : ""),
+    [quotedPresentationRef],
+  );
+  const quotedVoiceDocumentRefLabel = useMemo(
+    () => (quotedVoiceDocumentRef ? getVoiceDocumentRefLabel(quotedVoiceDocumentRef) : ""),
+    [quotedVoiceDocumentRef],
+  );
+  const slashSuggestions = useMemo(
+    () => filterSlashCommands(slashCommands, composerText),
+    [composerText, slashCommands],
+  );
+  const visibleSlashSuggestions = useMemo(
+    () => getVisibleSlashCommandPage(slashSuggestions, slashVisibleCount),
+    [slashSuggestions, slashVisibleCount],
+  );
+  const hasMoreSlashSuggestions = visibleSlashSuggestions.length < slashSuggestions.length;
+  const liveGroupMentionTokens = useMemo(
+    () =>
+      pruneComposerGroupMentionTokens({ text: composerText, tokens: composerGroupMentionTokens }),
+    [composerGroupMentionTokens, composerText],
+  );
+  const liveAgentMentionTokens = useMemo(
+    () =>
+      pruneComposerAgentMentionTokens({ text: composerText, tokens: composerAgentMentionTokens }),
+    [composerAgentMentionTokens, composerText],
+  );
+
+  const consumedSuggestedUserMessageIds = useMemo(() => {
+    void selectedGroupId;
+    const ids = readConsumedSuggestedUserMessageIds();
+    for (const eventId of sessionConsumedSuggestedUserMessageIds) {
+      ids.add(eventId);
+    }
+    return ids;
+  }, [selectedGroupId, sessionConsumedSuggestedUserMessageIds]);
+  const suggestedUserMessage = useMemo(
+    () =>
+      latestSuggestedUserMessage(
+        suggestionSourceMessages || recentMessages,
+        consumedSuggestedUserMessageIds,
+      ),
+    [consumedSuggestedUserMessageIds, recentMessages, suggestionSourceMessages],
+  );
+  const canShowSuggestedUserMessageForTarget = composerTargetAllowsSuggestedUserMessage({
+    selectedGroupId,
+    destGroupId,
+    composerGroupSettled,
+  });
+  const showSuggestedUserMessage = Boolean(
+    suggestedUserMessage &&
+    canShowSuggestedUserMessageForTarget &&
+    !composerText.trim() &&
+    composerFiles.length === 0 &&
+    busy !== "send",
+  );
+  const suggestedUserMessageHelpId = showSuggestedUserMessage
+    ? `suggested-user-message-${suggestedUserMessage?.eventId || "current"}`
+    : undefined;
+  const suggestedUserMessageHintLabel = t("suggestedUserMessageHint", {
+    defaultValue: "Suggested next message. Press Tab to use it.",
+  });
+  const suggestedUserMessageUseLabel = t("suggestedUserMessageUse", {
+    defaultValue: "Use suggestion",
+  });
+  const markSuggestedUserMessageConsumed = useCallback(() => {
+    const eventId = String(suggestedUserMessage?.eventId || "").trim();
+    if (!eventId) return;
+    consumeSuggestedUserMessage(eventId);
+    setSessionConsumedSuggestedUserMessageIds((current) => {
+      if (current.has(eventId)) return current;
+      const next = new Set(current);
+      next.add(eventId);
+      return next;
+    });
+  }, [setSessionConsumedSuggestedUserMessageIds, suggestedUserMessage?.eventId]);
+  const acceptSuggestedUserMessage = useCallback(() => {
+    const text = String(suggestedUserMessage?.text || "").trim();
+    if (!showSuggestedUserMessage || !text) return;
+    exitComposerHistory();
+    markSuggestedUserMessageConsumed();
+    setComposerText(text);
+    requestAnimationFrame(() => {
+      const textarea = composerRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(text.length, text.length);
+    });
+  }, [
+    composerRef,
+    exitComposerHistory,
+    markSuggestedUserMessageConsumed,
+    setComposerText,
+    showSuggestedUserMessage,
+    suggestedUserMessage?.text,
+  ]);
+
+  // Handle pasted files (clipboard items).
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    exitComposerHistory();
+    const dt = e.clipboardData;
+    if (!dt) return;
+
+    const files: File[] = [];
+    try {
+      const items = Array.from(dt.items || []);
+      for (const it of items) {
+        if (!it || it.kind !== "file") continue;
+        const f = it.getAsFile();
+        if (f) files.push(f);
+      }
+    } catch {
+      // ignore
+    }
+    if (files.length === 0) {
+      try {
+        files.push(...Array.from(dt.files || []));
+      } catch {
+        // ignore
+      }
+    }
+
+    if (files.length === 0) return;
+    if (!selectedGroupId) return;
+
+    // De-duplicate within a single paste.
+    const seen = new Set<string>();
+    const unique: File[] = [];
+    for (const f of files) {
+      const key = `${f.name}:${f.size}:${f.type}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(f);
+    }
+    if (unique.length === 0) return;
+
+    e.preventDefault();
+    appendComposerFiles(unique);
+  };
+
+  // Handle text changes.
+  const applyTextChange = (
+    value: string,
+    selectionStart: number,
+    selectionEnd: number,
+    composing: boolean,
+  ) => {
+    exitComposerHistory();
+    // Rewriting the value mid-composition would break the IME; normalize once committed.
+    const val = composing ? value : normalizeSlashCommandInput(value);
+    if (showSuggestedUserMessage && val.trim()) {
+      markSuggestedUserMessageConsumed();
+    }
+    const caret = updateText(val, selectionStart, selectionEnd);
+    const slashModeActive =
+      val === val.trimStart() &&
+      normalizeSlashCommandInput(val).startsWith("/") &&
+      !val.slice(1).includes(" ");
+    // A user's `#<group>` token is a local-group agent delegation hint, not a
+    // cross-group route: keep the destination pinned to the local group so the
+    // message is never sent directly to the referenced group. The token itself
+    // stays in the composer text as delegation context for the local agent.
+    const hashRouting = resolveComposerHashRouting({
+      text: val,
+      selectedGroupId,
+      groups: routeGroups,
+    });
+    if (hashRouting.destGroupId !== destGroupId) {
+      setDestGroupId(hashRouting.destGroupId);
+    }
+
+    if (slashModeActive) {
+      const nextSuggestions = filterSlashCommands(slashCommands, val);
+      setShowSlashMenu(nextSuggestions.length > 0 || val === "/");
+      setSlashSelectedIndex(0);
+      setSlashVisibleCount(SLASH_COMMAND_PAGE_SIZE);
+      setShowMentionMenu(false);
+      setMentionActorScope("selected");
+      setMentionTargetGroupId("");
+      setMentionFilter("");
+      clearActiveMention();
+      return;
+    }
+    setShowSlashMenu(false);
+    setSlashVisibleCount(SLASH_COMMAND_PAGE_SIZE);
+    updateMenu(val, caret, Math.min(selectionEnd, val.length));
+  };
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    applyTextChange(
+      e.target.value,
+      e.target.selectionStart,
+      e.target.selectionEnd,
+      (e.nativeEvent as InputEvent).isComposing,
+    );
+  };
+
+  // Handle keyboard shortcuts and mention navigation.
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // While an input method is composing, Enter, Tab, arrows and Escape belong
+    // to it. Safari can report the confirming Enter with key "Enter" and keyCode 229.
+    if (isComposingKey(e)) return;
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      rememberSelection(e.currentTarget);
+      insertTextareaNewline(e, (value, caret) => applyTextChange(value, caret, caret, false));
+      return;
+    }
+    if (showSlashMenu && visibleSlashSuggestions.length > 0) {
+      const maxIndex = visibleSlashSuggestions.length - 1;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashSelectedIndex((prev) => {
+          const next = prev >= maxIndex ? 0 : prev + 1;
+          if (hasMoreSlashSuggestions && next === maxIndex) {
+            setSlashVisibleCount((count) =>
+              Math.min(count + SLASH_COMMAND_PAGE_SIZE, slashSuggestions.length),
+            );
+          }
+          return next;
+        });
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashSelectedIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+        return;
+      }
+      if (isPlainEnter(e) || e.key === "Tab") {
+        e.preventDefault();
+        selectSlashCommand(visibleSlashSuggestions[slashSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowSlashMenu(false);
+        setSlashSelectedIndex(0);
+        return;
+      }
+    }
+    if (showMentionMenu && mentionSuggestions.length > 0) {
+      const maxIndex = mentionSuggestions.length - 1;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionSelectedIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionSelectedIndex((prev) => (prev <= 0 ? maxIndex : prev - 1));
+        return;
+      }
+      if (isPlainEnter(e) || e.key === "Tab") {
+        e.preventDefault();
+        selectMention(mentionSuggestions[mentionSelectedIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setShowMentionMenu(false);
+        setMentionSelectedIndex(0);
+        clearActiveMention();
+        return;
+      }
+    }
+    if (
+      showSuggestedUserMessage &&
+      e.key === "Tab" &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey
+    ) {
+      e.preventDefault();
+      acceptSuggestedUserMessage();
+      return;
+    }
+    if (showSuggestedUserMessage && e.key === "Escape") {
+      e.preventDefault();
+      markSuggestedUserMessageConsumed();
+      return;
+    }
+
+    const hasModifier = e.shiftKey || e.ctrlKey || e.metaKey || e.altKey;
+    let historySession = composerHistoryRef.current;
+    if (historySession && historySession.groupId !== selectedGroupId) {
+      exitComposerHistory();
+      historySession = null;
+    }
+
+    if (historySession) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        exitComposerHistory();
+        return;
+      }
+      if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !hasModifier) {
+        e.preventDefault();
+        const move = moveComposerHistory(historySession, e.key === "ArrowUp" ? "older" : "newer");
+        composerHistoryRef.current = move.session;
+        applyComposerHistoryText(move.text);
+        return;
+      }
+      if (!(["Shift", "Control", "Alt", "Meta"] as string[]).includes(e.key)) {
+        exitComposerHistory();
+      }
+    }
+
+    if (
+      e.key === "ArrowUp" &&
+      canStartComposerHistory({
+        composerText,
+        composerGroupSettled,
+        selectedGroupId,
+        busy,
+        menuOpen: showSlashMenu || showMentionMenu,
+        hasModifier,
+      })
+    ) {
+      const entries = buildComposerHistoryEntries(suggestionSourceMessages || recentMessages);
+      const session = startComposerHistory(entries, selectedGroupId, composerText);
+      if (session) {
+        e.preventDefault();
+        composerHistoryRef.current = session;
+        applyComposerHistoryText(getComposerHistoryText(session));
+        return;
+      }
+    }
+
+    if (isPlainEnter(e) && (!showMentionMenu || mentionSuggestions.length === 0)) {
+      e.preventDefault();
+      if (canSend && !e.repeat) onSendMessage();
+    } else if (e.key === "Escape") {
+      setShowMentionMenu(false);
+      clearActiveMention();
+      setShowSlashMenu(false);
+      setShowModeMenu(false);
+      onCancelReply();
+    }
+  };
+
+  const selectSlashCommand = (selected: SlashCommandItem | undefined) => {
+    if (!selected) return;
+    setComposerText(`/${selected.name} `);
+    setShowSlashMenu(false);
+    setSlashSelectedIndex(0);
+    requestAnimationFrame(() => composerRef.current?.focus());
+  };
+
+  const allModeOptions: Array<{ key: ComposerMessageMode; label: string; description: string }> = [
+    { key: "send", label: t("modeSend"), description: t("modeSendDesc") },
+    { key: "request_reply", label: t("modeSendReply"), description: t("modeSendReplyDesc") },
+    { key: "mail", label: t("modeMail"), description: t("modeMailDesc") },
+  ];
+  const toChet = toTokens.includes(CHET_SELECTOR) || !!replyTarget?.toChet;
+  const modeOptions = allModeOptions.filter(
+    (option) =>
+      !(replyTarget && option.key === "request_reply") && !(toChet && option.key === "mail"),
+  );
+
+  const effectiveMessageMode: ComposerMessageMode = messageModeForRecipients(
+    replyTarget ? normalizeReplyMessageMode(messageMode) : messageMode,
+    toTokens,
+    !!replyTarget?.toChet,
+  );
+  const requestReplyRecipientsReady = hasConcreteReplyRecipients(toTokens);
+  const canSend =
+    !sendInFlight &&
+    getComposerCanSend({
+      composerText,
+      composerFilesCount: composerFiles.length,
+      recipientResolutionBusy: selectedGroupActorsHydrating || recipientActorsBusy,
+      messageMode: effectiveMessageMode,
+      toTokens,
+    });
+
+  const recentChatExcerpt = useMemo(
+    () => buildRecentChatExcerptForVoicePrompt(recentMessages),
+    [recentMessages],
+  );
+
+  const composerAssistantContext = useMemo<Record<string, unknown>>(
+    () => ({
+      recipients: toTokens,
+      message_mode: effectiveMessageMode,
+      reply_target: replyTarget
+        ? `${replyTarget.by || "unknown"}: ${String(replyTarget.text || "").slice(0, 240)}`
+        : "",
+      quoted_reference: quotedPresentationRef
+        ? getPresentationRefChipLabel(quotedPresentationRef)
+        : quotedVoiceDocumentRef
+          ? `Voice document: ${getVoiceDocumentRefLabel(quotedVoiceDocumentRef)} (${quotedVoiceDocumentRef.document_path})`
+          : "",
+      recent_chat_excerpt: recentChatExcerpt,
+    }),
+    [
+      effectiveMessageMode,
+      quotedPresentationRef,
+      quotedVoiceDocumentRef,
+      recentChatExcerpt,
+      replyTarget,
+      toTokens,
+    ],
+  );
+
+  const focusComposerAfterSpeech = useCallback(() => {
+    requestAnimationFrame(() => {
+      const textarea = composerRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const end = textarea.value.length;
+      textarea.setSelectionRange(end, end);
+    });
+  }, [composerRef]);
+
+  const fillPromptDraftFromSpeech = useCallback(
+    (draft: string, opts?: { mode?: "replace" | "append" }) => {
+      const text = String(draft || "").trim();
+      if (!text) return;
+      setComposerText((current) =>
+        mergeVoiceComposerDraftText(String(current || ""), text, opts?.mode ?? "append"),
+      );
+      focusComposerAfterSpeech();
+    },
+    [focusComposerAfterSpeech, setComposerText],
+  );
+
+  const fileDisabledReason = (() => {
+    if (!selectedGroupId) return t("selectGroupFirst");
+    if (busy === "send") return t("busy");
+    return t("attachFile");
+  })();
+  const sendShortcutLabel = "Enter";
+  // Send + Reply needs concrete recipients; say why Send is off where the recipients are chosen.
+  const replyRecipientsBlocked =
+    effectiveMessageMode === "request_reply" && !requestReplyRecipientsReady;
+  const sendButtonTitle = replyRecipientsBlocked
+    ? t("modeSendReplyRequiresConcrete")
+    : t("sendMessageWithShortcut", {
+        shortcut: sendShortcutLabel,
+        defaultValue: "Send message ({{shortcut}})",
+      });
+  const showTypingPlaceholder = Boolean(
+    !compactViewport &&
+    selectedGroupId &&
+    composerGroupSettled &&
+    busy !== "send" &&
+    composerText.length === 0 &&
+    !showSuggestedUserMessage,
+  );
+  const composerPlaceholder =
+    showSuggestedUserMessage || showTypingPlaceholder
+      ? ""
+      : compactViewport
+        ? t("messagePlaceholder")
+        : t("messagePlaceholderDesktop");
+  const compact = Boolean(
+    compactViewport &&
+    selectedGroupId &&
+    composerGroupSettled &&
+    !keepExpanded &&
+    expandedGroup !== selectedGroupId &&
+    !composerFocused &&
+    !composerText &&
+    composerFiles.length === 0 &&
+    !replyTarget &&
+    !quotedPresentationRef &&
+    !quotedVoiceDocumentRef &&
+    !showSuggestedUserMessage &&
+    !showModeMenu &&
+    !showMentionMenu &&
+    !showSlashMenu &&
+    !voiceBlocksCompact &&
+    !busy &&
+    effectiveMessageMode === "send" &&
+    (!destGroupId || destGroupId === selectedGroupId),
+  );
+  const visibleUnavailableRecipients =
+    selectedGroupActorsHydrating || recipientActorsBusy ? [] : unavailableRecipients;
+  const recipientTitles = [
+    ...visibleUnavailableRecipients.map((name) => t("unavailableRecipient", { name })),
+    ...toTokens.map((token) => actors.find((actor) => actor.id === token)?.title || token),
+  ];
+  const compactRecipients = recipientTitles.length
+    ? `${recipientTitles[0]}${recipientTitles.length > 1 ? ` +${recipientTitles.length - 1}` : ""}`
+    : "";
+  useComposerTextareaAutoResize({
+    composerRef,
+    value: composerText,
+    minHeight: compact ? 44 : minComposerHeight,
+    maxHeight: compact ? 44 : maxComposerHeight,
+  });
+
+  const focusSelectedRecipient = () => {
+    requestAnimationFrame(() => {
+      const row = footerRef.current?.querySelector<HTMLElement>("[data-composer-recipient-row]");
+      (
+        row?.querySelector<HTMLButtonElement>("[data-unavailable-recipient]") ||
+        row?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]') ||
+        row?.querySelector<HTMLButtonElement>("button")
+      )?.focus();
+    });
+  };
+
+  return (
+    <footer
+      ref={footerRef}
+      data-composer-compact={compact ? "true" : undefined}
+      onPointerDownCapture={(event) => {
+        if (
+          compactViewport &&
+          event.target instanceof Element &&
+          event.currentTarget.contains(event.target) &&
+          event.target.closest("button")
+        ) {
+          // The compact chip leaves the DOM as soon as the row expands, before
+          // a touch click fires. Restore focus after that row is rendered.
+          if (compact && event.target.closest(".compact-composer-recipients")) {
+            setExpandedGroup(selectedGroupId);
+            focusSelectedRecipient();
+          } else if (!compact) {
+            // Keep an already expanded row open while focus moves from the
+            // textarea to a recipient, attachment, or voice control.
+            setExpandedGroup(selectedGroupId);
+          }
+        }
+      }}
+      onClickCapture={(event) => {
+        if (compact && event.target instanceof Element && event.target.closest("button")) {
+          // Let the first tap reach the compact control before the layout moves.
+          setExpandedGroup(selectedGroupId);
+        }
+      }}
+      onBlurCapture={(event) => {
+        const next = event.relatedTarget;
+        if (
+          next instanceof Element &&
+          !event.currentTarget.contains(next) &&
+          !next.closest('[role="dialog"], [role="menu"], [role="listbox"]')
+        ) {
+          setExpandedGroup("");
+        }
+      }}
+      className={classNames(
+        "relative z-40 flex-shrink-0 px-2 pb-[max(0.375rem,env(safe-area-inset-bottom,0px))] sm:px-4 sm:pb-[max(0.5rem,env(safe-area-inset-bottom,0px))]",
+        compactViewport ? "pt-1" : "pt-2",
+        "bg-[var(--color-chat-bg)]",
+      )}
+    >
+      {!compactViewport ? (
+        <ComposerResizeHandle {...composerResize} label={t("layout:resizeComposer")} />
+      ) : null}
+      <div
+        data-composer-surface
+        className="@container/composer chat-reading-width rounded-2xl border border-[var(--glass-border-subtle)] bg-[var(--glass-panel-bg)] px-1 pt-1 shadow-sm transition-[border-color,box-shadow] duration-150 focus-within:border-[var(--color-border-secondary)] motion-reduce:transition-none"
+      >
+        <ComposerFailedSends groupId={selectedGroupId} isDark={isDark} />
+
+        {/* Reply indicator */}
+        {replyTarget && (
+          <div
+            className={classNames(
+              "mb-2.5 flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs",
+              isDark
+                ? "border-white/[0.06] bg-white/[0.035] text-[var(--color-text-tertiary)]"
+                : "border-black/[0.05] bg-black/[0.025] text-gray-500",
+            )}
+          >
+            <ReplyIcon size={12} className="flex-shrink-0 opacity-45" />
+            <span className="min-w-0 flex-1 truncate">
+              <span className="mr-1 opacity-55">{t("replyingTo")}</span>
+              <span
+                className={classNames(
+                  "font-medium",
+                  isDark ? "text-slate-300/90" : "text-gray-700",
+                )}
+              >
+                {replyByDisplayName}
+              </span>
+              <span className="mx-1 opacity-40">"</span>
+              <span className="opacity-75">{replyTarget.text}</span>
+              <span className="opacity-40">"</span>
+            </span>
+            <button
+              className={classNames(
+                "rounded-full p-1 transition-colors",
+                isDark
+                  ? "text-[var(--color-text-tertiary)] hover:bg-white/[0.08] hover:text-[var(--color-text-primary)]"
+                  : "text-gray-400 hover:bg-black/[0.06] hover:text-gray-600",
+              )}
+              onClick={onCancelReply}
+              title={t("cancelReply")}
+              aria-label={t("cancelReply")}
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+        )}
+
+        {quotedPresentationRef && (
+          <div
+            className={classNames(
+              "mb-2.5 flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs",
+              isDark
+                ? "border-cyan-400/12 bg-cyan-500/6 text-[var(--color-text-tertiary)]"
+                : "border-cyan-200/70 bg-cyan-50/70 text-gray-600",
+            )}
+          >
+            <span
+              className={classNames(
+                "flex-shrink-0 font-medium",
+                isDark ? "text-cyan-100/90" : "text-cyan-700",
+              )}
+            >
+              {t("presentationQuotedViewLabel", { defaultValue: "Quoted view" })}
+            </span>
+            <span
+              className="min-w-0 flex-1 truncate opacity-80"
+              title={quotedPresentationRef.title || quotedPresentationRefLabel}
+            >
+              {quotedPresentationRefLabel}
+            </span>
+            <button
+              className={classNames(
+                "rounded-full p-1 transition-colors",
+                isDark
+                  ? "text-[var(--color-text-tertiary)] hover:bg-white/[0.08] hover:text-[var(--color-text-primary)]"
+                  : "text-gray-400 hover:bg-black/[0.06] hover:text-gray-600",
+              )}
+              onClick={onClearQuotedPresentationRef}
+              title={t("presentationRemoveQuotedView", { defaultValue: "Remove quoted view" })}
+              aria-label={t("presentationRemoveQuotedView", { defaultValue: "Remove quoted view" })}
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+        )}
+
+        {quotedVoiceDocumentRef && (
+          <div
+            className={classNames(
+              "mb-2.5 flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs",
+              isDark
+                ? "border-violet-400/12 bg-violet-500/6 text-[var(--color-text-tertiary)]"
+                : "border-violet-200/70 bg-violet-50/70 text-gray-600",
+            )}
+          >
+            <span
+              className={classNames(
+                "flex-shrink-0 font-medium",
+                isDark ? "text-violet-100/90" : "text-violet-700",
+              )}
+            >
+              {t("voiceSecretaryQuotedDocumentLabel", { defaultValue: "Quoted document" })}
+            </span>
+            <span
+              className="min-w-0 flex-1 truncate opacity-80"
+              title={quotedVoiceDocumentRef.document_path}
+            >
+              {quotedVoiceDocumentRefLabel}
+            </span>
+            <button
+              className={classNames(
+                "rounded-full p-1 transition-colors",
+                isDark
+                  ? "text-[var(--color-text-tertiary)] hover:bg-white/[0.08] hover:text-[var(--color-text-primary)]"
+                  : "text-gray-400 hover:bg-black/[0.06] hover:text-gray-600",
+              )}
+              onClick={onClearQuotedVoiceDocumentRef}
+              title={t("voiceSecretaryRemoveQuotedDocument", {
+                defaultValue: "Remove quoted document",
+              })}
+              aria-label={t("voiceSecretaryRemoveQuotedDocument", {
+                defaultValue: "Remove quoted document",
+              })}
+            >
+              <CloseIcon size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* File list */}
+        {composerFiles.length > 0 && (
+          <div className="mb-2 flex max-h-40 flex-wrap gap-2 overflow-y-auto px-2 pt-2 pb-1">
+            {composerFiles.map((f, idx) => (
+              <ComposerFilePreview
+                key={`${f.name}:${idx}`}
+                file={f}
+                onRemove={() => onRemoveComposerFile(idx)}
+                removeLabel={t("removeAttachment", { name: f.name })}
+              />
+            ))}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef as RefObject<HTMLInputElement>}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            const files = Array.from(e.target.files || []);
+            if (files.length > 0) appendComposerFiles(files);
+            e.target.value = "";
+          }}
+        />
+
+        {/* Integrated composer */}
+        <div className="flex flex-col">
+          <div className="relative flex min-w-0 flex-1 flex-col" data-composer-inner>
+            <ComposerRecipientsRow
+              isDark={isDark}
+              isSmallScreen={isSmallScreen}
+              selectedGroupId={selectedGroupId}
+              busy={busy}
+              actors={actors}
+              allowChet={isWebAdmin === true && (!destGroupId || destGroupId === selectedGroupId)}
+              selectedGroupActorsHydrating={selectedGroupActorsHydrating}
+              toTokens={toTokens}
+              unavailableRecipients={visibleUnavailableRecipients}
+              onToggleRecipient={onToggleRecipient}
+              onClearRecipients={onClearRecipients}
+            />
+            {replyRecipientsBlocked ? (
+              <p
+                data-composer-send-blocked
+                className="px-3 pb-1 text-xs text-[var(--color-text-secondary)]"
+              >
+                {t("modeSendReplyRequiresConcrete")}
+              </p>
+            ) : null}
+
+            <div ref={setVoiceStatusTarget} data-voice-mobile-status-slot />
+
+            {/* Row 2 — Textarea */}
+            <div className="relative min-w-0 flex-1" data-composer-input>
+              {compact && compactRecipients ? (
+                <button
+                  type="button"
+                  className="compact-composer-recipients"
+                  aria-label={`${t("to", "To")}: ${recipientTitles.join(", ")}`}
+                  title={recipientTitles.join(", ")}
+                  onClick={() => {
+                    setExpandedGroup(selectedGroupId);
+                    focusSelectedRecipient();
+                  }}
+                >
+                  <span>{compactRecipients}</span>
+                </button>
+              ) : null}
+              {liveGroupMentionTokens.length || liveAgentMentionTokens.length ? (
+                <ComposerMentionOverlay
+                  text={composerText}
+                  groupTokens={liveGroupMentionTokens}
+                  agentTokens={liveAgentMentionTokens}
+                  scrollTop={composerScrollTop}
+                  compact={compactViewport}
+                  minHeight={expandedMinHeight}
+                  maxHeight={expandedMaxHeight}
+                  fontSize={composerFontSize}
+                  lineHeight={composerLineHeight}
+                />
+              ) : null}
+              <textarea
+                ref={composerRef as RefObject<HTMLTextAreaElement>}
+                className={classNames(
+                  "relative w-full bg-transparent border-none resize-none overflow-y-auto scrollbar-hide focus:outline-none focus:ring-0 focus-visible:shadow-none text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)]",
+                  compactViewport ? "py-2" : "py-3",
+                  showSuggestedUserMessage ? "pl-11 pr-4" : "px-4",
+                )}
+                style={{
+                  minHeight: compact
+                    ? "44px"
+                    : showTypingPlaceholder
+                      ? `max(${hintMinHeight}px, ${expandedMinHeight})`
+                      : expandedMinHeight,
+                  maxHeight: compact ? "44px" : expandedMaxHeight,
+                  fontSize: `${composerFontSize}px`,
+                  lineHeight: `${composerLineHeight}px`,
+                  border: "none",
+                  outline: "none",
+                  boxShadow: "none",
+                  ...(compact ? { padding: "6px" } : {}),
+                }}
+                placeholder={composerPlaceholder}
+                rows={1}
+                value={composerText}
+                onPaste={handlePaste}
+                onBeforeInput={(event) => rememberSelection(event.currentTarget)}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onPointerDown={exitComposerHistory}
+                onSelect={(event) => {
+                  const input = event.currentTarget;
+                  rememberSelection(input);
+                  if (showMentionMenu)
+                    updateMenu(input.value, input.selectionStart, input.selectionEnd);
+                }}
+                onScroll={(event) => setComposerScrollTop(event.currentTarget.scrollTop)}
+                onFocus={() => setComposerFocused(true)}
+                onBlur={() => {
+                  setComposerFocused(false);
+                  setTimeout(() => setShowMentionMenu(false), 150);
+                }}
+                aria-label={t("messageInput")}
+                aria-describedby={[composerHelpId, suggestedUserMessageHelpId]
+                  .filter(Boolean)
+                  .join(" ")}
+              />
+              {showTypingPlaceholder && (
+                <ComposerTypingPlaceholder
+                  key={selectedGroupId}
+                  focused={composerFocused}
+                  fontSize={composerFontSize}
+                  lineHeight={composerLineHeight}
+                  onHeightChange={setHintMinHeight}
+                />
+              )}
+              {showSuggestedUserMessage && suggestedUserMessage ? (
+                <button
+                  type="button"
+                  className={classNames(
+                    "touch-target-sm absolute left-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-md transition-colors",
+                    isDark
+                      ? "text-white/45 hover:bg-white/10 hover:text-white/75"
+                      : "text-gray-400 hover:bg-black/[0.06] hover:text-gray-600",
+                  )}
+                  onClick={acceptSuggestedUserMessage}
+                  aria-label={suggestedUserMessageUseLabel}
+                  title={suggestedUserMessageUseLabel}
+                >
+                  <SparklesIcon size={14} aria-hidden="true" />
+                </button>
+              ) : null}
+              {showSuggestedUserMessage && suggestedUserMessage ? (
+                <div
+                  className={classNames(
+                    "pointer-events-none absolute inset-x-0 top-0 overflow-hidden py-3 pl-11 pr-4 whitespace-pre-wrap",
+                    isDark ? "text-white/22" : "text-gray-400/80",
+                  )}
+                  style={{
+                    maxHeight: expandedMaxHeight,
+                    fontSize: `${composerFontSize}px`,
+                    lineHeight: `${composerLineHeight}px`,
+                  }}
+                  aria-hidden="true"
+                >
+                  {suggestedUserMessage.text}
+                </div>
+              ) : null}
+              {showSuggestedUserMessage && suggestedUserMessageHelpId ? (
+                <span id={suggestedUserMessageHelpId} className="sr-only">
+                  {suggestedUserMessageHintLabel}
+                </span>
+              ) : null}
+
+              {/* Mention menu */}
+              {showMentionMenu && (mentionSuggestions.length > 0 || connectMentionStatus) && (
+                <ChatMentionMenu
+                  isDark={isDark}
+                  isSmallScreen={isSmallScreen}
+                  items={mentionSuggestions}
+                  status={connectMentionStatus}
+                  left={mentionMenuLeft}
+                  selectedIndex={mentionSelectedIndex}
+                  onSelect={(item) => {
+                    selectMention(item);
+                    composerRef.current?.focus();
+                  }}
+                  onHover={setMentionSelectedIndex}
+                />
+              )}
+
+              {showSlashMenu && visibleSlashSuggestions.length > 0 && (
+                <SlashCommandMenu
+                  isDark={isDark}
+                  suggestions={visibleSlashSuggestions}
+                  selectedIndex={Math.min(slashSelectedIndex, visibleSlashSuggestions.length - 1)}
+                  hasMore={hasMoreSlashSuggestions}
+                  loadMoreLabel={t("slashCommandLoadMore", { defaultValue: "Scroll for more" })}
+                  onSelect={selectSlashCommand}
+                  onHover={setSlashSelectedIndex}
+                  onLoadMore={() => {
+                    setSlashVisibleCount((count) =>
+                      Math.min(count + SLASH_COMMAND_PAGE_SIZE, slashSuggestions.length),
+                    );
+                  }}
+                />
+              )}
+            </div>
+            <span id={composerHelpId} className="sr-only">
+              {t("composerPromptSkill")} {t("composerPromptActor")} {t("composerPromptGroup")}{" "}
+              {t("composerSendShortcut", { shortcut: sendShortcutLabel })}
+            </span>
+            {/* Row 3 — Action bar */}
+            <div
+              data-composer-action-bar
+              className={classNames(
+                "flex flex-wrap items-center gap-2 px-2 @min-[600px]/composer:flex-nowrap @min-[600px]/composer:justify-between",
+                compactViewport ? "pb-1 pt-0" : "pb-2 pt-1",
+              )}
+            >
+              <div
+                data-composer-action-group
+                className="contents @min-[600px]/composer:flex @min-[600px]/composer:min-w-0 @min-[600px]/composer:flex-1 @min-[600px]/composer:items-center @min-[600px]/composer:gap-1.5"
+              >
+                <button
+                  data-composer-attach
+                  className={classNames(
+                    "flex h-[44px] w-[44px] items-center justify-center rounded-lg text-[var(--color-text-secondary)] transition-colors duration-150 disabled:cursor-not-allowed disabled:text-[var(--color-text-tertiary)] disabled:opacity-60 @min-[600px]/composer:h-9 @min-[600px]/composer:w-9",
+                    busy !== "send" && selectedGroupId
+                      ? isDark
+                        ? "hover:bg-white/10 hover:text-[var(--color-text-primary)]"
+                        : "hover:bg-black/5 hover:text-gray-800"
+                      : "",
+                  )}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!selectedGroupId || busy === "send"}
+                  aria-label={t("attachFile")}
+                  title={fileDisabledReason}
+                >
+                  <AttachmentIcon size={18} />
+                </button>
+
+                <div data-composer-voice className="min-w-0 shrink-0 @min-[600px]/composer:shrink">
+                  <LazyVoiceSecretaryComposerControl
+                    isDark={isDark}
+                    selectedGroupId={selectedGroupId}
+                    busy={busy}
+                    disabled={!selectedGroupId || busy === "send" || !composerGroupSettled}
+                    variant="assistantRow"
+                    statusPortalTarget={voiceStatusTarget}
+                    captureMode={voiceCaptureMode}
+                    onCaptureModeChange={setVoiceCaptureMode}
+                    hasComposerText={Boolean(composerText.trim())}
+                    composerContext={composerAssistantContext}
+                    onQuoteDocument={onQuoteVoiceDocumentRef}
+                    onPromptDraft={fillPromptDraftFromSpeech}
+                    onFocusComposer={focusComposerAfterSpeech}
+                    onCompactBlockChange={setVoiceBlocksCompact}
+                  />
+                </div>
+              </div>
+
+              <ComposerSendControl
+                mode={effectiveMessageMode}
+                options={modeOptions}
+                open={showModeMenu}
+                onOpenChange={setShowModeMenu}
+                onModeChange={setMessageMode}
+                onSend={onSendMessage}
+                busy={busy === "send" || sendInFlight}
+                onStopUploadWaiting={uploadInFlight ? onStopUploadWaiting : undefined}
+                canSend={canSend}
+                modeDisabled={busy === "send" || !selectedGroupId}
+                requestReplyReady={requestReplyRecipientsReady}
+                title={sendButtonTitle}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}

@@ -1,0 +1,52 @@
+{
+  "name": "@pixoffice/renderer-pixi",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    "./projection": {
+      "types": "./lib/projection.d.ts",
+      "import": "./lib/projection.js"
+    },
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./animation/AnimationRegistry": {
+      "types": "./lib/animation/AnimationRegistry.d.ts",
+      "import": "./lib/animation/AnimationRegistry.js"
+    },
+    "./SceneView": {
+      "types": "./lib/SceneView.d.ts",
+      "import": "./lib/SceneView.js"
+    },
+    "./ui/Bubble": {
+      "types": "./lib/ui/Bubble.d.ts",
+      "import": "./lib/ui/Bubble.js"
+    },
+    "./ui/StatusLabel": {
+      "types": "./lib/ui/StatusLabel.d.ts",
+      "import": "./lib/ui/StatusLabel.js"
+    },
+    "./PropViewRegistry": {
+      "types": "./lib/PropViewRegistry.d.ts",
+      "import": "./lib/PropViewRegistry.js"
+    },
+    "./ScenePresentationPack": {
+      "types": "./lib/ScenePresentationPack.d.ts",
+      "import": "./lib/ScenePresentationPack.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/protocol": "0.1.0",
+    "@pixoffice/contracts": "0.1.0",
+    "@pixoffice/runtime": "0.1.0"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.18.1"
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "@pixoffice/protocol",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./schema": {
+      "types": "./lib/schema.d.ts",
+      "import": "./lib/schema.js"
+    },
+    "./map": {
+      "types": "./lib/map.d.ts",
+      "import": "./lib/map.js"
+    },
+    "./spatial": {
+      "types": "./lib/spatial.d.ts",
+      "import": "./lib/spatial.js"
+    },
+    "./dashboard": {
+      "types": "./lib/dashboard.d.ts",
+      "import": "./lib/dashboard.js"
+    },
+    "./agent-insights": {
+      "types": "./lib/agent-insights.d.ts",
+      "import": "./lib/agent-insights.js"
+    },
+    "./chat": {
+      "types": "./lib/chat.d.ts",
+      "import": "./lib/chat.js"
+    },
+    "./relay": {
+      "types": "./lib/relay.d.ts",
+      "import": "./lib/relay.js"
+    },
+    "./office-integration": {
+      "types": "./lib/office-integration.d.ts",
+      "import": "./lib/office-integration.js"
+    },
+    "./office-ui": {
+      "types": "./lib/office-ui.d.ts",
+      "import": "./lib/office-ui.js"
+    }
+  },
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}

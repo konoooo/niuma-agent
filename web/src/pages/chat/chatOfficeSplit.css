@@ -1,0 +1,71 @@
+.chat-office-split {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  container-type: inline-size;
+  container-name: chat-office;
+}
+
+.chat-office-split__layout {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.chat-office-split__scene {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 50%;
+  overflow: hidden;
+  border-right: 1px solid var(--glass-border-subtle);
+}
+
+.chat-office-split__conversation {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+@container chat-office (max-width: 760px) {
+  .chat-office-split__layout {
+    flex-direction: column;
+  }
+
+  .chat-office-split__scene {
+    flex: 0 0 clamp(170px, 32vh, 280px);
+    border-right: 0;
+    border-bottom: 1px solid var(--glass-border-subtle);
+  }
+
+  .chat-office-split__scene:has([data-office-task-panel]) {
+    flex: 0 1 clamp(300px, 56dvh, 480px);
+  }
+
+  .chat-office-split__layout:has([data-office-task-panel]) > .chat-office-split__conversation {
+    min-height: 160px;
+  }
+
+  .office-tasks {
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .office-tasks__header {
+    position: sticky;
+    z-index: 1;
+    top: 0;
+    background: var(--color-bg-secondary);
+  }
+
+  .office-tasks__body {
+    min-height: 160px;
+    flex: none;
+    overflow: visible;
+  }
+}

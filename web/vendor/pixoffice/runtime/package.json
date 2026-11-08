@@ -1,0 +1,89 @@
+{
+  "name": "@pixoffice/runtime",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    "./adapters/storage": {
+      "types": "./lib/adapters/storage.d.ts",
+      "import": "./lib/adapters/storage.js"
+    },
+    "./adapters/messages": {
+      "types": "./lib/adapters/messages.d.ts",
+      "import": "./lib/adapters/messages.js"
+    },
+    "./adapters/sse": {
+      "types": "./lib/adapters/sse.d.ts",
+      "import": "./lib/adapters/sse.js"
+    },
+    "./SceneRuntime": {
+      "types": "./lib/SceneRuntime.d.ts",
+      "import": "./lib/SceneRuntime.js"
+    },
+    "./model": {
+      "types": "./lib/model.d.ts",
+      "import": "./lib/model.js"
+    },
+    "./createSceneRuntime": {
+      "types": "./lib/createSceneRuntime.d.ts",
+      "import": "./lib/createSceneRuntime.js"
+    },
+    "./map/MapDraft": {
+      "types": "./lib/map/MapDraft.d.ts",
+      "import": "./lib/map/MapDraft.js"
+    },
+    "./map/placement": {
+      "types": "./lib/map/placement.d.ts",
+      "import": "./lib/map/placement.js"
+    },
+    "./map/furnitureGrid": {
+      "types": "./lib/map/furnitureGrid.d.ts",
+      "import": "./lib/map/furnitureGrid.js"
+    },
+    "./navigation": {
+      "types": "./lib/navigation.d.ts",
+      "import": "./lib/navigation.js"
+    },
+    "./walkableArea": {
+      "types": "./lib/walkableArea.d.ts",
+      "import": "./lib/walkableArea.js"
+    },
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./actionContract": {
+      "types": "./lib/actionContract.d.ts",
+      "import": "./lib/actionContract.js"
+    },
+    "./scenePack": {
+      "types": "./lib/scenePack.d.ts",
+      "import": "./lib/scenePack.js"
+    },
+    "./navigationAdapter": {
+      "types": "./lib/navigationAdapter.d.ts",
+      "import": "./lib/navigationAdapter.js"
+    },
+    "./plugins": {
+      "types": "./lib/plugins.d.ts",
+      "import": "./lib/plugins.js"
+    },
+    "./builtin/primitives": {
+      "types": "./lib/builtin/primitives.d.ts",
+      "import": "./lib/builtin/primitives.js"
+    },
+    "./cellMovement": {
+      "types": "./lib/cellMovement.d.ts",
+      "import": "./lib/cellMovement.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/protocol": "0.1.0",
+    "pathfinding": "^0.4.18",
+    "zod": "^4.6.5"
+  }
+}

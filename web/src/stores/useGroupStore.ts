@@ -1,0 +1,855 @@
+import { isBrowserWebModelRuntime } from "../types";
+// Group state store (groups, actors, events, context, settings).
+import { create } from "zustand";
+import type {
+  GroupMeta,
+  GroupDoc,
+  GroupRuntimeStatus,
+  HeadlessStreamEvent,
+  LedgerEvent,
+} from "../types";
+import { normalizeReplySessionTimestamp, upsertReplySession } from "./chatStreamingSessions";
+import {
+  buildChatBucketPatch,
+  buildPrimedGroupState,
+  ensureGroupChatBucket,
+  getCachedGroupActors,
+  getGroupChatBucket,
+  GroupChatBucket,
+  HEADLESS_RAW_EVENT_LIMIT,
+  loadArchivedGroupIds,
+  loadGroupOrder,
+  loadSelectedGroupId,
+  mergeArchivedGroupIds,
+  mergeGroupOrder,
+  mergeLedgerEventStatuses,
+  normalizeGroupIdList,
+  patchGroupRuntimeStatus,
+  presentationRequestEpochByGroup,
+  reorderGroupSubset,
+  resolveChatGroupId,
+  saveArchivedGroupIds,
+  saveCurrentViewSnapshot,
+  saveGroupOrder,
+  saveGroupView,
+  saveSelectedGroupId,
+  beginGroupRequestEpoch,
+  chatWindowRequestEpochByGroup,
+  settingsRequestEpochByGroup,
+  updateObligationAtIndex,
+  updateReadThroughIndex,
+} from "./groupStoreCore";
+import { createGroupStoreAsyncActions } from "./groupStoreAsyncActions";
+import type { GroupState } from "./groupStoreTypes";
+import { useComposerStore } from "./useComposerStore";
+import {
+  clearEmptyStreamingEventsForActorPatch,
+  clearStreamingEventsForActorPatch,
+  clearStreamingPlaceholderPatch,
+  clearTransientStreamingEventsForActorPatch,
+  completeStreamingEventsForActorPatch,
+  promoteStreamingEventToStreamPatch,
+  promoteStreamingEventsByPrefixPatch,
+  reconcileStreamingMessagePatch,
+  removeStreamingEventPatch,
+  removeStreamingEventsByPrefixPatch,
+  upsertStreamingActivitiesPatch,
+  upsertStreamingActivityPatch,
+  upsertStreamingEventPatch,
+  upsertStreamingTextPatch,
+} from "./groupStreamingReducers";
+import { mergeOlderLedgerEvents } from "./groupHistoryMerge";
+import { computeGroupRuntimePatch } from "../utils/groupRuntimeProjection";
+import { projectCrossGroupReceipts } from "../utils/mergeLedgerEvents";
+import { fetchLedgerStatuses, fetchRuntimes } from "../services/api";
+import { projectSenderHistory } from "./senderHistoryProjection";
+
+// All mounted conversation projections consume the same daemon-owned receipts.
+function updateChatEventLists(
+  bucket: GroupChatBucket,
+  update: (events: LedgerEvent[]) => LedgerEvent[],
+  receiptFact = false,
+): Partial<GroupChatBucket> | null {
+  const patch: Partial<GroupChatBucket> = {};
+  const events = update(bucket.events);
+  if (events !== bucket.events) patch.events = events;
+  if (bucket.chatWindow) {
+    const events = update(bucket.chatWindow.events);
+    if (events !== bucket.chatWindow.events) patch.chatWindow = { ...bucket.chatWindow, events };
+  }
+  if (bucket.senderHistory) {
+    const events = update(bucket.senderHistory.events);
+    if (events !== bucket.senderHistory.events || receiptFact)
+      patch.senderHistory = {
+        ...bucket.senderHistory,
+        events,
+        receiptRevision: bucket.senderHistory.receiptRevision + Number(receiptFact),
+      };
+  }
+  return Object.keys(patch).length ? patch : null;
+}
+
+let runtimeDetectionRequest: Promise<void> | null = null;
+
+function stableSerialize(value: unknown): string {
+  if (value === null || value === undefined) return String(value);
+  if (typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => stableSerialize(item)).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`)
+    .join(",")}}`;
+}
+
+function buildHeadlessEventIdentity(event: HeadlessStreamEvent): string {
+  return [
+    String(event.id || "").trim(),
+    String(event.ts || "").trim(),
+    String(event.actor_id || "").trim(),
+    String(event.type || "").trim(),
+  ].join("|");
+}
+
+function syncComposerToSelectedGroup(groupId: string): void {
+  const gid = String(groupId || "").trim();
+  const composerActiveGid = String(useComposerStore.getState().activeGroupId || "").trim();
+  if (composerActiveGid === gid) return;
+  useComposerStore.getState().switchGroup(composerActiveGid || null, gid || null);
+}
+
+const initialSelectedGroupId = loadSelectedGroupId();
+syncComposerToSelectedGroup(initialSelectedGroupId);
+
+export const useGroupStore = create<GroupState>((set, get) => ({
+  // Initial state
+  groups: [],
+  groupsLoaded: false,
+  groupOrder: loadGroupOrder(),
+  archivedGroupIds: loadArchivedGroupIds(),
+  selectedGroupId: initialSelectedGroupId,
+  chatByGroup: {},
+  groupDoc: null,
+  actors: [],
+  internalRuntimeActorsByGroup: {},
+  groupContext: null,
+  groupSettings: null,
+  groupPresentation: null,
+  runtimes: [],
+  runtimeDetectionStatus: "idle",
+  selectedGroupActorsHydrating: false,
+  selectedGroupActorStatusProvisional: false,
+
+  // Sync actions
+  setGroups: (groups) => {
+    const storedOrder = get().groupOrder;
+    const storedArchived = get().archivedGroupIds;
+    const mergedOrder = mergeGroupOrder(storedOrder, groups);
+    const mergedArchived = mergeArchivedGroupIds(storedArchived, groups);
+    saveGroupOrder(mergedOrder);
+    saveArchivedGroupIds(mergedArchived);
+    set({ groups, groupsLoaded: true, groupOrder: mergedOrder, archivedGroupIds: mergedArchived });
+  },
+  setGroupOrder: (order) => {
+    saveGroupOrder(order);
+    set({ groupOrder: order });
+  },
+  reorderGroupsInSection: (section, fromIndex, toIndex) => {
+    const { groupOrder, archivedGroupIds } = get();
+    const archivedSet = new Set(archivedGroupIds);
+    const subsetIds = groupOrder.filter((id) =>
+      section === "archived" ? archivedSet.has(id) : !archivedSet.has(id),
+    );
+    const nextOrder = reorderGroupSubset(groupOrder, subsetIds, fromIndex, toIndex);
+    if (nextOrder === groupOrder) return;
+    saveGroupOrder(nextOrder);
+    set({ groupOrder: nextOrder });
+  },
+  archiveGroup: (groupId) => {
+    const gid = String(groupId || "").trim();
+    if (!gid) return;
+    const next = normalizeGroupIdList([...get().archivedGroupIds, gid]);
+    saveArchivedGroupIds(next);
+    set({ archivedGroupIds: next });
+  },
+  restoreGroup: (groupId) => {
+    const gid = String(groupId || "").trim();
+    if (!gid) return;
+    const next = get().archivedGroupIds.filter((id) => id !== gid);
+    saveArchivedGroupIds(next);
+    set({ archivedGroupIds: next });
+  },
+  getOrderedGroups: () => {
+    const { groups, groupOrder, selectedGroupId, groupDoc, actors } = get();
+    const groupMap = new Map(groups.map((g) => [String(g.group_id || ""), g]));
+    const ordered: GroupMeta[] = [];
+    for (const id of groupOrder) {
+      const g = groupMap.get(id);
+      if (g) ordered.push(g);
+    }
+    // Include any groups not in order (shouldn't happen normally, but be safe)
+    for (const g of groups) {
+      const id = String(g.group_id || "");
+      if (!groupOrder.includes(id)) ordered.push(g);
+    }
+    return ordered.map((group) => {
+      const gid = String(group.group_id || "").trim();
+      const isSelected = gid === String(selectedGroupId || "").trim();
+      const patch = computeGroupRuntimePatch({
+        group,
+        groupDoc: isSelected ? groupDoc : null,
+        actors: isSelected ? actors : getCachedGroupActors(gid),
+      });
+      return { ...group, ...patch };
+    });
+  },
+  setSelectedGroupId: (id) => {
+    const gid = String(id || "").trim();
+    syncComposerToSelectedGroup(gid);
+    saveSelectedGroupId(gid);
+    set((state) => {
+      const statePrevGid = String(state.selectedGroupId || "").trim();
+
+      // Re-selecting the active group does not trigger the selectedGroupId effect,
+      // so marking actors as hydrating here would leave recipient chips disabled.
+      if (gid && statePrevGid === gid) return state;
+
+      // A pending newer-context page belongs to this visit; a late response must not
+      // update the old window after switching away and back.
+      const previousWindow = state.chatByGroup[statePrevGid]?.chatWindow;
+      if (statePrevGid && statePrevGid !== gid && previousWindow?.isLoadingAfter) {
+        beginGroupRequestEpoch(chatWindowRequestEpochByGroup, statePrevGid);
+      }
+      // Cache the current view before switching groups so returning to it is instant.
+      if (statePrevGid && statePrevGid !== gid) {
+        saveCurrentViewSnapshot(statePrevGid, state);
+      }
+
+      if (!gid) {
+        return {
+          selectedGroupId: "",
+          chatByGroup: {},
+          groupDoc: null,
+          actors: [],
+          groupContext: null,
+          groupSettings: null,
+          groupPresentation: null,
+          selectedGroupActorsHydrating: false,
+          selectedGroupActorStatusProvisional: false,
+        };
+      }
+
+      let nextChatByGroup = ensureGroupChatBucket(state.chatByGroup, gid);
+      const previous = nextChatByGroup[statePrevGid];
+      if (statePrevGid !== gid && previous?.chatWindow?.isLoadingAfter) {
+        nextChatByGroup = {
+          ...nextChatByGroup,
+          [statePrevGid]: {
+            ...previous,
+            chatWindow: { ...previous.chatWindow, isLoadingAfter: false },
+          },
+        };
+      }
+      return {
+        selectedGroupId: gid,
+        chatByGroup: nextChatByGroup,
+        selectedGroupActorsHydrating: !!gid,
+        selectedGroupActorStatusProvisional: !!gid,
+        ...buildPrimedGroupState(gid, state.groups),
+      };
+    });
+  },
+  setGroupDoc: (doc) => set({ groupDoc: doc }),
+  updateGroupRuntimeState: (groupId, patch) =>
+    set((state) => {
+      const gid = String(groupId || "").trim();
+      if (!gid) return state;
+      const currentGroup =
+        state.groups.find((group) => String(group.group_id || "").trim() === gid) || null;
+      const currentRuntime =
+        currentGroup?.runtime_status ||
+        (state.groupDoc?.group_id === gid ? state.groupDoc.runtime_status : null) ||
+        null;
+      const nextRuntime: GroupRuntimeStatus = {
+        lifecycle_state: String(
+          patch.lifecycle_state ||
+            currentRuntime?.lifecycle_state ||
+            currentGroup?.state ||
+            "active",
+        ),
+        runtime_running:
+          patch.runtime_running ??
+          currentRuntime?.runtime_running ??
+          currentGroup?.running ??
+          false,
+        running_actor_count: Number.isFinite(Number(patch.running_actor_count))
+          ? Number(patch.running_actor_count)
+          : Number(currentRuntime?.running_actor_count || 0),
+        has_running_foreman:
+          patch.has_running_foreman ?? currentRuntime?.has_running_foreman ?? false,
+      };
+      const nextGroups = patchGroupRuntimeStatus(state.groups, gid, nextRuntime);
+      const nextGroupDoc =
+        state.groupDoc && String(state.groupDoc.group_id || "").trim() === gid
+          ? {
+              ...state.groupDoc,
+              running: nextRuntime.runtime_running,
+              state: nextRuntime.lifecycle_state as GroupDoc["state"],
+              runtime_status: nextRuntime,
+            }
+          : state.groupDoc;
+      saveGroupView(gid, { groupDoc: nextGroupDoc });
+      if (nextGroups === state.groups && nextGroupDoc === state.groupDoc) {
+        return state;
+      }
+      return {
+        groups: nextGroups,
+        ...(nextGroupDoc !== state.groupDoc ? { groupDoc: nextGroupDoc } : {}),
+      };
+    }),
+  setEvents: (events, groupId, sourceEvents) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const projection = bucket.senderHistory
+        ? projectSenderHistory(bucket.senderHistory, sourceEvents ?? events, bucket.events)
+        : null;
+      return buildChatBucketPatch(state, gid, { events, senderHistory: projection }) ?? state;
+    }),
+  setSenderHistory: (senderHistory, groupId) =>
+    set((state) => buildChatBucketPatch(state, groupId, { senderHistory }) ?? state),
+  mergeEventStatuses: (statuses, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const patch = updateChatEventLists(getGroupChatBucket(state.chatByGroup, gid), (events) =>
+        mergeLedgerEventStatuses(events, statuses),
+      );
+      return patch ? (buildChatBucketPatch(state, gid, patch) ?? state) : state;
+    }),
+  setChatWindow: (chatWindow, groupId) =>
+    set(
+      (state) =>
+        buildChatBucketPatch(state, resolveChatGroupId(state, groupId), { chatWindow }) ?? state,
+    ),
+  appendEvent: (event, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      if (event.id && bucket.events.some((e) => e.id === event.id)) return state;
+      const nextEvents = projectCrossGroupReceipts(bucket.events.concat([event]));
+      const patch: Partial<GroupChatBucket> = {
+        events: nextEvents,
+        senderHistory: bucket.senderHistory
+          ? projectSenderHistory(bucket.senderHistory, [event], bucket.events)
+          : null,
+      };
+      if (
+        String(event.kind || "").trim() === "chat.message" &&
+        String(event.by || "").trim() !== "user"
+      ) {
+        const data =
+          event.data && typeof event.data === "object"
+            ? (event.data as {
+                pending_event_id?: unknown;
+                reply_to?: unknown;
+                text?: unknown;
+                activities?: unknown;
+                stream_id?: unknown;
+              })
+            : {};
+        const pendingEventId = String(data.pending_event_id || data.reply_to || "").trim();
+        const actorId = String(event.by || "").trim();
+        if (pendingEventId && actorId) {
+          const { replySessionsByPendingEventId, pendingEventIdByStreamId } = upsertReplySession(
+            bucket.replySessionsByPendingEventId,
+            bucket.pendingEventIdByStreamId,
+            {
+              pendingEventId,
+              actorId,
+              streamId: String(data.stream_id || "").trim() || undefined,
+              phase: "completed",
+              canonicalEventId: String(event.id || "").trim() || undefined,
+              updatedAt: normalizeReplySessionTimestamp(String(event.ts || "")),
+            },
+          );
+          patch.replySessionsByPendingEventId = replySessionsByPendingEventId;
+          patch.pendingEventIdByStreamId = pendingEventIdByStreamId;
+        }
+      }
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  appendHeadlessEvent: (event, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const actorId = String(event.actor_id || "").trim();
+      const eventType = String(event.type || "").trim();
+      if (!actorId || !eventType) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const currentByActor = bucket.rawHeadlessEventsByActorId || {};
+      const currentEvents = Array.isArray(currentByActor[actorId]) ? currentByActor[actorId] : [];
+      const nextIdentity = buildHeadlessEventIdentity(event);
+      let nextData: string | undefined;
+      const exists = currentEvents.some((candidate) => {
+        if (buildHeadlessEventIdentity(candidate) !== nextIdentity) return false;
+        // Most arrivals have a new identity. Only serialize payloads when they
+        // can be replays; retain payload comparison for updates under the same ID.
+        nextData ??= stableSerialize(event.data || {});
+        return stableSerialize(candidate.data || {}) === nextData;
+      });
+      if (exists) return state;
+      const nextEvents = currentEvents.concat([event]);
+      return (
+        buildChatBucketPatch(state, gid, {
+          rawHeadlessEventsByActorId: {
+            ...currentByActor,
+            [actorId]:
+              nextEvents.length > HEADLESS_RAW_EVENT_LIMIT
+                ? nextEvents.slice(nextEvents.length - HEADLESS_RAW_EVENT_LIMIT)
+                : nextEvents,
+          },
+        }) ?? state
+      );
+    }),
+  upsertStreamingEvent: (event, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = upsertStreamingEventPatch(bucket, gid, event);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  upsertStreamingText: (streamId, text, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = upsertStreamingTextPatch(bucket, streamId, text);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  upsertStreamingActivities: (streamId, activities, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = upsertStreamingActivitiesPatch(bucket, streamId, activities);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  upsertStreamingActivity: (actorId, match, activity, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = upsertStreamingActivityPatch(bucket, gid, actorId, match, activity);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  removeStreamingEvent: (streamId, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = removeStreamingEventPatch(bucket, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  removeStreamingEventsByPrefix: (streamIdPrefix, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = removeStreamingEventsByPrefixPatch(bucket, streamIdPrefix);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  promoteStreamingEventsByPrefix: (streamIdPrefix, pendingEventId, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = promoteStreamingEventsByPrefixPatch(bucket, streamIdPrefix, pendingEventId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  promoteStreamingEventToStream: (actorId, pendingEventId, streamId, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = promoteStreamingEventToStreamPatch(bucket, actorId, pendingEventId, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  reconcileStreamingMessage: ({
+    actorId,
+    pendingEventId,
+    streamId,
+    ts,
+    firstTextTs,
+    fullText,
+    eventText,
+    activities,
+    completed,
+    transientStream,
+    phase,
+    groupId,
+  }) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = reconcileStreamingMessagePatch(bucket, gid, actorId, {
+        pendingEventId,
+        streamId,
+        ts,
+        firstTextTs,
+        fullText,
+        eventText,
+        activities,
+        completed,
+        transientStream,
+        phase,
+      });
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  completeStreamingEventsForActor: (actorId, groupId, streamId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = completeStreamingEventsForActorPatch(bucket, actorId, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  clearStreamingEventsForActor: (actorId, groupId, streamId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = clearStreamingEventsForActorPatch(bucket, actorId, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  clearEmptyStreamingEventsForActor: (actorId, groupId, streamId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = clearEmptyStreamingEventsForActorPatch(bucket, actorId, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  clearTransientStreamingEventsForActor: (actorId, groupId, streamId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = clearTransientStreamingEventsForActorPatch(bucket, actorId, streamId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  clearStreamingPlaceholder: (actorId, pendingEventId, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = clearStreamingPlaceholderPatch(bucket, actorId, pendingEventId);
+      if (!patch) return state;
+      return buildChatBucketPatch(state, gid, patch) ?? state;
+    }),
+  prependEvents: (newEvents, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const merged = mergeOlderLedgerEvents(bucket.events, newEvents);
+      return buildChatBucketPatch(state, gid, { events: merged.events }) ?? state;
+    }),
+  setActors: (actors) =>
+    set((state) => {
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        saveGroupView(gid, { actors });
+      }
+      return { actors };
+    }),
+  incrementActorUnread: (actorIds) =>
+    set((state) => {
+      if (!state.actors.length || !actorIds.length) return state;
+      const targets = new Set(actorIds.map((id) => String(id || "").trim()).filter(Boolean));
+      if (targets.size === 0) return state;
+
+      let changed = false;
+      const next = state.actors.map((actor) => {
+        const actorId = String(actor.id || "").trim();
+        if (!targets.has(actorId)) return actor;
+        changed = true;
+        return { ...actor, unread_count: Math.max(0, Number(actor.unread_count || 0)) + 1 };
+      });
+
+      if (!changed) return state;
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        saveGroupView(gid, { actors: next });
+      }
+      return { actors: next };
+    }),
+  incrementWebModelQueued: (actorIds) =>
+    set((state) => {
+      if (!state.actors.length || !actorIds.length) return state;
+      const targets = new Set(actorIds.map((id) => String(id || "").trim()).filter(Boolean));
+      if (targets.size === 0) return state;
+
+      let changed = false;
+      const next = state.actors.map((actor) => {
+        const actorId = String(actor.id || "").trim();
+        const runtime = String(actor.runtime || "")
+          .trim()
+          .toLowerCase();
+        const workingState = String(actor.effective_working_state || "")
+          .trim()
+          .toLowerCase();
+        if (
+          !targets.has(actorId) ||
+          !isBrowserWebModelRuntime(runtime) ||
+          workingState !== "working"
+        ) {
+          return actor;
+        }
+        changed = true;
+        return {
+          ...actor,
+          web_model_queued_count: Math.max(0, Number(actor.web_model_queued_count || 0)) + 1,
+        };
+      });
+
+      if (!changed) return state;
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        saveGroupView(gid, { actors: next });
+      }
+      return { actors: next };
+    }),
+  updateActorActivity: (updates, groupId) =>
+    set((state) => {
+      if (!updates.length || state.selectedGroupId !== groupId) return state;
+      const updateById = new Map(updates.map((u) => [String(u.id || "").trim(), u]));
+      const applyUpdates = (actors: typeof state.actors) => {
+        if (!Array.isArray(actors) || actors.length === 0) {
+          return { actors, changed: false };
+        }
+        let changed = false;
+        const next = actors.map((a) => {
+          const u = updateById.get(String(a.id || "").trim());
+          const hasRuntimeSessionStatus =
+            !!u && Object.prototype.hasOwnProperty.call(u, "runtime_session_status");
+          const hasRuntimeSessionResumeEligible =
+            !!u && Object.prototype.hasOwnProperty.call(u, "runtime_session_resume_eligible");
+          const hasRuntimeSessionLastResumeError =
+            !!u && Object.prototype.hasOwnProperty.call(u, "runtime_session_last_resume_error");
+          if (
+            u &&
+            (a.idle_seconds !== (u.idle_seconds ?? null) ||
+              a.running !== u.running ||
+              a.effective_working_state !== u.effective_working_state ||
+              a.effective_working_reason !== u.effective_working_reason ||
+              a.effective_working_updated_at !== (u.effective_working_updated_at ?? null) ||
+              a.effective_active_task_id !== (u.effective_active_task_id ?? null) ||
+              (hasRuntimeSessionStatus &&
+                (a.runtime_session_status ?? null) !== (u.runtime_session_status ?? null)) ||
+              (hasRuntimeSessionResumeEligible &&
+                (a.runtime_session_resume_eligible ?? null) !==
+                  (u.runtime_session_resume_eligible ?? null)) ||
+              (hasRuntimeSessionLastResumeError &&
+                (a.runtime_session_last_resume_error ?? null) !==
+                  (u.runtime_session_last_resume_error ?? null)))
+          ) {
+            changed = true;
+            return {
+              ...a,
+              idle_seconds: u.idle_seconds ?? null,
+              running: u.running,
+              effective_working_state: u.effective_working_state,
+              effective_working_reason: u.effective_working_reason,
+              effective_working_updated_at: u.effective_working_updated_at ?? null,
+              effective_active_task_id: u.effective_active_task_id ?? null,
+              ...(hasRuntimeSessionStatus
+                ? { runtime_session_status: u.runtime_session_status ?? null }
+                : {}),
+              ...(hasRuntimeSessionResumeEligible
+                ? { runtime_session_resume_eligible: u.runtime_session_resume_eligible ?? null }
+                : {}),
+              ...(hasRuntimeSessionLastResumeError
+                ? { runtime_session_last_resume_error: u.runtime_session_last_resume_error ?? null }
+                : {}),
+              web_model_queued_count:
+                isBrowserWebModelRuntime(a.runtime) &&
+                String(u.effective_working_state || "")
+                  .trim()
+                  .toLowerCase() !== "working"
+                  ? 0
+                  : a.web_model_queued_count,
+            };
+          }
+          return a;
+        });
+        return { actors: next, changed };
+      };
+
+      const normal = applyUpdates(state.actors);
+      const gid = String(state.selectedGroupId || "").trim();
+      const currentInternalActors = gid ? state.internalRuntimeActorsByGroup[gid] || [] : [];
+      const internal = applyUpdates(currentInternalActors);
+
+      if (!normal.changed && !internal.changed) return state;
+      const patch: Partial<typeof state> = {};
+      if (normal.changed) {
+        patch.actors = normal.actors;
+        if (gid) {
+          saveGroupView(gid, { actors: normal.actors });
+        }
+      }
+      if (internal.changed && gid) {
+        patch.internalRuntimeActorsByGroup = {
+          ...state.internalRuntimeActorsByGroup,
+          [gid]: internal.actors,
+        };
+      }
+      return patch;
+    }),
+  setGroupContext: (ctx) =>
+    set((state) => {
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        saveGroupView(gid, { groupContext: ctx });
+      }
+      return { groupContext: ctx };
+    }),
+  setGroupSettings: (settings) =>
+    set((state) => {
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        beginGroupRequestEpoch(settingsRequestEpochByGroup, gid);
+        saveGroupView(gid, { groupSettings: settings });
+      }
+      return { groupSettings: settings };
+    }),
+  setGroupPresentation: (presentation) =>
+    set((state) => {
+      const gid = String(state.selectedGroupId || "").trim();
+      if (gid) {
+        beginGroupRequestEpoch(presentationRequestEpochByGroup, gid);
+        saveGroupView(gid, { groupPresentation: presentation });
+      }
+      return { groupPresentation: presentation };
+    }),
+  setRuntimes: (runtimes) => set({ runtimes, runtimeDetectionStatus: "ready" }),
+  refreshRuntimes: () => {
+    if (runtimeDetectionRequest) return runtimeDetectionRequest;
+    set({ runtimeDetectionStatus: "loading" });
+    runtimeDetectionRequest = (async () => {
+      try {
+        const response = await fetchRuntimes();
+        if (response.ok) {
+          set({ runtimes: response.result.runtimes, runtimeDetectionStatus: "ready" });
+        } else {
+          set({ runtimeDetectionStatus: "error" });
+        }
+      } catch {
+        set({ runtimeDetectionStatus: "error" });
+      }
+    })().finally(() => {
+      runtimeDetectionRequest = null;
+    });
+    return runtimeDetectionRequest;
+  },
+
+  updateReadStatus: (eventId, actorId, groupId) => {
+    const gid = resolveChatGroupId(get(), groupId);
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = updateChatEventLists(
+        bucket,
+        (events) => {
+          const index = events.findIndex(
+            (event) => event.kind === "chat.message" && event.id === eventId,
+          );
+          if (index < 0) return events;
+          const result = updateReadThroughIndex(events, index, actorId);
+          return result.changed ? result.next : events;
+        },
+        true,
+      );
+      return patch ? (buildChatBucketPatch(state, gid, patch) ?? state) : state;
+    });
+    const history = get().chatByGroup[gid]?.senderHistory;
+    if (!history || history.events.some((event) => event.id === eventId)) return;
+    // A cursor on an excluded sender gives no position inside this projection.
+    // Ask the daemon for unread Mail receipts rather than inferring them from time.
+    const ids = history.events
+      .filter((event) => event._read_status?.[actorId] === false)
+      .map((event) => String(event.id || ""))
+      .filter(Boolean);
+    // ledger_statuses accepts at most 1,000 IDs per read.
+    for (let start = 0; start < ids.length; start += 1000) {
+      void fetchLedgerStatuses(gid, ids.slice(start, start + 1000), { noCache: true })
+        .then((response) => {
+          if (response.ok && get().chatByGroup[gid]?.senderHistory?.key === history.key)
+            get().mergeEventStatuses(response.result.statuses, gid);
+        })
+        .catch(() => {
+          /* A failed read leaves receipts unchanged; reconnect refreshes them. */
+        });
+    }
+  },
+
+  updateObligationStatus: (eventId, statusPatch, groupId) =>
+    set((state) => {
+      const gid = resolveChatGroupId(state, groupId);
+      if (!gid) return state;
+      const bucket = getGroupChatBucket(state.chatByGroup, gid);
+      const patch = updateChatEventLists(
+        bucket,
+        (events) => {
+          const index = events.findIndex(
+            (event) => event.kind === "chat.message" && event.id === eventId,
+          );
+          if (index < 0) return events;
+          const result = updateObligationAtIndex(events, index, statusPatch);
+          return result.changed ? result.next : events;
+        },
+        true,
+      );
+      return patch ? (buildChatBucketPatch(state, gid, patch) ?? state) : state;
+    }),
+  setHasMoreHistory: (value, groupId) =>
+    set(
+      (state) =>
+        buildChatBucketPatch(state, resolveChatGroupId(state, groupId), {
+          hasMoreHistory: value,
+        }) ?? state,
+    ),
+  setIsLoadingHistory: (value, groupId) =>
+    set(
+      (state) =>
+        buildChatBucketPatch(state, resolveChatGroupId(state, groupId), {
+          isLoadingHistory: value,
+        }) ?? state,
+    ),
+  setIsChatWindowLoading: (value, groupId) =>
+    set(
+      (state) =>
+        buildChatBucketPatch(state, resolveChatGroupId(state, groupId), {
+          isChatWindowLoading: value,
+        }) ?? state,
+    ),
+  ...createGroupStoreAsyncActions(set, get),
+}));

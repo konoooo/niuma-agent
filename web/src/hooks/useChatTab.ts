@@ -1,0 +1,1533 @@
+import { groupMessagesVisible } from "../stores/useUIStore";
+import { useMemo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useVisiblePendingSummary } from "../features/pendingReplies/useVisiblePendingSummary";
+import { useTranslation } from "react-i18next";
+import {
+  useGroupStore,
+  useUIStore,
+  useComposerStore,
+  useModalStore,
+  useFormStore,
+  selectChatBucketState,
+} from "../stores";
+import {
+  getEffectiveComposerDestGroupId,
+  isComposerGroupSettled,
+  normalizeReplyMessageMode,
+} from "../stores/useComposerStore";
+import { CHAT_SCROLL_SNAPSHOT_COORDINATE_VERSION, getChatSession } from "../stores/useUIStore";
+import { useChatOutboxStore, selectOutboxEntries } from "../stores/chatOutboxStore";
+import { beginPendingPageWork } from "../stores/usePendingPageWork";
+import type { Actor, LedgerEvent, MessageRef } from "../types";
+import { formatSendMessageError } from "../utils/chatSend";
+import { CHET_SELECTOR, chetGeneration } from "../utils/chetIdentity";
+import { messageModeForRecipients } from "../stores/composerMessageMode";
+import { parseSlashCommandInput } from "../utils/slashCommands";
+import { useSlashCommands, type SlashDispatchMessageOptions } from "./useSlashCommands";
+import { useSlashSkillDispatch } from "./useSlashSkillDispatch";
+import { useConnectMentionGroups } from "./useConnectMentionGroups";
+import {
+  pruneComposerAgentMentionTokens,
+  pruneComposerGroupMentionTokens,
+} from "./composerGroupMentions";
+import {
+  buildComposerConnectGroupRefs,
+  buildComposerLocalGroupRouteRefs,
+} from "./composerLocalGroupRouteRefs";
+import { buildComposerSendPlanTargets } from "./composerSendPlan";
+import {
+  buildComposerMentionSuggestions,
+  type ComposerMentionKind,
+} from "../pages/chat/chatMentionSuggestions";
+import { useRemoteComposerMention } from "./useRemoteComposerMention";
+import {
+  completeCanonicalOutboxReconciliation,
+  reconcileCanonicalOutboxEvent,
+} from "../utils/chatOutboxReconciliation";
+import {
+  consumeChatSendScrollRequest,
+  createChatSendScrollRequest,
+  invalidateChatSendScrollRequestForOwner,
+  type ChatSendScrollRequest,
+} from "../utils/chatSendScrollRequest";
+
+import { shouldFollowChatSendFromViewport } from "./chat/chatSendAutoFollow";
+import {
+  buildComposerSendRecipientTokens,
+  buildComposerSendRoutingSnapshot,
+  captureSendComposerState,
+  clearSendComposerState,
+  describeSendFailure,
+  restoreFailedSendComposerState,
+  shouldRestoreComposerAfterFailedSend,
+  unavailableComposerRecipients,
+} from "./chat/chatComposerState";
+export * from "./chat/chatTabBasics";
+export * from "./chat/chatStreamingProjection";
+export * from "./chat/chatReplySlots";
+export * from "./chat/chatMessageOrdering";
+export * from "./chat/chatComposerState";
+import {
+  buildAssistantPlaceholders,
+  buildOptimisticMessage,
+  dispatchPreparedMessage,
+  retrySendKey,
+} from "./chat/chatMessageSend";
+import { prepareComposerMessage } from "./chat/prepareComposerMessage";
+import { useChatMessageActions } from "./chat/useChatMessageActions";
+import { useChatMessageView } from "./chat/useChatMessageView";
+import { matchesChatFilters, shownChatFilter } from "./chat/chatMessageFilters";
+import { setPinned, usePinStore } from "../features/pins/pinStore";
+import { useTaskReferenceIndex } from "./chat/useTaskReferenceIndex";
+import { useShallow } from "zustand/react/shallow";
+interface UseChatTabOptions {
+  selectedGroupId: string;
+  selectedGroupRunning: boolean;
+  actors: Actor[];
+  recipientActors: Actor[];
+  showMentionMenu?: boolean;
+  mentionFilter?: string;
+  mentionKind?: ComposerMentionKind;
+  mentionActorScope?: "selected" | "destination";
+  mentionTriggerIndex?: number | null;
+  /** Callback for when message is sent */
+  onMessageSent?: () => void;
+  /** Refs for composer interactions */
+  composerRef?: React.RefObject<HTMLTextAreaElement | null>;
+  fileInputRef?: React.RefObject<HTMLInputElement | null>;
+  /** Chat at bottom ref for scroll state */
+  chatAtBottomRef?: React.MutableRefObject<boolean>;
+  /** Scroll container ref for programmatic scrolling (e.g. after send) */
+  scrollRef?: React.MutableRefObject<HTMLDivElement | null>;
+}
+
+export function useChatTab({
+  selectedGroupId,
+  selectedGroupRunning,
+  actors,
+  recipientActors,
+  showMentionMenu = false,
+  mentionFilter = "",
+  mentionKind = "agent",
+  mentionActorScope = "selected",
+  mentionTriggerIndex,
+  onMessageSent,
+  composerRef,
+  fileInputRef,
+  chatAtBottomRef,
+  scrollRef,
+}: UseChatTabOptions) {
+  const { t } = useTranslation(["chat", "common"]);
+  const [sendScrollRequest, setSendScrollRequest] = useState<ChatSendScrollRequest | null>(null);
+  // A jump opens its message at the reading top of the live list, below any chrome laid over it.
+  const [liveJump, setLiveJump] = useState<{
+    groupId: string;
+    eventId: string;
+    requestId: number;
+  } | null>(null);
+  const nextLiveJumpIdRef = useRef(0);
+  const nextSendScrollRequestIdRef = useRef(0);
+  // ============ Stores ============
+  const {
+    events,
+    streamingEvents,
+    chatWindow,
+    hasMoreHistory,
+    hasLoadedTail,
+    isLoadingHistory,
+    isChatWindowLoading,
+  } = useGroupStore(
+    useShallow((state) => {
+      const bucket = selectChatBucketState(state, selectedGroupId);
+      return {
+        events: bucket.events,
+        streamingEvents: bucket.streamingEvents,
+        chatWindow: bucket.chatWindow,
+        hasMoreHistory: bucket.hasMoreHistory,
+        hasLoadedTail: bucket.hasLoadedTail,
+        isLoadingHistory: bucket.isLoadingHistory,
+        isChatWindowLoading: bucket.isChatWindowLoading,
+      };
+    }),
+  );
+  const groups = useGroupStore((state) => state.groups);
+  const appendEvent = useGroupStore((state) => state.appendEvent);
+  const upsertStreamingEvent = useGroupStore((state) => state.upsertStreamingEvent);
+  const removeStreamingEventsByPrefix = useGroupStore(
+    (state) => state.removeStreamingEventsByPrefix,
+  );
+  const promoteStreamingEventsByPrefix = useGroupStore(
+    (state) => state.promoteStreamingEventsByPrefix,
+  );
+  const groupDoc = useGroupStore((state) => state.groupDoc);
+  const groupContext = useGroupStore((state) => state.groupContext);
+  const groupSettings = useGroupStore((state) => state.groupSettings);
+  const closeChatWindow = useGroupStore((state) => state.closeChatWindow);
+  const openChatWindow = useGroupStore((state) => state.openChatWindow);
+  const loadMoreChatWindowAfter = useGroupStore((state) => state.loadMoreChatWindowAfter);
+  const loadMoreHistory = useGroupStore((state) => state.loadMoreHistory);
+
+  const busy = useUIStore((s) => s.busy);
+  const chatSessions = useUIStore((s) => s.chatSessions);
+  const setChatFilter = useUIStore((s) => s.setChatFilter);
+  const setChatSenderFilter = useUIStore((s) => s.setChatSenderFilter);
+  const setShowScrollButton = useUIStore((s) => s.setShowScrollButton);
+  const setChatUnreadCount = useUIStore((s) => s.setChatUnreadCount);
+  const setChatScrollSnapshot = useUIStore((s) => s.setChatScrollSnapshot);
+  const setChatMobileSurface = useUIStore((s) => s.setChatMobileSurface);
+  const showError = useUIStore((s) => s.showError);
+
+  const setChatAtBottom = useCallback(
+    (value: boolean) => {
+      if (chatAtBottomRef) chatAtBottomRef.current = value;
+    },
+    [chatAtBottomRef],
+  );
+  const showNotice = useUIStore((s) => s.showNotice);
+
+  const chatSession = useMemo(
+    () => getChatSession(selectedGroupId, chatSessions),
+    [selectedGroupId, chatSessions],
+  );
+  const {
+    chatFilter: storedChatFilter,
+    chatSenderFilter,
+    showScrollButton,
+    chatUnreadCount,
+    scrollSnapshot,
+  } = chatSession;
+  const pendingContext = useVisiblePendingSummary();
+  const showPendingPrompts = useUIStore((state) => state.showPendingPrompts);
+  const waitingTabOffered = !!pendingContext;
+  const waitingSummary = pendingContext?.summaries[selectedGroupId];
+  // Only a fresh zero says nothing waits here; an unknown or stale count may still hide one.
+  const nothingWaiting = waitingSummary?.state === "fresh" && waitingSummary.pending === 0;
+  const refreshPending = pendingContext?.refresh;
+  // Pinned is the user's: an exhibit never reads or offers it. ChatTab reads the pins.
+  const webReadOnly = useUIStore((state) => state.webReadOnly);
+  const pinsUnsupported = usePinStore((state) => !!state.groups[selectedGroupId]?.unsupported);
+  const pinnedTabOffered = !webReadOnly && !pinsUnsupported;
+  const chatFilter = shownChatFilter(storedChatFilter, {
+    waiting: waitingTabOffered && showPendingPrompts,
+    pinned: pinnedTabOffered,
+  });
+  const senders = chatSenderFilter;
+  // A sent message hidden by the filters raises a notice that stays until dismissed, so it can
+  // lead back from another Group. Once its own Group's view shows the message, for example
+  // after Waiting for you returns to All, the notice no longer holds and is retired.
+  const hiddenSendNotice = useRef<{ notice: unknown; groupId: string; event: LedgerEvent } | null>(
+    null,
+  );
+  useEffect(() => {
+    const hidden = hiddenSendNotice.current;
+    if (!hidden) return;
+    const ui = useUIStore.getState();
+    if (ui.notice !== hidden.notice) hiddenSendNotice.current = null;
+    else if (
+      hidden.groupId === selectedGroupId &&
+      matchesChatFilters(hidden.event, chatFilter, senders)
+    ) {
+      hiddenSendNotice.current = null;
+      ui.dismissNotice();
+    }
+  }, [chatFilter, selectedGroupId, senders]);
+
+  const {
+    composerGroupMentionTokens,
+    setComposerGroupMentionTokens,
+    composerAgentMentionTokens,
+    setComposerAgentMentionTokens,
+    activeGroupId,
+    composerFiles,
+    toText,
+    replyTarget,
+    quotedPresentationRef,
+    quotedVoiceDocumentRef,
+    messageMode,
+    destGroupId,
+    setComposerText,
+    setComposerFiles,
+    setToText,
+    setReplyToText,
+    setReplyTarget,
+    setQuotedPresentationRef,
+    setQuotedVoiceDocumentRef,
+    setMessageMode,
+    setDestGroupId,
+  } = useComposerStore(
+    useShallow((s) => ({
+      composerGroupMentionTokens: s.composerGroupMentionTokens,
+      setComposerGroupMentionTokens: s.setComposerGroupMentionTokens,
+      composerAgentMentionTokens: s.composerAgentMentionTokens,
+      setComposerAgentMentionTokens: s.setComposerAgentMentionTokens,
+      activeGroupId: s.activeGroupId,
+      composerFiles: s.composerFiles,
+      toText: s.toText,
+      replyTarget: s.replyTarget,
+      quotedPresentationRef: s.quotedPresentationRef,
+      quotedVoiceDocumentRef: s.quotedVoiceDocumentRef,
+      messageMode: s.messageMode,
+      destGroupId: s.destGroupId,
+      setComposerText: s.setComposerText,
+      setComposerFiles: s.setComposerFiles,
+      setToText: s.setToText,
+      setReplyToText: s.setReplyToText,
+      setReplyTarget: s.setReplyTarget,
+      setQuotedPresentationRef: s.setQuotedPresentationRef,
+      setQuotedVoiceDocumentRef: s.setQuotedVoiceDocumentRef,
+      setMessageMode: s.setMessageMode,
+      setDestGroupId: s.setDestGroupId,
+    })),
+  );
+  const composerGroupSettled = isComposerGroupSettled(activeGroupId, selectedGroupId);
+  const { setRecipientsModal, setRelayModal, openModal } = useModalStore(
+    useShallow((s) => ({
+      setRecipientsModal: s.setRecipientsModal,
+      setRelayModal: s.setRelayModal,
+      openModal: s.openModal,
+    })),
+  );
+  const { setNewActorRole } = useFormStore(
+    useShallow((s) => ({ setNewActorRole: s.setNewActorRole })),
+  );
+
+  // Outbox (optimistic pending messages) — stable selector, no new array allocation.
+  const outboxEntries = useChatOutboxStore(
+    useCallback((s) => selectOutboxEntries(s, selectedGroupId), [selectedGroupId]),
+  );
+  const enqueueOutbox = useChatOutboxStore((s) => s.enqueue);
+  const removeOutbox = useChatOutboxStore((s) => s.remove);
+  const sendInFlightRef = useRef(false);
+  const [sendInFlight, setSendInFlight] = useState(false);
+  const uploadAbortRef = useRef<AbortController | null>(null);
+  const [uploadInFlight, setUploadInFlight] = useState(false);
+  const stopUploadWaiting = useCallback(() => {
+    uploadAbortRef.current?.abort();
+    setUploadInFlight(false);
+  }, []);
+
+  // ============ Computed Values ============
+
+  const resolveAssistantTargets = useCallback(
+    (tokens: string[]): Actor[] => {
+      const normalized = tokens.map((token) => String(token || "").trim()).filter((token) => token);
+      const resolved = new Map<string, Actor>();
+      const policy = groupSettings?.default_send_to || "foreman";
+      const effectiveTokens =
+        normalized.length > 0 ? normalized : policy === "foreman" ? ["@foreman"] : ["@all"];
+      const allActors = actors.filter((actor) => {
+        const actorId = String(actor.id || "").trim();
+        const internalKind = String(actor.internal_kind || "").trim();
+        return actorId && actorId !== "user" && !internalKind;
+      });
+      const peers = allActors.filter((actor) => String(actor.role || "").trim() !== "foreman");
+      const foremen = allActors.filter((actor) => String(actor.role || "").trim() === "foreman");
+
+      const addActors = (items: Actor[]) => {
+        for (const actor of items) {
+          const actorId = String(actor.id || "").trim();
+          if (!actorId || resolved.has(actorId)) continue;
+          resolved.set(actorId, actor);
+        }
+      };
+
+      for (const token of effectiveTokens) {
+        if (token === "@all") {
+          addActors(allActors);
+          continue;
+        }
+        if (token === "@peers") {
+          addActors(peers);
+          continue;
+        }
+        if (token === "@foreman") {
+          addActors(foremen);
+          continue;
+        }
+        const actor = allActors.find((item) => String(item.id || "").trim() === token);
+        if (actor) addActors([actor]);
+      }
+
+      return Array.from(resolved.values()).filter(
+        (actor) => String(actor.runtime || "").trim() === "codex",
+      );
+    },
+    [actors, groupSettings?.default_send_to],
+  );
+
+  // Recipient parsing accepts tokens selected from either the current group or
+  // the destination group, because @ suggestions can switch source by cursor
+  // position while selected chips still serialize into one toText field.
+  const validRecipientSet = useMemo(() => {
+    const out = new Set<string>(["@all", "@foreman", "@peers", CHET_SELECTOR]);
+    for (const a of actors) {
+      const id = String(a.id || "").trim();
+      if (id) out.add(id);
+    }
+    for (const a of recipientActors) {
+      const id = String(a.id || "").trim();
+      if (id) out.add(id);
+    }
+    return out;
+  }, [actors, recipientActors]);
+
+  const crossGroupValidRecipientSet = useMemo(() => {
+    // Keep an existing service target visible on a changed route so the
+    // server can reject an unsupported relay, rather than silently retarget it.
+    const out = new Set<string>(["@all", "@foreman", "@peers", CHET_SELECTOR]);
+    for (const a of recipientActors) {
+      const id = String(a.id || "").trim();
+      if (id) out.add(id);
+    }
+    return out;
+  }, [recipientActors]);
+
+  // Send group ID (respects cross-group destination)
+  const sendGroupId = useMemo(() => {
+    return getEffectiveComposerDestGroupId(destGroupId, activeGroupId, selectedGroupId);
+  }, [destGroupId, activeGroupId, selectedGroupId]);
+
+  // Parse toText into validated tokens
+  const toTokens = useMemo(() => {
+    return buildComposerSendRecipientTokens({
+      toText,
+      isCrossGroup: !!sendGroupId && !!selectedGroupId && sendGroupId !== selectedGroupId,
+      validRecipientSet,
+      crossGroupValidRecipientSet,
+    });
+  }, [crossGroupValidRecipientSet, sendGroupId, selectedGroupId, toText, validRecipientSet]);
+
+  const unavailableRecipients = useMemo(
+    () =>
+      unavailableComposerRecipients({
+        toText,
+        isCrossGroup: !!sendGroupId && !!selectedGroupId && sendGroupId !== selectedGroupId,
+        replyTarget,
+        validRecipientSet,
+        crossGroupValidRecipientSet,
+      }),
+    [
+      crossGroupValidRecipientSet,
+      replyTarget,
+      selectedGroupId,
+      sendGroupId,
+      toText,
+      validRecipientSet,
+    ],
+  );
+
+  const composerRouteGroups = groups;
+  const connectMentions = useConnectMentionGroups(
+    selectedGroupId,
+    showMentionMenu && mentionKind === "group" && composerGroupSettled,
+  );
+  // Subscribe to the referenced target, not every composer keystroke. The
+  // resolved snapshot is stable until the user changes mention context.
+  const remoteMention = useRemoteComposerMention(
+    mentionKind,
+    mentionActorScope,
+    mentionTriggerIndex,
+  );
+
+  // Message-body mentions are text helpers: @ autocompletes names/references, # adds delegation hints.
+  const mentionSuggestions = useMemo(() => {
+    const mentionActors = remoteMention
+      ? remoteMention.actors
+          .filter((actor) => actor.enabled)
+          .map((actor) => ({ id: actor.id, title: actor.title || undefined }))
+      : mentionKind === "agent" && mentionActorScope === "selected"
+        ? actors
+        : recipientActors;
+    return buildComposerMentionSuggestions({
+      kind: mentionKind,
+      filter: mentionFilter,
+      recipientActors: mentionActors,
+      groups: composerRouteGroups,
+      remoteGroups: connectMentions.groups,
+    });
+  }, [
+    actors,
+    composerRouteGroups,
+    mentionActorScope,
+    mentionFilter,
+    mentionKind,
+    recipientActors,
+    remoteMention,
+    connectMentions.groups,
+  ]);
+
+  // Project root
+  const projectRoot = useMemo(() => {
+    if (!groupDoc) return "";
+    const key = String(groupDoc.active_scope_key || "");
+    if (!key) return "";
+    const scopes = Array.isArray(groupDoc.scopes) ? groupDoc.scopes : [];
+    const hit = scopes.find((s) => String(s.scope_key || "") === key);
+    return String(hit?.url || "");
+  }, [groupDoc]);
+
+  // Has foreman
+  const hasForeman = useMemo(() => actors.some((a) => a.role === "foreman"), [actors]);
+
+  // Selected group running state
+  // Setup checklist conditions
+  const needsScope = !!selectedGroupId && !projectRoot;
+  const needsActors = !!selectedGroupId && actors.length === 0;
+  const needsStart = !!selectedGroupId && actors.length > 0 && !selectedGroupRunning;
+  const showSetupCard = needsScope || needsActors || needsStart;
+  const dispatchSlashSkillMessage = useSlashSkillDispatch({
+    selectedGroupId,
+    toTokens,
+    setChatUnreadCount,
+    setChatFilter,
+    setChatMobileSurface,
+    enqueueOutbox,
+    removeOutbox,
+    showError,
+    onMessageSent,
+    t,
+  });
+
+  const beginSlashDispatch = useCallback(
+    (text: string, options: SlashDispatchMessageOptions) => {
+      const state = useComposerStore.getState();
+      // A slash command may resolve differently after a capability refresh. Never reuse an
+      // accepted ID unless its resolved command, recipients and reply target also match.
+      const retryKey = JSON.stringify([
+        "slash",
+        selectedGroupId,
+        text,
+        toTokens,
+        options.command || "",
+        options.capabilityId || "",
+        options.replyTarget || null,
+      ]);
+      const previous = state.retryCandidate;
+      const same =
+        previous?.originGroupId === selectedGroupId &&
+        previous.retryKey === retryKey &&
+        previous.text === state.composerText &&
+        previous.files.length === state.composerFiles.length &&
+        previous.files.every((file, index) => file === state.composerFiles[index]);
+      const clientId = same
+        ? previous.id
+        : `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      const snapshot = captureSendComposerState(selectedGroupId, clientId, retryKey);
+      const afterClear = clearSendComposerState(selectedGroupId);
+      return { clientId, restore: () => restoreFailedSendComposerState(snapshot, afterClear) };
+    },
+    [selectedGroupId, toTokens],
+  );
+
+  const { slashCommands, tryExecuteSlashCommand } = useSlashCommands({
+    selectedGroupId,
+    beginDispatch: beginSlashDispatch,
+    showError,
+    showNotice,
+    dispatchMessage: dispatchSlashSkillMessage,
+    onExecuted: () => {
+      if (fileInputRef?.current && useComposerStore.getState().composerFiles.length === 0)
+        fileInputRef.current.value = "";
+    },
+    t,
+  });
+
+  const {
+    inChatWindow,
+    chatViewKey,
+    liveWorkEvents,
+    unfilteredLiveChatMessages,
+    chatMessages,
+    hasAnyChatMessages,
+    chatInitialScrollAnchorId,
+    chatInitialScrollAnchorOffsetPx,
+    chatInitialScrollOffsetPx,
+    chatInitialScrollHighlight,
+    liveJumpActive,
+    chatWindowProps,
+    chatInitialScrollTargetId,
+    chatHighlightEventId,
+    effectiveIsLoadingHistory,
+    effectiveHasMoreHistory,
+    chatEmptyState,
+    senderHistoryError,
+    loadSenderHistory,
+    pendingPageError,
+    pendingDaemonUnsupported,
+    loadPendingPage,
+    retryPendingPage,
+    pendingActive,
+    pendingEmpty,
+    pinnedActive,
+    pinnedError,
+    pinnedUnavailable,
+    retryPinned,
+  } = useChatMessageView({
+    selectedGroupId,
+    liveJump,
+    events,
+    streamingEvents,
+    outboxEntries,
+    chatWindow,
+    chatFilter,
+    senders,
+    scrollSnapshot,
+    hasLoadedTail,
+    hasMoreHistory,
+    isLoadingHistory,
+    isChatWindowLoading,
+    groupDoc,
+    groupContext,
+    groupSettings,
+    actors,
+    needsActors,
+  });
+  // Waiting for you opens empty once nothing waits, for example on returning to the Group after
+  // answering. A known zero then returns the Group to All and remembers it, so a later request
+  // shows its count without switching. Rows this visit already holds, answered or withdrawn,
+  // keep the view even when a sender filter hides them, together with any unsent answer in
+  // them, and so does a page that failed.
+  useLayoutEffect(() => {
+    if (selectedGroupId && pendingEmpty && nothingWaiting) setChatFilter(selectedGroupId, "all");
+  }, [nothingWaiting, pendingEmpty, selectedGroupId, setChatFilter]);
+
+  const shouldFollowCurrentSend = useCallback(
+    () =>
+      groupMessagesVisible(selectedGroupId, useUIStore.getState()) &&
+      shouldFollowChatSendFromViewport(scrollRef?.current, chatMessages.length),
+    [chatMessages.length, scrollRef, selectedGroupId],
+  );
+
+  useEffect(() => {
+    setSendScrollRequest((current) =>
+      invalidateChatSendScrollRequestForOwner(current, selectedGroupId, chatViewKey),
+    );
+  }, [chatViewKey, selectedGroupId]);
+
+  const consumeSendScrollRequest = useCallback((requestId: number) => {
+    setSendScrollRequest((current) => consumeChatSendScrollRequest(current, requestId));
+  }, []);
+
+  const updateChatFilter = useCallback(
+    (nextFilter: ReturnType<typeof getChatSession>["chatFilter"]) => {
+      if (!selectedGroupId) return;
+      setChatFilter(selectedGroupId, nextFilter);
+    },
+    [selectedGroupId, setChatFilter],
+  );
+  const updateChatSenderFilter = useCallback(
+    (value: ReturnType<typeof getChatSession>["chatSenderFilter"]) => {
+      if (selectedGroupId) setChatSenderFilter(selectedGroupId, value);
+    },
+    [selectedGroupId, setChatSenderFilter],
+  );
+  const toggleMessagePin = useCallback(
+    async (eventId: string, pinned: boolean) => {
+      if (!selectedGroupId) return;
+      const result = await setPinned(selectedGroupId, eventId, pinned);
+      if (result.ok) return;
+      showError(
+        result.code === "pin_limit_reached"
+          ? t("pins.limitReached")
+          : t(pinned ? "pins.pinFailed" : "pins.unpinFailed", { error: result.message }),
+      );
+    },
+    [selectedGroupId, showError, t],
+  );
+
+  // Agent state snapshot
+  const agentStates = useMemo(() => groupContext?.agent_states || [], [groupContext]);
+  const taskById = useTaskReferenceIndex({
+    groupId: selectedGroupId,
+    events: chatMessages,
+    tasksVersion: groupContext?.tasks_version,
+    seedTasks: groupContext?.coordination?.tasks,
+  });
+
+  // ============ Actions ============
+
+  const toggleRecipient = useCallback(
+    (token: string) => {
+      const t = token.trim();
+      if (!t) return;
+      // Do not discard an unavailable recipient when another chip is toggled.
+      const cur = [
+        ...new Set(
+          useComposerStore
+            .getState()
+            .toText.split(",")
+            .map((item) => item.trim())
+            .filter(Boolean),
+        ),
+      ];
+      const idx = cur.findIndex((x) => x === t);
+      if (idx >= 0) {
+        const next = cur.slice(0, idx).concat(cur.slice(idx + 1));
+        setComposerAgentMentionTokens((tokens) =>
+          tokens.filter((mention) => mention.scope !== "selected" || mention.actorId !== t),
+        );
+        setToText(next.join(", "));
+      } else {
+        // Chet is a separate audience domain and cannot be mixed with Actors.
+        const next =
+          t === CHET_SELECTOR ? [t] : cur.filter((item) => item !== CHET_SELECTOR).concat(t);
+        setToText(next.join(", "));
+      }
+    },
+    [setToText, setComposerAgentMentionTokens],
+  );
+
+  const clearRecipients = useCallback(() => {
+    setToText("");
+  }, [setToText]);
+
+  const syncMentionRecipientsFromComposerText = useCallback(
+    (textOrUpdater: string | ((prev: string) => string)) => {
+      // Read the live text instead of subscribing to it: this hook feeds
+      // ChatTab, and a per-keystroke subscription here re-renders the whole
+      // message list under it.
+      const text =
+        typeof textOrUpdater === "function"
+          ? textOrUpdater(useComposerStore.getState().composerText)
+          : textOrUpdater;
+      setComposerGroupMentionTokens((tokens) => pruneComposerGroupMentionTokens({ text, tokens }));
+      const liveAgentMentionTokens = pruneComposerAgentMentionTokens({
+        text,
+        tokens: composerAgentMentionTokens,
+      });
+      if (liveAgentMentionTokens.length !== composerAgentMentionTokens.length) {
+        setComposerAgentMentionTokens(liveAgentMentionTokens);
+      }
+      setComposerText(text);
+    },
+    [
+      composerAgentMentionTokens,
+      setComposerText,
+      setComposerGroupMentionTokens,
+      setComposerAgentMentionTokens,
+    ],
+  );
+
+  const removeComposerFile = useCallback(
+    (idx: number) => {
+      setComposerFiles(composerFiles.filter((_, i) => i !== idx));
+    },
+    [composerFiles, setComposerFiles],
+  );
+
+  const {
+    copyMessageLink,
+    startReply,
+    cancelReply,
+    showRecipients,
+    relayMessage,
+    openSourceMessage,
+    exitChatWindow,
+    handleScrollButtonClick,
+    handleScrollChange,
+    handleScrollSnapshot,
+    addAgent,
+    loadCurrentGroupHistory,
+  } = useChatMessageActions({
+    selectedGroupId,
+    actors,
+    groupSettings,
+    groupGeneration: groupDoc?.group_id === selectedGroupId ? chetGeneration(groupDoc) : "",
+    composerRef,
+    setChatAtBottom,
+    hasForeman,
+    inChatWindow,
+    t,
+    showError,
+    showNotice,
+    setDestGroupId,
+    setReplyToText,
+    setReplyTarget,
+    setRecipientsModal,
+    setRelayModal,
+    openChatWindow,
+    closeChatWindow,
+    setShowScrollButton,
+    setChatUnreadCount,
+    setChatScrollSnapshot,
+    setNewActorRole,
+    openModal,
+    loadMoreHistory,
+  });
+
+  useEffect(() => {
+    setLiveJump((current) =>
+      current && (current.groupId !== selectedGroupId || chatFilter !== "all" || senders.length)
+        ? null
+        : current,
+    );
+  }, [selectedGroupId, chatFilter, senders.length]);
+
+  const contextTailId = String(chatMessages.at(-1)?.id || "");
+  const liveTailId = String(unfilteredLiveChatMessages.at(-1)?.id || "");
+  const contextTailInLive =
+    !!contextTailId && unfilteredLiveChatMessages.some((event) => event.id === contextTailId);
+  const contextCenterInLive =
+    !!chatWindow &&
+    unfilteredLiveChatMessages.some((event) => event.id === chatWindow.centerEventId);
+  // An explicit target already in the live list can be opened without waiting for a context
+  // fetch. Closing the pending window invalidates its request, so a late response cannot reopen it.
+  useLayoutEffect(() => {
+    if (
+      !inChatWindow ||
+      !isChatWindowLoading ||
+      !chatWindow ||
+      !hasLoadedTail ||
+      chatFilter !== "all" ||
+      senders.length ||
+      !contextCenterInLive
+    )
+      return;
+    const state = useGroupStore.getState();
+    const bucket = selectChatBucketState(state, selectedGroupId);
+    const ui = useUIStore.getState();
+    const session = getChatSession(selectedGroupId, ui.chatSessions);
+    const params = new URLSearchParams(window.location.search);
+    if (
+      state.selectedGroupId !== selectedGroupId ||
+      !groupMessagesVisible(selectedGroupId, ui) ||
+      bucket.chatWindow !== chatWindow ||
+      !bucket.isChatWindowLoading ||
+      !bucket.hasLoadedTail ||
+      shownChatFilter(session.chatFilter, {
+        waiting: waitingTabOffered && ui.showPendingPrompts,
+        pinned: pinnedTabOffered,
+      }) !== "all" ||
+      session.chatSenderFilter.length ||
+      !bucket.events.some((event) => event.id === chatWindow.centerEventId) ||
+      (params.get("group") && params.get("group") !== selectedGroupId) ||
+      (params.get("event") && params.get("event") !== chatWindow.centerEventId)
+    )
+      return;
+    setLiveJump({
+      groupId: selectedGroupId,
+      eventId: chatWindow.centerEventId,
+      requestId: ++nextLiveJumpIdRef.current,
+    });
+    exitChatWindow();
+  }, [
+    chatFilter,
+    chatWindow,
+    contextCenterInLive,
+    exitChatWindow,
+    hasLoadedTail,
+    inChatWindow,
+    isChatWindowLoading,
+    selectedGroupId,
+    senders.length,
+    pinnedTabOffered,
+    waitingTabOffered,
+  ]);
+
+  const handleContextReady = useCallback(() => {
+    if (!chatWindow || !selectedGroupId || !contextCenterInLive) return;
+    const state = useGroupStore.getState();
+    const bucket = selectChatBucketState(state, selectedGroupId);
+    const ui = useUIStore.getState();
+    const session = getChatSession(selectedGroupId, ui.chatSessions);
+    const params = new URLSearchParams(window.location.search);
+    const el = scrollRef?.current;
+    const row =
+      el &&
+      Array.from(el.querySelectorAll<HTMLElement>('[data-message-row="true"]')).find(
+        (node) => node.dataset.messageId === chatWindow.centerEventId,
+      );
+    if (
+      !el ||
+      !row ||
+      state.selectedGroupId !== selectedGroupId ||
+      !groupMessagesVisible(selectedGroupId, ui) ||
+      bucket.chatWindow !== chatWindow ||
+      bucket.isChatWindowLoading ||
+      !bucket.hasLoadedTail ||
+      shownChatFilter(session.chatFilter, {
+        waiting: waitingTabOffered && ui.showPendingPrompts,
+        pinned: pinnedTabOffered,
+      }) !== "all" ||
+      session.chatSenderFilter.length ||
+      !bucket.events.some((event) => event.id === chatWindow.centerEventId) ||
+      (params.get("group") && params.get("group") !== selectedGroupId) ||
+      (params.get("event") && params.get("event") !== chatWindow.centerEventId)
+    )
+      return;
+    // The reader has not acted here, so the target is at the context's reading top; the live list
+    // opens it at its own, which on a phone lies below the chrome laid over the list.
+    const eventId = chatWindow.centerEventId;
+    const restoreFocus = el.contains(document.activeElement);
+    setLiveJump({ groupId: selectedGroupId, eventId, requestId: ++nextLiveJumpIdRef.current });
+    exitChatWindow();
+    if (restoreFocus)
+      requestAnimationFrame(() => {
+        if (
+          useGroupStore.getState().selectedGroupId === selectedGroupId &&
+          document.activeElement === document.body
+        ) {
+          scrollRef?.current?.focus({ preventScroll: true });
+        }
+      });
+  }, [
+    chatWindow,
+    contextCenterInLive,
+    exitChatWindow,
+    scrollRef,
+    selectedGroupId,
+    pinnedTabOffered,
+    waitingTabOffered,
+  ]);
+  const onContextReady =
+    inChatWindow &&
+    !isChatWindowLoading &&
+    hasLoadedTail &&
+    chatFilter === "all" &&
+    senders.length === 0 &&
+    contextCenterInLive
+      ? handleContextReady
+      : undefined;
+
+  // Both return controls use this path; automatic target-preserving handoff
+  // still uses exitChatWindow directly. Do not acknowledge unread messages
+  // until the live list actually reports that its bottom is visible. With keepPlace,
+  // as on the way back to a filtered conversation, that view reopens where it was read;
+  // otherwise the conversation opens at its newest message.
+  const returnToLatest = useCallback(
+    (requestFocus = false, keepPlace = false) => {
+      if (!inChatWindow || !chatWindow || !selectedGroupId) return false;
+      const state = useGroupStore.getState();
+      const ui = useUIStore.getState();
+      const bucket = selectChatBucketState(state, selectedGroupId);
+      const params = new URLSearchParams(window.location.search);
+      if (
+        state.selectedGroupId !== selectedGroupId ||
+        !groupMessagesVisible(selectedGroupId, ui) ||
+        bucket.chatWindow !== chatWindow ||
+        (params.get("group") && params.get("group") !== selectedGroupId) ||
+        (params.get("event") && params.get("event") !== chatWindow.centerEventId)
+      )
+        return false;
+      const restoreFocus = requestFocus || !!scrollRef?.current?.contains(document.activeElement);
+      setLiveJump(null);
+      // The place saved before the window opened is still the view's own: the window
+      // saves none of its scrolling.
+      if (!keepPlace)
+        setChatScrollSnapshot(selectedGroupId, {
+          coordinateVersion: CHAT_SCROLL_SNAPSHOT_COORDINATE_VERSION,
+          mode: "follow",
+          anchorId: "",
+          offsetPx: 0,
+          updatedAt: Date.now(),
+        });
+      exitChatWindow();
+      if (restoreFocus)
+        requestAnimationFrame(() => {
+          if (
+            useGroupStore.getState().selectedGroupId === selectedGroupId &&
+            document.activeElement === document.body
+          ) {
+            scrollRef?.current?.focus({ preventScroll: true });
+          }
+        });
+      return true;
+    },
+    [chatWindow, exitChatWindow, inChatWindow, scrollRef, selectedGroupId, setChatScrollSnapshot],
+  );
+  const handleScrollButtonForView = useCallback(() => {
+    if (inChatWindow) return void returnToLatest();
+    handleScrollButtonClick();
+  }, [handleScrollButtonClick, inChatWindow, returnToLatest]);
+
+  const handleReachedContextEnd = useCallback(
+    (initial: boolean, atBottom: boolean) => {
+      if (!chatWindow || !selectedGroupId) return false;
+      const state = useGroupStore.getState();
+      const bucket = selectChatBucketState(state, selectedGroupId);
+      const ui = useUIStore.getState();
+      const session = getChatSession(selectedGroupId, ui.chatSessions);
+      const params = new URLSearchParams(window.location.search);
+      const active = document.activeElement;
+      const el = scrollRef?.current;
+      const editing =
+        active instanceof HTMLElement &&
+        !!el?.contains(active) &&
+        (active.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName));
+      if (
+        editing ||
+        state.selectedGroupId !== selectedGroupId ||
+        !groupMessagesVisible(selectedGroupId, ui) ||
+        bucket.chatWindow !== chatWindow ||
+        bucket.isChatWindowLoading ||
+        (params.get("group") && params.get("group") !== selectedGroupId) ||
+        (params.get("event") && params.get("event") !== chatWindow.centerEventId)
+      )
+        return false;
+      if (chatWindow.hasMoreAfter) {
+        if (initial || chatWindow.isLoadingAfter || chatWindow.afterError) return false;
+        void loadMoreChatWindowAfter(selectedGroupId);
+        return true;
+      }
+      if (
+        !atBottom ||
+        !bucket.hasLoadedTail ||
+        shownChatFilter(session.chatFilter, {
+          waiting: waitingTabOffered && ui.showPendingPrompts,
+          pinned: pinnedTabOffered,
+        }) !== "all" ||
+        session.chatSenderFilter.length ||
+        !contextTailInLive ||
+        !bucket.events.some((event) => event.id === contextTailId)
+      )
+        return false;
+      if (
+        initial &&
+        (!contextCenterInLive ||
+          liveTailId !== contextTailId ||
+          String(
+            bucket.events.filter((event) => event.kind === "chat.message").at(-1)?.id || "",
+          ) !== contextTailId)
+      )
+        return false;
+      const restoreFocus = !!el?.contains(active);
+      handleScrollButtonClick();
+      exitChatWindow();
+      if (restoreFocus)
+        requestAnimationFrame(() => {
+          if (
+            useGroupStore.getState().selectedGroupId === selectedGroupId &&
+            document.activeElement === document.body
+          ) {
+            scrollRef?.current?.focus({ preventScroll: true });
+          }
+        });
+      return false;
+    },
+    [
+      chatWindow,
+      contextCenterInLive,
+      contextTailId,
+      contextTailInLive,
+      exitChatWindow,
+      handleScrollButtonClick,
+      liveTailId,
+      loadMoreChatWindowAfter,
+      scrollRef,
+      selectedGroupId,
+      pinnedTabOffered,
+      waitingTabOffered,
+    ],
+  );
+  const onReachedContextEnd =
+    inChatWindow &&
+    !isChatWindowLoading &&
+    chatWindow &&
+    (chatWindow.hasMoreAfter
+      ? !chatWindow.isLoadingAfter && !chatWindow.afterError
+      : chatFilter === "all" && senders.length === 0)
+      ? handleReachedContextEnd
+      : undefined;
+  const onLoadNewerContext =
+    inChatWindow && chatWindow?.hasMoreAfter
+      ? () => void loadMoreChatWindowAfter(selectedGroupId)
+      : undefined;
+
+  const sendMessage = useCallback(async () => {
+    if (sendInFlightRef.current) return; // keyboard shortcut can bypass UI state; keep send single-flight locally
+    if (!selectedGroupId) return;
+    const latestSelectedGroupId = String(useGroupStore.getState().selectedGroupId || "").trim();
+    if (latestSelectedGroupId !== selectedGroupId) return;
+    const composerStateSnapshot = useComposerStore.getState();
+    const routingSnapshot = buildComposerSendRoutingSnapshot({
+      selectedGroupId: latestSelectedGroupId,
+      activeGroupId: composerStateSnapshot.activeGroupId,
+      destGroupId: composerStateSnapshot.destGroupId,
+    });
+    if (!routingSnapshot.composerGroupSettled) return;
+    const originGroupId = routingSnapshot.selectedGroupId;
+    const draftTextSnapshot = String(composerStateSnapshot.composerText || "").trim();
+    const draftFilesSnapshot = composerStateSnapshot.composerFiles.slice();
+    if (!draftTextSnapshot && draftFilesSnapshot.length === 0) return;
+    const dstGroup = routingSnapshot.destGroupId;
+    const isCrossGroup = routingSnapshot.isCrossGroup;
+    const toTextSnapshot = composerStateSnapshot.toText;
+    const localToTokensSnapshot = buildComposerSendRecipientTokens({
+      toText: toTextSnapshot,
+      isCrossGroup: false,
+      validRecipientSet,
+      crossGroupValidRecipientSet,
+    });
+    const crossToTokensSnapshot = buildComposerSendRecipientTokens({
+      toText: toTextSnapshot,
+      isCrossGroup: true,
+      validRecipientSet,
+      crossGroupValidRecipientSet,
+    });
+    const unresolvedRecipients = unavailableComposerRecipients({
+      toText: toTextSnapshot,
+      isCrossGroup,
+      replyTarget: composerStateSnapshot.replyTarget,
+      validRecipientSet,
+      crossGroupValidRecipientSet,
+    });
+    // Dropping a formerly valid recipient can route a message to the Group's
+    // default audience. Keep the draft instead of silently changing its target.
+    const slash = parseSlashCommandInput(composerStateSnapshot.composerText, slashCommands);
+    if (unresolvedRecipients.length > 0 && slash?.item.sourceType !== "dynamic_tool") {
+      showError(
+        t("recipientUnavailable", {
+          defaultValue:
+            "One or more recipients are unavailable. Check the recipients before sending.",
+        }),
+      );
+      return;
+    }
+    const sendPlanTargets = buildComposerSendPlanTargets({
+      selectedGroupId: originGroupId,
+      dstGroupId: dstGroup,
+      isCrossGroup,
+      text: composerStateSnapshot.composerText,
+      groupMentionTokens: composerGroupMentionTokens,
+      groups: composerRouteGroups,
+    });
+    const sendsCrossGroup = sendPlanTargets.some((target) => target.isCrossGroup);
+    const sendsLocal = sendPlanTargets.some((target) => !target.isCrossGroup);
+    const { text: txt, files: composerFilesSnapshot } = prepareComposerMessage({
+      text: draftTextSnapshot,
+      files: draftFilesSnapshot,
+      targets: sendPlanTargets,
+    });
+    const slashGuardSendGroupId = sendsCrossGroup
+      ? sendPlanTargets.find((target) => target.isCrossGroup)?.groupId || dstGroup
+      : dstGroup;
+    if (
+      slash &&
+      (await tryExecuteSlashCommand({
+        text: composerStateSnapshot.composerText,
+        composerFilesCount: composerFilesSnapshot.length,
+        hasReplyTarget: !!composerStateSnapshot.replyTarget,
+        replyTarget: composerStateSnapshot.replyTarget,
+        hasQuotedPresentationRef: !!composerStateSnapshot.quotedPresentationRef,
+        hasQuotedVoiceDocumentRef: !!composerStateSnapshot.quotedVoiceDocumentRef,
+        sendGroupId: slashGuardSendGroupId,
+      }))
+    ) {
+      return;
+    }
+    const replyTargetSnapshot = composerStateSnapshot.replyTarget;
+    const remoteReplyDstGroupId = String(replyTargetSnapshot?.remoteDstGroupId || "").trim();
+    const remoteReplyDstTo = Array.isArray(replyTargetSnapshot?.remoteDstTo)
+      ? replyTargetSnapshot.remoteDstTo.map((token) => String(token || "").trim()).filter(Boolean)
+      : [];
+    const quotedPresentationRefSnapshot = composerStateSnapshot.quotedPresentationRef;
+    const quotedVoiceDocumentRefSnapshot = composerStateSnapshot.quotedVoiceDocumentRef;
+    const refsSnapshot: MessageRef[] = [
+      ...(quotedPresentationRefSnapshot ? [quotedPresentationRefSnapshot] : []),
+      ...(quotedVoiceDocumentRefSnapshot ? [quotedVoiceDocumentRefSnapshot] : []),
+      ...buildComposerConnectGroupRefs(
+        composerStateSnapshot.composerText,
+        composerGroupMentionTokens,
+      ),
+      ...buildComposerLocalGroupRouteRefs({
+        text: composerStateSnapshot.composerText,
+        selectedGroupId,
+        tokens: composerGroupMentionTokens,
+        groups: composerRouteGroups,
+      }),
+    ];
+    const messageModeSnapshot = messageModeForRecipients(
+      replyTargetSnapshot
+        ? normalizeReplyMessageMode(composerStateSnapshot.messageMode)
+        : composerStateSnapshot.messageMode,
+      localToTokensSnapshot,
+      !!replyTargetSnapshot?.toChet,
+    );
+    const assistantTargets =
+      sendsLocal &&
+      !sendsCrossGroup &&
+      !replyTargetSnapshot?.connectInstanceId &&
+      messageModeSnapshot !== "mail"
+        ? resolveAssistantTargets(localToTokensSnapshot)
+        : [];
+
+    const retryKey = retrySendKey({
+      groupId: selectedGroupId,
+      // The draft as typed: a long draft becomes an attachment named by the current time.
+      text: draftTextSnapshot,
+      localTo: localToTokensSnapshot,
+      crossTo: crossToTokensSnapshot,
+      messageMode: messageModeSnapshot,
+      replyTarget: replyTargetSnapshot,
+      remoteReplyGroupId: remoteReplyDstGroupId,
+      remoteReplyTo: remoteReplyDstTo,
+      refs: refsSnapshot,
+      sendPlanTargets,
+    });
+    const failedSend = composerStateSnapshot.retryCandidate;
+    const untouchedRetry =
+      failedSend?.originGroupId === originGroupId &&
+      failedSend.retryKey === retryKey &&
+      failedSend.text === composerStateSnapshot.composerText &&
+      failedSend.files.length === composerStateSnapshot.composerFiles.length &&
+      failedSend.files.every((file, index) => file === composerStateSnapshot.composerFiles[index]);
+    const localId = untouchedRetry
+      ? failedSend.id
+      : `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const failedSnapshot = captureSendComposerState(
+      originGroupId,
+      localId,
+      retryKey,
+      composerStateSnapshot,
+    );
+    const insertLocalAssistantPlaceholders = () => {
+      for (const placeholder of buildAssistantPlaceholders(
+        assistantTargets,
+        localId,
+        selectedGroupId,
+      )) {
+        upsertStreamingEvent(placeholder, selectedGroupId);
+      }
+    };
+
+    const clearLocalAssistantPlaceholders = () => {
+      removeStreamingEventsByPrefix(`local:${localId}:`, selectedGroupId);
+    };
+
+    const applyImmediateComposerFeedback = (shouldLockBottom: boolean) => {
+      // Consume only the draft being sent. Completion may arrive after the
+      // user has composed another draft or switched to another Group.
+      const afterClear = clearSendComposerState(originGroupId);
+      if (chatAtBottomRef) chatAtBottomRef.current = shouldLockBottom;
+      if (selectedGroupId) {
+        setShowScrollButton(selectedGroupId, !shouldLockBottom);
+      }
+      if (shouldLockBottom) {
+        nextSendScrollRequestIdRef.current += 1;
+        setSendScrollRequest(
+          createChatSendScrollRequest(
+            nextSendScrollRequestIdRef.current,
+            selectedGroupId,
+            chatViewKey,
+          ),
+        );
+      }
+      return afterClear;
+    };
+
+    if (replyTargetSnapshot && sendsCrossGroup && !remoteReplyDstGroupId) {
+      showError("Cross-group send does not support replies.");
+      setDestGroupId(selectedGroupId);
+      return;
+    }
+    if (quotedPresentationRefSnapshot && sendsCrossGroup) {
+      showError("Cross-group send does not support quoted presentation views.");
+      setDestGroupId(selectedGroupId);
+      return;
+    }
+    if (quotedVoiceDocumentRefSnapshot && sendsCrossGroup) {
+      showError("Cross-group send does not support quoted voice documents.");
+      setDestGroupId(selectedGroupId);
+      return;
+    }
+    // Preserve reading intent before optimistic rows change the list geometry.
+    const shouldLockBottomAfterSend = shouldFollowCurrentSend();
+    const sentMessageVisible = matchesChatFilters(
+      { by: "user", data: { message_mode: messageModeSnapshot } } as LedgerEvent,
+      chatFilter,
+      senders,
+    );
+
+    // Failed optimistic sends restore the original composer snapshot.
+    if (sendsLocal && !sendsCrossGroup) {
+      const optimisticEvent = buildOptimisticMessage({
+        localId,
+        groupId: selectedGroupId,
+        text: txt,
+        to: localToTokensSnapshot,
+        messageMode: messageModeSnapshot,
+        replyTarget: replyTargetSnapshot,
+        refs: refsSnapshot,
+        files: composerFilesSnapshot,
+      });
+      enqueueOutbox(selectedGroupId, localId, optimisticEvent);
+      insertLocalAssistantPlaceholders();
+    }
+
+    const finishPageWork = beginPendingPageWork();
+    const uploadController = composerFilesSnapshot.length > 0 ? new AbortController() : null;
+    let afterClear: ReturnType<typeof applyImmediateComposerFeedback> | undefined;
+    let successfulSendCount = 0;
+    try {
+      afterClear = applyImmediateComposerFeedback(shouldLockBottomAfterSend && sentMessageVisible);
+      sendInFlightRef.current = true;
+      setSendInFlight(true);
+      uploadAbortRef.current = uploadController;
+      setUploadInFlight(!!uploadController);
+      const dispatched = await dispatchPreparedMessage({
+        selectedGroupId,
+        text: txt,
+        localTo: localToTokensSnapshot,
+        crossTo: crossToTokensSnapshot,
+        files: composerFilesSnapshot,
+        messageMode: messageModeSnapshot,
+        localId,
+        refs: refsSnapshot,
+        replyTarget: replyTargetSnapshot,
+        remoteReplyGroupId: remoteReplyDstGroupId,
+        remoteReplyTo: remoteReplyDstTo,
+        sendPlanTargets,
+        sendsCrossGroup,
+        uploadSignal: uploadController?.signal,
+      });
+      const resp = dispatched.response;
+      successfulSendCount = dispatched.successfulSendCount;
+      if (!resp.ok) {
+        // Pending-only outbox: failed sends roll back to the composer.
+        removeOutbox(selectedGroupId, localId);
+        clearLocalAssistantPlaceholders();
+        const shouldRestoreComposer = shouldRestoreComposerAfterFailedSend(successfulSendCount);
+        if (shouldRestoreComposer) restoreFailedSendComposerState(failedSnapshot, afterClear);
+        const sendError = resp.error || { code: "send_failed", message: "send failed" };
+        showError(
+          describeSendFailure(
+            originGroupId,
+            formatSendMessageError({ code: sendError.code, message: sendError.message, t }),
+          ),
+        );
+        return;
+      }
+      const result = resp.result as {
+        event?: LedgerEvent;
+        source_event?: LedgerEvent;
+        src_event?: LedgerEvent;
+        duplicate?: boolean;
+      } | null;
+      const canonicalEvent = sendsLocal && !sendsCrossGroup ? result?.event : undefined;
+      const sourceEvent = canonicalEvent ?? result?.source_event ?? result?.src_event;
+
+      if (sendsCrossGroup) {
+        removeOutbox(selectedGroupId, localId);
+      }
+      if (canonicalEvent && !sendsCrossGroup) {
+        const reconciliation = reconcileCanonicalOutboxEvent(canonicalEvent, selectedGroupId);
+        const canonicalEventId = String(reconciliation.event.id || "").trim();
+        appendEvent(reconciliation.event, selectedGroupId);
+        // A retried send the daemon already accepted returns the old event and starts no new
+        // work, so this attempt's queued placeholders would never settle.
+        if (result?.duplicate === true) clearLocalAssistantPlaceholders();
+        else if (canonicalEventId) {
+          promoteStreamingEventsByPrefix(`local:${localId}:`, canonicalEventId, selectedGroupId);
+        }
+        completeCanonicalOutboxReconciliation(selectedGroupId, reconciliation);
+      }
+      if (fileInputRef?.current) fileInputRef.current.value = "";
+      if (inChatWindow) {
+        closeChatWindow();
+        const url = new URL(window.location.href);
+        url.searchParams.delete("event");
+        url.searchParams.delete("tab");
+        window.history.replaceState({}, "", url.pathname + (url.search ? url.search : ""));
+      }
+      if (selectedGroupId) {
+        if (groupMessagesVisible(selectedGroupId, useUIStore.getState()))
+          setChatUnreadCount(selectedGroupId, 0);
+        setChatMobileSurface(selectedGroupId, "messages");
+      }
+      const ui = useUIStore.getState();
+      const currentSession = getChatSession(selectedGroupId, ui.chatSessions);
+      const currentFilter = shownChatFilter(currentSession.chatFilter, {
+        waiting: waitingTabOffered && ui.showPendingPrompts,
+        pinned: pinnedTabOffered,
+      });
+      // A reply may have answered the last request, so recount now rather than at the next poll.
+      if (currentFilter === "pending_user") refreshPending?.();
+      if (
+        sourceEvent?.id &&
+        useGroupStore.getState().selectedGroupId === selectedGroupId &&
+        !matchesChatFilters(sourceEvent, currentFilter, currentSession.chatSenderFilter)
+      ) {
+        const eventId = sourceEvent.id;
+        const notice = {
+          message: t("sentOutsideChatFilter"),
+          actionLabel: t("viewSentMessage"),
+          onAction: () => {
+            useUIStore.getState().dismissNotice();
+            openSourceMessage(selectedGroupId, eventId);
+          },
+        };
+        hiddenSendNotice.current = { notice, groupId: selectedGroupId, event: sourceEvent };
+        showNotice(notice);
+      }
+      onMessageSent?.();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "send failed";
+      // Pending-only outbox: failed sends roll back to the composer.
+      removeOutbox(selectedGroupId, localId);
+      clearLocalAssistantPlaceholders();
+      const shouldRestoreComposer = shouldRestoreComposerAfterFailedSend(successfulSendCount);
+      if (shouldRestoreComposer) restoreFailedSendComposerState(failedSnapshot, afterClear);
+      showError(describeSendFailure(originGroupId, message));
+    } finally {
+      uploadAbortRef.current = null;
+      setUploadInFlight(false);
+      sendInFlightRef.current = false;
+      setSendInFlight(false);
+      finishPageWork();
+    }
+  }, [
+    selectedGroupId,
+    tryExecuteSlashCommand,
+    slashCommands,
+    validRecipientSet,
+    crossGroupValidRecipientSet,
+    inChatWindow,
+    appendEvent,
+    enqueueOutbox,
+    removeOutbox,
+    showError,
+    setDestGroupId,
+    closeChatWindow,
+    fileInputRef,
+    shouldFollowCurrentSend,
+    chatFilter,
+    senders,
+    showNotice,
+    openSourceMessage,
+    setChatMobileSurface,
+    setShowScrollButton,
+    setChatUnreadCount,
+    onMessageSent,
+    promoteStreamingEventsByPrefix,
+    removeStreamingEventsByPrefix,
+    resolveAssistantTargets,
+    upsertStreamingEvent,
+    t,
+    composerGroupMentionTokens,
+    composerRouteGroups,
+    chatAtBottomRef,
+    chatViewKey,
+    pinnedTabOffered,
+    waitingTabOffered,
+    refreshPending,
+  ]);
+
+  // ============ Return ============
+
+  return {
+    // Chat state
+    chatMessages,
+    suggestionSourceMessages: unfilteredLiveChatMessages,
+    liveWorkEvents,
+    hasAnyChatMessages,
+    chatFilter,
+    setChatFilter: updateChatFilter,
+    chatSenderFilter,
+    setChatSenderFilter: updateChatSenderFilter,
+    senderHistoryError,
+    retrySenderHistory: loadSenderHistory,
+    pendingPageError,
+    pendingDaemonUnsupported,
+    retryPendingPage,
+    pendingActive,
+    pinnedActive,
+    pinnedError,
+    pinnedUnavailable,
+    retryPinned,
+    pinnedTabOffered,
+    toggleMessagePin: pinnedTabOffered ? toggleMessagePin : undefined,
+    viewMessageContext: (eventId: string) => openSourceMessage(selectedGroupId, eventId),
+    chatViewKey,
+    chatWindowProps,
+    chatInitialScrollTargetId,
+    chatInitialScrollAnchorId,
+    chatInitialScrollAnchorOffsetPx,
+    chatInitialScrollOffsetPx,
+    chatInitialScrollHighlight,
+    chatHighlightEventId,
+    liveJumpActive,
+    inChatWindow,
+    isLoadingHistory: effectiveIsLoadingHistory,
+    hasMoreHistory: effectiveHasMoreHistory,
+    loadMoreHistory: pendingActive
+      ? loadPendingPage
+      : inChatWindow || pinnedActive
+        ? undefined
+        : senders.length > 0
+          ? loadSenderHistory
+          : loadCurrentGroupHistory,
+    chatEmptyState,
+
+    // UI state
+    busy,
+    sendInFlight,
+    uploadInFlight,
+    stopUploadWaiting,
+    showScrollButton,
+    chatUnreadCount,
+    sendScrollRequest,
+    consumeSendScrollRequest,
+
+    // Setup checklist
+    showSetupCard,
+    needsScope,
+    needsActors,
+    needsStart,
+    hasForeman,
+
+    // Composer state
+    setComposerText: syncMentionRecipientsFromComposerText,
+    composerGroupMentionTokens,
+    setComposerGroupMentionTokens,
+    composerAgentMentionTokens,
+    setComposerAgentMentionTokens,
+    composerFiles,
+    setComposerFiles,
+    removeComposerFile,
+    replyTarget,
+    quotedPresentationRef,
+    quotedVoiceDocumentRef,
+    cancelReply,
+    clearQuotedPresentationRef: () => setQuotedPresentationRef(null),
+    setQuotedVoiceDocumentRef,
+    clearQuotedVoiceDocumentRef: () => setQuotedVoiceDocumentRef(null),
+    toTokens,
+    unavailableRecipients,
+    toggleRecipient,
+    clearRecipients,
+    messageMode,
+    setMessageMode,
+    destGroupId: sendGroupId,
+    setDestGroupId,
+    composerGroupSettled,
+    composerRouteGroups,
+    mentionSuggestions,
+    connectMentionStatus: connectMentions.loading
+      ? ("loading" as const)
+      : connectMentions.incomplete
+        ? ("incomplete" as const)
+        : undefined,
+
+    // Agent state
+    agentStates,
+    taskById,
+
+    // Actions
+    sendMessage,
+    slashCommands,
+    copyMessageLink,
+    startReply,
+    showRecipients,
+    relayMessage,
+    openSourceMessage,
+    exitChatWindow,
+    returnToLatest,
+    handleScrollButtonClick: handleScrollButtonForView,
+    handleScrollChange,
+    onContextReady,
+    onReachedContextEnd,
+    onLoadNewerContext,
+    handleScrollSnapshot,
+    addAgent,
+  };
+}

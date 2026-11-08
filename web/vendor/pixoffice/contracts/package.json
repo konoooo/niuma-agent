@@ -1,0 +1,44 @@
+{
+  "name": "@pixoffice/contracts",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    "./projection": {
+      "types": "./lib/projection.d.ts",
+      "import": "./lib/projection.js"
+    },
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./animation": {
+      "types": "./lib/animation.d.ts",
+      "import": "./lib/animation.js"
+    },
+    "./animationSupport": {
+      "types": "./lib/animationSupport.d.ts",
+      "import": "./lib/animationSupport.js"
+    },
+    "./contactSurface": {
+      "types": "./lib/contactSurface.d.ts",
+      "import": "./lib/contactSurface.js"
+    },
+    "./presentation": {
+      "types": "./lib/presentation.d.ts",
+      "import": "./lib/presentation.js"
+    },
+    "./facing": {
+      "types": "./lib/facing.d.ts",
+      "import": "./lib/facing.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/protocol": "0.1.0",
+    "zod": "^4.6.5"
+  }
+}

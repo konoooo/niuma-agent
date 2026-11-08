@@ -1,0 +1,261 @@
+// @vitest-environment happy-dom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import * as api from "../../../services/api";
+import type { RemoteAccessState } from "../../../types";
+import { WebAccessTab } from "./WebAccessTab";
+
+vi.mock("react-i18next", () => {
+  const t = (key: string) => key;
+  const i18n = { language: "en", resolvedLanguage: "en" };
+  return { useTranslation: () => ({ t, i18n }) };
+});
+vi.mock("../../../services/api", async (original) => ({
+  ...(await original<typeof import("../../../services/api")>()),
+  fetchWebAccessSession: vi.fn(async () => ({
+    ok: true,
+    result: { web_access_session: { can_access_global_settings: true } },
+  })),
+  fetchMembership: vi.fn(async () => ({ ok: true, result: { membership: { logged_in: false } } })),
+  fetchGroups: vi.fn(async () => ({ ok: true, result: { groups: [] } })),
+  fetchAccessTokens: vi.fn(),
+  fetchRemoteAccessState: vi.fn(),
+  updateRemoteAccessConfig: vi.fn(),
+}));
+
+const localState: RemoteAccessState = {
+  provider: "off",
+  mode: "tailnet_only",
+  require_access_token: true,
+  enabled: false,
+  status: "stopped",
+  config: { web_host: "127.0.0.1", web_port: 8848, web_public_url: "" },
+};
+const privateState: RemoteAccessState = {
+  ...localState,
+  provider: "manual",
+  config: { ...localState.config, web_host: "0.0.0.0" },
+};
+
+describe("Web Access connection drafts", () => {
+  let root: ReturnType<typeof createRoot>;
+  let host: HTMLDivElement;
+  let saved: RemoteAccessState;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    saved = localState;
+    vi.mocked(api.fetchAccessTokens).mockResolvedValue({
+      ok: true,
+      result: {
+        access_tokens: [
+          {
+            token_id: "admin",
+            user_id: "owner",
+            is_admin: true,
+            allowed_groups: [],
+            created_at: "2026-09-18T00:00:00Z",
+          },
+        ],
+      },
+    });
+    vi.mocked(api.fetchRemoteAccessState).mockImplementation(async () => ({
+      ok: true,
+      result: { remote_access: { ...saved } },
+    }));
+    vi.mocked(api.updateRemoteAccessConfig).mockImplementation(async (draft) => {
+      saved = {
+        ...saved,
+        provider: draft.provider ?? saved.provider,
+        mode: draft.mode ?? saved.mode,
+        config: {
+          web_host: draft.webHost,
+          web_port: draft.webPort,
+          web_public_url: draft.webPublicUrl,
+        },
+      };
+      return { ok: true, result: { remote_access: saved } };
+    });
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+  });
+
+  const render = async () => {
+    await act(async () => root.render(<WebAccessTab isDark={false} onOpenAccount={() => {}} />));
+  };
+  const button = (text: string) => {
+    const match = [...host.querySelectorAll("button")].find((item) =>
+      item.textContent?.includes(text),
+    );
+    expect(match, text).toBeDefined();
+    return match!;
+  };
+  const click = async (text: string) => {
+    await act(async () => button(text).click());
+  };
+  const choose = async (goal: string) => click(`webAccess.goals.${goal}.title`);
+  const refresh = async () => click("webAccess.refresh");
+
+  it("distinguishes the selected draft from the saved access goal", async () => {
+    await render();
+    const local = button("webAccess.goals.local.title");
+    const lan = button("webAccess.goals.lan.title");
+    expect(local.getAttribute("aria-pressed")).toBe("true");
+    expect(local.querySelector("[data-settings-choice-saved]")).not.toBeNull();
+
+    await choose("lan");
+    expect(lan.getAttribute("aria-pressed")).toBe("true");
+    expect(local.getAttribute("aria-pressed")).toBe("false");
+    expect(local.querySelector("[data-settings-choice-saved]")).not.toBeNull();
+    expect(lan.querySelector("[data-settings-choice-saved]")).toBeNull();
+
+    await click("webAccess.saveChanges");
+    expect(local.querySelector("[data-settings-choice-saved]")).toBeNull();
+    expect(lan.querySelector("[data-settings-choice-saved]")).not.toBeNull();
+  });
+
+  it("opens the access-token dialog in a portal", async () => {
+    await render();
+    await click("common:create");
+    const dialog = document.querySelector<HTMLElement>(
+      '[role="dialog"][aria-label="webAccess.createAccessToken"]',
+    );
+    expect(dialog).not.toBeNull();
+    expect(host.contains(dialog)).toBe(false);
+  });
+
+  it("opens the restart instructions when a saved change needs a restart", async () => {
+    vi.mocked(api.updateRemoteAccessConfig).mockResolvedValue({
+      ok: true,
+      result: {
+        remote_access: { ...privateState, restart_required: true, apply_supported: false },
+      },
+    });
+    await render();
+    await choose("lan");
+    await click("webAccess.saveChanges");
+    const dialog = document.querySelector<HTMLElement>(
+      '[role="dialog"][aria-label="webAccess.restartDialogTitle"]',
+    );
+    expect(dialog).not.toBeNull();
+    expect(host.contains(dialog)).toBe(false);
+  });
+
+  it.each(["lan", "public"])(
+    "keeps a pending %s goal through refresh and saves its connection",
+    async (goal) => {
+      await render();
+      await choose(goal);
+      if (goal === "public") {
+        const input = host.querySelector<HTMLInputElement>(
+          'input[placeholder="https://example.com/ui/"]',
+        )!;
+        await act(async () => {
+          Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+            input,
+            "https://workspace.example/ui/",
+          );
+          input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+      }
+      await refresh();
+      await click("webAccess.saveChanges");
+      expect(api.updateRemoteAccessConfig).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "manual",
+          webHost: goal === "lan" ? "0.0.0.0" : "127.0.0.1",
+          webPublicUrl: goal === "public" ? "https://workspace.example/ui/" : "",
+        }),
+      );
+      expect(host.querySelector('[role="alert"]')).toBeNull();
+    },
+  );
+
+  it("keeps a local-only draft when the saved configuration is private", async () => {
+    saved = privateState;
+    await render();
+    await choose("local");
+    await refresh();
+    await click("webAccess.saveChanges");
+    expect(api.updateRemoteAccessConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "off",
+        webHost: "127.0.0.1",
+        webPublicUrl: "",
+        enabled: false,
+      }),
+    );
+  });
+
+  it("follows remote changes when clean, including after a successful save", async () => {
+    await render();
+    saved = privateState;
+    await refresh();
+    expect(host.querySelector('[role="combobox"]')?.getAttribute("aria-label")).toBe(
+      "webAccess.providerLabel",
+    );
+    await choose("local");
+    await click("webAccess.saveChanges");
+    expect(saved.provider).toBe("off");
+    saved = privateState;
+    await refresh();
+    expect(host.querySelector('[role="combobox"]')?.getAttribute("aria-label")).toBe(
+      "webAccess.providerLabel",
+    );
+  });
+
+  it("still requires an administrator token for an unsaved private connection after refresh", async () => {
+    vi.mocked(api.fetchAccessTokens).mockResolvedValue({ ok: true, result: { access_tokens: [] } });
+    await render();
+    await choose("lan");
+    expect(button("webAccess.saveChanges").disabled).toBe(true);
+    await refresh();
+    expect(button("webAccess.saveChanges").disabled).toBe(true);
+    expect(api.updateRemoteAccessConfig).not.toHaveBeenCalled();
+  });
+
+  it("does not let a stale in-flight refresh overwrite a newer saved configuration", async () => {
+    await render();
+    let resolveStaleRefresh!: (value: {
+      ok: true;
+      result: { remote_access: RemoteAccessState };
+    }) => void;
+    vi.mocked(api.fetchRemoteAccessState).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveStaleRefresh = resolve;
+        }),
+    );
+
+    // Start a slow refresh while still on localState
+    await act(async () => {
+      button("webAccess.refresh").click();
+    });
+
+    // User switches to LAN and saves while the old refresh is still in flight
+    await choose("lan");
+    await click("webAccess.saveChanges");
+    expect(saved.provider).toBe("manual");
+    expect(host.querySelector('[role="combobox"]')?.getAttribute("aria-label")).toBe(
+      "webAccess.providerLabel",
+    );
+
+    // Now the stale pre-save refresh resolves with localState ("off")
+    await act(async () => {
+      resolveStaleRefresh({ ok: true, result: { remote_access: { ...localState } } });
+    });
+
+    // The UI must remain on the newly saved LAN configuration ("manual"), not revert to local-only
+    expect(host.querySelector('[role="combobox"]')?.getAttribute("aria-label")).toBe(
+      "webAccess.providerLabel",
+    );
+  });
+});

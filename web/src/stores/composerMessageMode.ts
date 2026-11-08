@@ -1,0 +1,48 @@
+import { CHET_SELECTOR } from "../utils/chetIdentity";
+
+export type ComposerMessageMode = "send" | "request_reply" | "mail";
+export type ReplyMessageMode = "send" | "mail";
+
+export const COMPOSER_MESSAGE_MODE_STORAGE_KEY = "cccc-composer-message-mode";
+export const DEFAULT_COMPOSER_MESSAGE_MODE: ComposerMessageMode = "send";
+
+export function normalizeComposerMessageMode(value: unknown): ComposerMessageMode {
+  return value === "send" || value === "request_reply" || value === "mail"
+    ? value
+    : DEFAULT_COMPOSER_MESSAGE_MODE;
+}
+
+export function normalizeReplyMessageMode(value: unknown): ReplyMessageMode {
+  return value === "mail" ? "mail" : "send";
+}
+
+/**
+ * Chet has no Mail inbox, whether addressed as @chet or answered with a reply to its message;
+ * preserve the user's preference for other recipients.
+ */
+export function messageModeForRecipients(
+  mode: ComposerMessageMode,
+  recipients: readonly string[],
+  replyToChet = false,
+): ComposerMessageMode {
+  return mode === "mail" && (replyToChet || recipients.includes(CHET_SELECTOR)) ? "send" : mode;
+}
+
+export function loadComposerMessageModePreference(): ComposerMessageMode {
+  try {
+    if (typeof localStorage === "undefined") return DEFAULT_COMPOSER_MESSAGE_MODE;
+    return normalizeComposerMessageMode(localStorage.getItem(COMPOSER_MESSAGE_MODE_STORAGE_KEY));
+  } catch (error) {
+    console.warn("Failed to read composer message mode from localStorage:", error);
+    return DEFAULT_COMPOSER_MESSAGE_MODE;
+  }
+}
+
+export function saveComposerMessageModePreference(mode: ComposerMessageMode): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(COMPOSER_MESSAGE_MODE_STORAGE_KEY, mode);
+  } catch (error) {
+    console.warn("Failed to persist composer message mode to localStorage:", error);
+  }
+}

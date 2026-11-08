@@ -1,0 +1,40 @@
+{
+  "name": "@pixoffice/assets-office",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    "./frame": {
+      "types": "./lib/frame/index.d.ts",
+      "import": "./lib/frame/index.js"
+    },
+    "./frame/packSchema": {
+      "types": "./lib/frame/packSchema.d.ts",
+      "import": "./lib/frame/packSchema.js"
+    },
+    "./frame/resources": {
+      "types": "./lib/frame/resources.d.ts",
+      "import": "./lib/frame/resources.js"
+    },
+    "./frame/workAnimation": {
+      "types": "./lib/frame/workAnimation.d.ts",
+      "import": "./lib/frame/workAnimation.js"
+    },
+    "./frame/bindings": {
+      "types": "./lib/frame/bindings.d.ts",
+      "import": "./lib/frame/bindings.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/animation-frame": "0.1.0",
+    "@pixoffice/contracts": "0.1.0",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.18.1"
+  }
+}

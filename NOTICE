@@ -1,0 +1,13 @@
+牛马Agent / niuma-agent
+
+本项目基于 CCCC（https://github.com/ChesterRa/cccc）修改，导入基准提交 fa868a36。
+CCCC 的 Apache License 2.0 文本与原有版权、许可声明保留在 LICENSE 及相关文件中。
+
+本项目集成 PixOffice（https://github.com/workbzw/pixoffice）的场景软件。
+PixOffice 的 MIT License、Copyright (c) 2026 teejoo 及各软件包声明保留在
+web/vendor/pixoffice/ 与 web/public/pixoffice/THIRD_PARTY_NOTICES.txt 中。
+图片和其他非代码素材不因这些软件声明获得额外分发许可。
+
+本修改版本增加了真实状态动画、任务黑板、成员离岗交接、模型配置、消息朗读、
+中文输入交互、上下班确认及会话恢复兜底。修改范围见 MODIFICATIONS.md。
+本文件是来源与修改说明，不替代任何上游或第三方许可证。

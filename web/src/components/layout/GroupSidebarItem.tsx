@@ -1,0 +1,171 @@
+import { groupSidebarRowClass } from "./groupSidebarModel";
+import { ConnectLinkIcon, GroupArchiveIcon, GroupArchiveRestoreIcon } from "../Icons";
+import { GroupConnectionBadge } from "../../features/connect/GroupConnectionBadge";
+import type { GroupConnectionCount } from "../../features/connect/protocol";
+import { GroupMeta } from "../../types";
+import { getGroupStatusFromSource } from "../../utils/groupStatus";
+import { classNames } from "../../utils/classNames";
+import { GroupItemMenuTrigger } from "./GroupItemMenuTrigger";
+import { useGroupMenu, type GroupMenuActionItem } from "./useGroupMenu";
+import { GroupStatusIndicator } from "./GroupStatusIndicator";
+import { GroupPendingIndicator } from "../../features/pendingReplies/PendingIndicator";
+import { usePendingGroupLabel } from "../../features/pendingReplies/usePendingGroupLabel";
+
+interface GroupSidebarItemProps {
+  group: GroupMeta;
+  isActive: boolean;
+  isCollapsed: boolean;
+  isArchived?: boolean;
+  menuActionLabel?: string;
+  menuAriaLabel?: string;
+  onMenuAction?: () => void;
+  /** Launch/pause/stop entries for this group; listed before the other actions. */
+  runActions?: GroupMenuActionItem[];
+  /** Destructive entries for this group; listed after the other actions. */
+  trailingActions?: GroupMenuActionItem[];
+  connectionsLabel?: string;
+  connection?: GroupConnectionCount;
+  onOpenConnections?: () => void;
+  onSelect: () => void;
+  onWarm?: () => void;
+}
+
+export function GroupSidebarItem({
+  group,
+  isActive,
+  isCollapsed,
+  isArchived = false,
+  menuActionLabel,
+  menuAriaLabel,
+  onMenuAction,
+  runActions,
+  trailingActions,
+  connectionsLabel,
+  connection,
+  onOpenConnections,
+  onSelect,
+  onWarm,
+}: GroupSidebarItemProps) {
+  const gid = String(group.group_id || "");
+  const collapsedLabel = usePendingGroupLabel(gid, group.title || gid);
+  const menu = useGroupMenu(menuAriaLabel || menuActionLabel || "", [
+    ...(runActions ?? []),
+    ...(onOpenConnections && connectionsLabel
+      ? [
+          {
+            label: connectionsLabel,
+            icon: <ConnectLinkIcon size={15} />,
+            onClick: onOpenConnections,
+          },
+        ]
+      : []),
+    ...(onMenuAction && menuActionLabel
+      ? [
+          {
+            label: menuActionLabel,
+            icon: isArchived ? (
+              <GroupArchiveRestoreIcon size={15} />
+            ) : (
+              <GroupArchiveIcon size={15} />
+            ),
+            onClick: onMenuAction,
+          },
+        ]
+      : []),
+    ...(trailingActions ?? []),
+  ]);
+  const status = getGroupStatusFromSource(group);
+
+  if (isCollapsed) {
+    const initial = (group.title || gid).charAt(0).toUpperCase();
+    return (
+      <button
+        className={classNames(
+          "w-11 h-11 rounded-xl flex items-center justify-center transition-all relative",
+          isActive ? "glass-group-item-active" : "glass-group-item hover:scale-105",
+        )}
+        onClick={onSelect}
+        onMouseEnter={onWarm}
+        onFocus={onWarm}
+        title={group.title || gid}
+        aria-label={collapsedLabel}
+      >
+        {isActive && (
+          <span className="absolute left-0 top-3 bottom-3 w-0.75 rounded-r bg-[rgb(35,36,37)] dark:bg-white animate-in slide-in-from-left-1 duration-200" />
+        )}
+        <span
+          className={classNames(
+            "text-sm font-semibold",
+            isActive
+              ? "text-[rgb(35,36,37)] dark:text-white"
+              : "text-[var(--color-text-secondary)]",
+          )}
+        >
+          {initial}
+        </span>
+        <GroupStatusIndicator
+          status={status}
+          className="absolute -bottom-0.5 -right-0.5 ring-2 ring-[var(--color-bg-primary)]"
+        />
+        <GroupPendingIndicator groupId={gid} groupName={group.title || gid} collapsed />
+      </button>
+    );
+  }
+
+  return (
+    <div className="group/item relative">
+      <div
+        className={classNames(
+          groupSidebarRowClass,
+          isActive ? "glass-group-item-active" : "glass-group-item",
+          isArchived && !isActive && "opacity-90",
+        )}
+        onContextMenu={menu.onContextMenu}
+      >
+        <button
+          type="button"
+          role="button"
+          aria-current={isActive ? "page" : undefined}
+          className="flex-1 min-w-0 min-h-[44px] md:min-h-8 pointer-coarse:min-h-[44px] flex items-center justify-between gap-2 text-left"
+          onClick={onSelect}
+          onKeyDown={menu.onKeyDown}
+          onMouseEnter={onWarm}
+          onFocus={onWarm}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <GroupStatusIndicator status={status} />
+            <span
+              className={classNames(
+                "text-sm truncate",
+                isActive
+                  ? "font-semibold text-[rgb(35,36,37)] dark:text-white"
+                  : "font-normal text-[var(--color-text-primary)] group-hover/item:text-[var(--color-text-primary)]",
+              )}
+              title={group.title || gid}
+            >
+              {group.title || gid}
+            </span>
+          </div>
+        </button>
+
+        <GroupPendingIndicator groupId={gid} groupName={group.title || gid} />
+        {connection?.count && onOpenConnections ? (
+          <div className="flex w-[44px] shrink-0 justify-end">
+            <GroupConnectionBadge connection={connection} onClick={onOpenConnections} compact />
+          </div>
+        ) : null}
+        {menu.available && (
+          <div className="flex w-8 shrink-0 justify-end pointer-coarse:w-[44px]">
+            <GroupItemMenuTrigger
+              isActive={isActive}
+              label={menuAriaLabel || menuActionLabel || connectionsLabel || ""}
+              open={menu.open}
+              onToggle={menu.toggle}
+            />
+          </div>
+        )}
+      </div>
+      {menu.menu}
+    </div>
+  );
+}

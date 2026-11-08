@@ -1,0 +1,279 @@
+use super::codex_voice_analyst::{AnalystEvent, AnalystSession, ElicitationAction, TurnReceipt};
+use std::collections::{HashMap, VecDeque};
+use std::sync::{Arc, Mutex, Weak};
+use tokio::sync::{Mutex as AsyncMutex, broadcast};
+use tokio::task::JoinHandle;
+
+mod events;
+mod queue;
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+pub(crate) use tests::collect_normalized_events_for_test;
+mod turn_wait;
+mod turns;
+
+const EVENT_CAPACITY: usize = 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalystTurnOrigin {
+    Voice,
+    Terminal,
+    /// A durable Group input is admitted between user text and Voice turns.
+    Group,
+    ActorResult {
+        speakable: bool,
+    },
+}
+
+impl AnalystTurnOrigin {
+    pub fn speakable(self) -> bool {
+        matches!(self, Self::Voice | Self::ActorResult { speakable: true })
+    }
+
+    pub fn is_actor_result(self) -> bool {
+        matches!(self, Self::ActorResult { .. })
+    }
+
+    fn merged(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Voice, _) | (_, Self::Voice) => Self::Voice,
+            (Self::ActorResult { speakable: a }, Self::ActorResult { speakable: b }) => {
+                Self::ActorResult { speakable: a || b }
+            }
+            (Self::Terminal, origin)
+            | (origin, Self::Terminal)
+            | (Self::Group, origin)
+            | (origin, Self::Group) => origin,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum AnalystLifecycleEvent {
+    Started {
+        receipt: TurnReceipt,
+        origin: AnalystTurnOrigin,
+    },
+    Associated {
+        receipt: TurnReceipt,
+        origin: AnalystTurnOrigin,
+    },
+    Progress {
+        turn_id: String,
+        text: String,
+        speakable: bool,
+    },
+    Completed {
+        source: AnalystCompletionSource,
+        turn_id: String,
+        delegation_id: String,
+        delegation_ids: Vec<String>,
+        status: String,
+        error: String,
+        result: String,
+        speakable: bool,
+    },
+    NeedsAttention {
+        code: &'static str,
+    },
+    Disconnected,
+    Queued {
+        delegation_id: String,
+        position: usize,
+    },
+}
+
+/// A host error after an admission attempt does not prove what the Runtime did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalystCompletionSource {
+    Runtime,
+    HostNotStarted,
+    HostUnconfirmed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VoiceDelegationAdmission {
+    Turn(TurnReceipt),
+    NativeInput {
+        delegation_id: String,
+        text: String,
+    },
+    NativeInputPending,
+    Queued {
+        delegation_id: String,
+        position: usize,
+    },
+}
+
+#[derive(Debug)]
+struct ActiveTurn {
+    turn_id: String,
+    latest_delegation_id: String,
+    delegation_ids: Vec<String>,
+    origin: AnalystTurnOrigin,
+    cancelling: bool,
+    deltas: String,
+    completed_text: String,
+    result_overflowed: bool,
+}
+
+#[derive(Debug, Clone)]
+struct PendingStart {
+    delegation_id: String,
+    origin: AnalystTurnOrigin,
+    cancelling: bool,
+}
+
+#[derive(Debug, Default)]
+struct LifecycleState {
+    active: Option<ActiveTurn>,
+    pending: Option<PendingStart>,
+    settled_pending: Option<TurnReceipt>,
+    native_pending: VecDeque<PendingStart>,
+    delegations: HashMap<String, TurnReceipt>,
+    invalidated: bool,
+    queue: VecDeque<queue::QueuedInput>,
+    host_context_sent: bool,
+    acp_inputs: HashMap<String, ([u8; 32], AnalystTurnOrigin)>,
+}
+
+pub(crate) struct AnalystLifecycle {
+    session: Arc<AnalystSession>,
+    state: AsyncMutex<LifecycleState>,
+    events: broadcast::Sender<AnalystLifecycleEvent>,
+    monitor: Mutex<Option<JoinHandle<()>>>,
+    queue_task: Mutex<Option<JoinHandle<()>>>,
+    queue_notify: Arc<tokio::sync::Notify>,
+    queue_len: std::sync::atomic::AtomicUsize,
+}
+
+impl AnalystLifecycle {
+    pub(crate) fn start(session: Arc<AnalystSession>) -> Arc<Self> {
+        let (events, _) = broadcast::channel(EVENT_CAPACITY);
+        let lifecycle = Arc::new(Self {
+            session,
+            state: AsyncMutex::new(LifecycleState::default()),
+            events,
+            monitor: Mutex::new(None),
+            queue_task: Mutex::new(None),
+            queue_notify: Arc::new(tokio::sync::Notify::new()),
+            queue_len: std::sync::atomic::AtomicUsize::new(0),
+        });
+        let weak = Arc::downgrade(&lifecycle);
+        let mut source = lifecycle.session.subscribe();
+        let task = tokio::spawn(async move {
+            loop {
+                match source.recv().await {
+                    Ok(event) => {
+                        let disconnected = event.message["method"]
+                            == super::codex_voice_analyst::MANAGED_AGENT_DISCONNECTED_METHOD;
+                        if disconnected && event.message["params"]["expected"] == true {
+                            break;
+                        }
+                        let Some(lifecycle) = Weak::upgrade(&weak) else {
+                            break;
+                        };
+                        lifecycle.handle(event).await;
+                        lifecycle.queue_notify.notify_one();
+                        if disconnected {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(skipped)) => {
+                        tracing::warn!(
+                            skipped,
+                            "Voice Analyst lifecycle reader fell behind; invalidating the unreplayable session"
+                        );
+                        if let Some(lifecycle) = Weak::upgrade(&weak) {
+                            lifecycle.invalidate().await;
+                            if let Err(error) = lifecycle
+                                .session
+                                .stop_for_voice(lifecycle.session.generation())
+                                .await
+                            {
+                                tracing::warn!(%error, "failed to stop invalid Voice Analyst session");
+                            }
+                        }
+                        break;
+                    }
+                    Err(broadcast::error::RecvError::Closed) => {
+                        if let Some(lifecycle) = Weak::upgrade(&weak) {
+                            lifecycle.invalidate().await;
+                        }
+                        break;
+                    }
+                }
+            }
+        });
+        *lifecycle
+            .monitor
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(task);
+        // Native sessions also use this queue when a Group input must wait
+        // for an existing text turn. Ordinary native input is unchanged.
+        queue::start(&lifecycle);
+        lifecycle
+    }
+
+    pub(crate) fn subscribe(&self) -> broadcast::Receiver<AnalystLifecycleEvent> {
+        self.events.subscribe()
+    }
+
+    /// Snapshot work known to this lifecycle without waiting on a provider RPC.
+    /// None means the owner is busy, not that the queue is empty.
+    pub(crate) fn try_in_flight(&self) -> Option<(Vec<String>, Vec<String>)> {
+        let state = self.state.try_lock().ok()?;
+        let queued = state
+            .pending
+            .iter()
+            .chain(state.native_pending.iter())
+            .map(|item| item.delegation_id.clone())
+            .chain(state.queue.iter().map(|input| input.delegation_id.clone()))
+            .collect();
+        let working = state
+            .active
+            .as_ref()
+            .map(|active| active.delegation_ids.clone())
+            .unwrap_or_default();
+        Some((queued, working))
+    }
+
+    async fn invalidate(&self) {
+        let mut state = self.state.lock().await;
+        state.active = None;
+        state.pending = None;
+        state.settled_pending = None;
+        state.native_pending.clear();
+        // Queued inputs never reached the Runtime: say so, as a cancel does.
+        let queued = state.queue.drain(..).collect::<Vec<_>>();
+        for input in queued {
+            self.complete_unadmitted_input(
+                &input.delegation_id,
+                input.origin,
+                "cancelled",
+                "",
+                AnalystCompletionSource::HostNotStarted,
+            );
+        }
+        self.queue_len
+            .store(0, std::sync::atomic::Ordering::Release);
+        state.invalidated = true;
+        let _ = self.events.send(AnalystLifecycleEvent::Disconnected);
+    }
+}
+
+impl Drop for AnalystLifecycle {
+    fn drop(&mut self) {
+        if let Ok(mut task) = self.queue_task.lock()
+            && let Some(task) = task.take()
+        {
+            task.abort();
+        }
+        if let Ok(mut monitor) = self.monitor.lock()
+            && let Some(task) = monitor.take()
+        {
+            task.abort();
+        }
+    }
+}

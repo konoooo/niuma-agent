@@ -1,0 +1,1204 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { TFunction } from "i18next";
+import {
+  type Actor,
+  type ActorModelConfig,
+  type ActorProfile,
+  isWebModelRuntime,
+  RUNTIME_INFO,
+  type RuntimeInfo,
+  type SupportedRuntime,
+  supportsAcpMode,
+} from "../../types";
+import * as api from "../../services/api";
+import { useGroupStore, useUIStore } from "../../stores";
+import { actorProfileIdentityKey, actorProfileMatchesRef } from "../../utils/actorProfiles";
+import { actorGenerationIdentity } from "../../utils/actorIdentity";
+import { actorModelConfigsEqual } from "../../utils/actorModelConfig";
+import {
+  joinRuntimeSentences,
+  runtimeSwitchErrorMessage,
+  runtimeSwitchStartError,
+} from "../../features/runtimeSwitch/runtimeSwitchOutcome";
+import {
+  openWebSetup,
+  refreshRuntimeSwitchGroup,
+} from "../../features/runtimeSwitch/runtimeSwitchState";
+import { normalizeCapabilityIdList, parseCapabilityIdInput } from "../../utils/capabilityAutoload";
+import { parseHelpMarkdown, updateActorHelpNote } from "../../utils/helpMarkdown";
+import { parsePrivateEnvSetText } from "../../utils/privateEnvInput";
+import { runtimeDetectionKey } from "../../utils/runtimeDetection";
+import { canonicalGrokBotUrl, isGrokBotUrl } from "../../utils/webModelTargetDraft";
+import type { CreatedNativeActorNavigation } from "../../hooks/useAppTabState";
+import type { EditActorSavePayload, SaveActorProfileResult } from "./ActorConfigModal";
+import { resolveNewActorId } from "./actorCreateModel";
+import type { ActorSecretSaveChanges } from "./actorSecretManagerModel";
+import { formatRuntimeCommand } from "./runtimeProfileControlsModel";
+import { revealRuntimeConfirmation } from "../../hooks/runtimeConfirmation";
+
+export function useAppModalActorActions(args: {
+  selectedGroupId: string;
+  actors: Actor[];
+  runtimes: RuntimeInfo[];
+  runtimeDetectionStatus: "idle" | "loading" | "ready" | "error";
+  busy: string;
+  setBusy: (busy: string) => void;
+  showError: (msg: string) => void;
+  showNotice: (notice: { message: string; actionLabel?: string; onAction?: () => void }) => void;
+  addActorModalOpen: boolean;
+  editingActor: Actor | null;
+  setEditingActor: (actor: Actor | null) => void;
+  closeModal: (modal: "addActor") => void;
+  refreshActors: (groupId?: string, opts?: { includeUnread?: boolean }) => Promise<void>;
+  onNativeActorCreated?: (visit: CreatedNativeActorNavigation) => void;
+  editActorRuntime: SupportedRuntime;
+  editActorCommand: string;
+  editActorTitle: string;
+  editActorNotes: string;
+  editActorCapabilityAutoloadText: string;
+  setEditActorNotes: (v: string) => void;
+  newActorId: string;
+  newActorRole: "peer" | "foreman";
+  newActorRuntime: SupportedRuntime;
+  newActorCommand: string;
+  newActorUseDefaultCommand: boolean;
+  newActorSecretsSetText: string;
+  newActorCapabilityAutoloadText: string;
+  newActorNotes: string;
+  newActorUseProfile: boolean;
+  newActorProfileId: string;
+  setAddActorError: (v: string) => void;
+  resetAddActorForm: () => void;
+  t: TFunction<["actors", "chat", "modals"]>;
+}) {
+  const {
+    selectedGroupId,
+    actors,
+    runtimes,
+    runtimeDetectionStatus,
+    busy,
+    setBusy,
+    showError,
+    showNotice,
+    addActorModalOpen,
+    editingActor,
+    setEditingActor,
+    closeModal,
+    refreshActors,
+    onNativeActorCreated,
+    editActorRuntime,
+    editActorCommand,
+    editActorTitle,
+    editActorNotes,
+    editActorCapabilityAutoloadText,
+    setEditActorNotes,
+    newActorId,
+    newActorRole,
+    newActorRuntime,
+    newActorCommand,
+    newActorUseDefaultCommand,
+    newActorSecretsSetText,
+    newActorCapabilityAutoloadText,
+    newActorNotes,
+    newActorUseProfile,
+    newActorProfileId,
+    setAddActorError,
+    resetAddActorForm,
+    t,
+  } = args;
+
+  const [actorProfiles, setActorProfiles] = useState<ActorProfile[]>([]);
+  const [actorProfilesBusy, setActorProfilesBusy] = useState(false);
+  const [editActorNotesBusy, setEditActorNotesBusy] = useState(false);
+  const [editActorNotesError, setEditActorNotesError] = useState(false);
+  const editProfileSaveRef = useRef<{
+    profile: ActorProfile;
+    copied: boolean;
+    savedActor: boolean;
+  } | null>(null);
+  const newProfileSaveRef = useRef<ActorProfile | null>(null);
+  const editActorNotesBaselineRef = useRef("");
+  const editActorNotesSeqRef = useRef(0);
+  const editActorVisitRef = useRef(0);
+  const profileLoadSeqRef = useRef(0);
+
+  useEffect(
+    () => () => {
+      editActorVisitRef.current += 1;
+      editActorNotesSeqRef.current += 1;
+      profileLoadSeqRef.current += 1;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!addActorModalOpen) newProfileSaveRef.current = null;
+  }, [addActorModalOpen]);
+
+  const editingActorId = editingActor?.id;
+  useEffect(() => {
+    editProfileSaveRef.current = null;
+    editActorVisitRef.current += 1;
+    editActorNotesSeqRef.current += 1;
+    editActorNotesBaselineRef.current = "";
+    setEditActorNotesBusy(false);
+    setEditActorNotesError(false);
+    setEditActorNotes("");
+  }, [selectedGroupId, editingActorId, setEditActorNotes]);
+
+  const loadEditingActorNotes = useCallback(
+    async (groupId: string, actorId: string) => {
+      const gid = String(groupId || "").trim();
+      const aid = String(actorId || "").trim();
+      if (!gid || !aid) {
+        editActorNotesBaselineRef.current = "";
+        setEditActorNotes("");
+        return;
+      }
+      const seq = ++editActorNotesSeqRef.current;
+      setEditActorNotesBusy(true);
+      setEditActorNotesError(false);
+      try {
+        const resp = await api.fetchGroupPrompts(gid);
+        if (!resp.ok) {
+          if (seq === editActorNotesSeqRef.current) {
+            editActorNotesBaselineRef.current = "";
+            setEditActorNotes("");
+            setEditActorNotesError(true);
+          }
+          return;
+        }
+        const helpContent = String(resp.result?.help?.content || "");
+        const parsed = parseHelpMarkdown(helpContent);
+        const note = String(parsed.actorNotes[aid] || "");
+        if (seq !== editActorNotesSeqRef.current) return;
+        editActorNotesBaselineRef.current = note.trim();
+        setEditActorNotes(note);
+      } catch {
+        if (seq === editActorNotesSeqRef.current) {
+          editActorNotesBaselineRef.current = "";
+          setEditActorNotes("");
+          setEditActorNotesError(true);
+        }
+      } finally {
+        if (seq === editActorNotesSeqRef.current) {
+          setEditActorNotesBusy(false);
+        }
+      }
+    },
+    [setEditActorNotes],
+  );
+
+  const persistActorNotes = useCallback(
+    async (groupId: string, actorId: string, note: string, actorOrder?: string[]) => {
+      const gid = String(groupId || "").trim();
+      const aid = String(actorId || "").trim();
+      const nextNote = String(note || "").trim();
+      if (!gid || !aid) return { ok: false as const, error: "missing actor or group" };
+
+      const promptsResp = await api.fetchGroupPrompts(gid);
+      if (!promptsResp.ok) {
+        return {
+          ok: false as const,
+          error: `${promptsResp.error?.code || "prompt_fetch_failed"}: ${promptsResp.error?.message || "Failed to load help prompt"}`,
+        };
+      }
+
+      const currentHelpContent = String(promptsResp.result?.help?.content || "");
+      const nextHelpContent = updateActorHelpNote(currentHelpContent, aid, nextNote, actorOrder);
+      const helpResp = await api.updateGroupPrompt(gid, "help", nextHelpContent, {
+        editorMode: "structured",
+        changedBlocks: [`actor:${aid}`],
+      });
+      if (!helpResp.ok) {
+        return {
+          ok: false as const,
+          error: `${helpResp.error?.code || "prompt_save_failed"}: ${helpResp.error?.message || "Failed to save help prompt"}`,
+        };
+      }
+
+      return { ok: true as const };
+    },
+    [],
+  );
+
+  const loadActorProfiles = useCallback(async () => {
+    const seq = ++profileLoadSeqRef.current;
+    setActorProfilesBusy(true);
+    try {
+      const resp = await api.listActorProfiles();
+      if (seq !== profileLoadSeqRef.current) return;
+      if (!resp.ok) {
+        showError(resp.error?.message || t("failedToLoadActorProfiles"));
+        return;
+      }
+      setActorProfiles(Array.isArray(resp.result?.profiles) ? resp.result.profiles : []);
+    } finally {
+      if (seq === profileLoadSeqRef.current) setActorProfilesBusy(false);
+    }
+  }, [showError, t]);
+
+  useEffect(() => {
+    if (addActorModalOpen) {
+      void loadActorProfiles();
+      return;
+    }
+    const linkedProfileId = String(editingActor?.profile_id || "").trim();
+    if (!linkedProfileId) return;
+    void loadActorProfiles();
+  }, [addActorModalOpen, editingActor?.profile_id, loadActorProfiles]);
+
+  const handleSaveEditActor = async (
+    payload: EditActorSavePayload,
+    options: { restart: boolean },
+  ) => {
+    if (!selectedGroupId || !editingActor) return;
+    if (editActorNotesError) throw new Error(t("actorNotesLoadFailed"));
+
+    const savedActor = editingActor;
+    const actorId = String(editingActor.id || "").trim();
+    if (!actorId) return;
+
+    const label = String(savedActor.title || editingActor.id || actorId).trim() || actorId;
+    const mode = payload.mode === "profile" ? "profile" : "custom";
+    const profileSelectionKey = String(payload.profileId || "").trim();
+    const selectedProfile =
+      mode === "profile"
+        ? actorProfiles.find((item) => actorProfileIdentityKey(item) === profileSelectionKey) ||
+          null
+        : null;
+    const profileId = String(selectedProfile?.id || "").trim();
+    const linkedBefore = Boolean(String(savedActor.profile_id || "").trim());
+    const convertToCustom = mode === "custom" && linkedBefore && !!payload.convertToCustom;
+
+    if (mode === "profile" && !selectedProfile) {
+      showError(t("profileRequired"));
+      return;
+    }
+    if (mode === "custom" && linkedBefore && !convertToCustom) {
+      showError(t("profileControlsRuntimeFields"));
+      return;
+    }
+
+    const setVars = payload?.setVars && typeof payload.setVars === "object" ? payload.setVars : {};
+    const setKeys = Object.keys(setVars);
+    const unsetKeys = Array.isArray(payload?.unsetKeys) ? payload.unsetKeys : [];
+    const clear = !!payload?.clear;
+    const canEditSecrets =
+      mode === "custom" &&
+      !isWebModelRuntime(editActorRuntime) &&
+      (!linkedBefore || convertToCustom);
+    const willChangeSecrets =
+      canEditSecrets && (clear || setKeys.length > 0 || unsetKeys.length > 0);
+
+    const currentRuntime = String(savedActor.runtime || "codex").trim();
+    const currentCommand = formatRuntimeCommand(savedActor.command);
+    const currentTitle = String(savedActor.title || "").trim();
+    const currentCapabilityAutoload = normalizeCapabilityIdList(
+      (savedActor as { capability_autoload?: unknown[] })?.capability_autoload,
+    );
+    const currentActorNotes = String(editActorNotesBaselineRef.current || "").trim();
+    const nextActorNotes = String(editActorNotes || "").trim();
+    const nextRuntime = String(
+      mode === "profile" ? selectedProfile?.runtime || currentRuntime : editActorRuntime || "codex",
+    ).trim();
+    const grokBotUrl = nextRuntime === "grok_web_model" ? payload.grokBotUrl?.trim() : undefined;
+    if (grokBotUrl !== undefined && !isGrokBotUrl(grokBotUrl)) {
+      throw new Error(t("settings:grokActor.invalidUrl"));
+    }
+    const nextCommand = isWebModelRuntime(nextRuntime)
+      ? currentCommand
+      : String(editActorCommand || "").trim();
+    const nextTitle = String(editActorTitle || "").trim();
+    const currentDefaultScopeKey = savedActor.default_scope_key || "";
+    const nextDefaultScopeKey = savedActor.external_session_id
+      ? currentDefaultScopeKey
+      : (payload.defaultScopeKey ?? currentDefaultScopeKey);
+    const scopeChanged = nextDefaultScopeKey !== currentDefaultScopeKey;
+    const nextCapabilityAutoload = Array.isArray(payload.capabilityAutoload)
+      ? normalizeCapabilityIdList(payload.capabilityAutoload)
+      : [];
+
+    const nextRuntimeMode = supportsAcpMode(nextRuntime)
+      ? payload.runtimeMode || "default"
+      : "default";
+    const runtimeModeChanged =
+      mode === "custom" && nextRuntimeMode !== (savedActor.runtime_mode || "default");
+    const runtimeChanged =
+      mode === "custom" && (!linkedBefore || convertToCustom) && nextRuntime !== currentRuntime;
+    const commandChanged =
+      mode === "custom" && (!linkedBefore || convertToCustom) && nextCommand !== currentCommand;
+    const titleChanged = nextTitle !== currentTitle;
+    const autoloadChanged =
+      JSON.stringify(nextCapabilityAutoload) !== JSON.stringify(currentCapabilityAutoload);
+    const profileChanged =
+      mode === "profile" &&
+      !actorProfileMatchesRef(selectedProfile || { id: "", scope: "global", owner_id: "" }, {
+        profileId: String(savedActor.profile_id || "").trim(),
+        profileScope: String(savedActor.profile_scope || "global").trim() || "global",
+        profileOwner: String(savedActor.profile_owner || "").trim(),
+      });
+    const actorNotesChanged = nextActorNotes !== currentActorNotes;
+    const modelConfigChanged =
+      payload.modelConfig !== undefined &&
+      !actorModelConfigsEqual(payload.modelConfig, savedActor.model_config);
+    const hasActorMutation =
+      modelConfigChanged ||
+      convertToCustom ||
+      runtimeChanged ||
+      runtimeModeChanged ||
+      commandChanged ||
+      titleChanged ||
+      autoloadChanged ||
+      scopeChanged ||
+      profileChanged;
+
+    if (
+      !options.restart &&
+      !hasActorMutation &&
+      !willChangeSecrets &&
+      !actorNotesChanged &&
+      grokBotUrl === undefined
+    ) {
+      setEditingActor(null);
+      return;
+    }
+
+    const confirmProfileSecretsForWeb = convertToCustom && isWebModelRuntime(nextRuntime);
+    if (options.restart && !payload.runtimeSwitch) {
+      const msg =
+        grokBotUrl !== undefined
+          ? t("applyWebModelTargetConfirm", { label })
+          : willChangeSecrets
+            ? t("saveSecretsAndRestartConfirm", { label })
+            : t("saveAndRestartConfirm", { label });
+      const confirmText = confirmProfileSecretsForWeb
+        ? joinRuntimeSentences([msg, t("profileToWebSecretsConfirm")])
+        : msg;
+      if (!window.confirm(confirmText)) return;
+    } else if (
+      !payload.runtimeSwitch &&
+      confirmProfileSecretsForWeb &&
+      !window.confirm(t("profileToWebSecretsConfirm"))
+    ) {
+      return;
+    }
+
+    const targetGroupId = selectedGroupId;
+    const expectedTab = useUIStore.getState().activeTab;
+    const visit = ++editActorVisitRef.current;
+    const isCurrentEdit = () =>
+      editActorVisitRef.current === visit &&
+      useGroupStore.getState().selectedGroupId === targetGroupId;
+    const actorUpdateError = (error: { code: string; message: string }) =>
+      error.code === "actor_browser_busy" || error.code === "delivery_unresolved"
+        ? runtimeSwitchErrorMessage(error, (key) => t(key))
+        : error.message;
+    setBusy("actor-update");
+    try {
+      if (payload.runtimeSwitch) {
+        const generation = actorGenerationIdentity(savedActor);
+        if (generation === undefined || savedActor.updated_at === undefined) {
+          throw new Error(t("runtimeSwitch.identityMissing"));
+        }
+        const patch = {
+          runtime: nextRuntime,
+          ...(mode === "custom"
+            ? {
+                runtime_mode: nextRuntimeMode,
+                command: nextCommand,
+                submit: savedActor.submit || "enter",
+              }
+            : {}),
+          ...(scopeChanged ? { default_scope_key: nextDefaultScopeKey } : {}),
+        };
+        const target: api.ActorRuntimeSwitchTarget =
+          mode === "profile" && selectedProfile
+            ? {
+                kind: "managed",
+                patch,
+                profile_id: selectedProfile.id,
+                profile_scope: selectedProfile.scope || "global",
+                profile_owner: selectedProfile.owner_id || undefined,
+                expected_profile_revision: selectedProfile.revision,
+                start: payload.runtimeSwitch.start,
+              }
+            : { kind: "managed", patch, start: payload.runtimeSwitch.start };
+        const response = await api.switchActorRuntime(targetGroupId, actorId, {
+          expected_actor_generation: generation,
+          expected_actor_updated_at: savedActor.updated_at,
+          target,
+        });
+        if (!response.ok) {
+          throw new Error(
+            `${response.error.code}: ${runtimeSwitchErrorMessage(response.error, (key) => t(key))}`,
+          );
+        }
+        const notices = [
+          t(
+            response.result.completion === "pending"
+              ? "runtimeSwitch.pending"
+              : "runtimeSwitch.completed",
+          ),
+        ];
+        if (response.result.start === "error") {
+          notices.push(runtimeSwitchStartError(response.result.start_error, (key) => t(key)));
+        }
+        if (response.result.start === "pending") notices.push(t("runtimeSwitch.startPending"));
+        if (response.result.start === "stopped") notices.push(t("runtimeSwitch.stopped"));
+        if (response.result.access_paused) notices.push(t("runtimeSwitch.accessPaused"));
+        const needsWebSetup =
+          response.result.completion === "done" &&
+          isWebModelRuntime(response.result.to.runtime) &&
+          response.result.from.runtime !== response.result.to.runtime;
+        const canonicalBotUrl = grokBotUrl ? canonicalGrokBotUrl(grokBotUrl) : null;
+        let grokUnconfirmed = Boolean(canonicalBotUrl && response.result.completion === "pending");
+        if (response.result.completion === "done" && canonicalBotUrl) {
+          try {
+            const binding = await api.bindGrokBot(targetGroupId, actorId, canonicalBotUrl);
+            grokUnconfirmed = !binding.ok;
+          } catch {
+            grokUnconfirmed = true;
+          }
+        }
+        if (grokUnconfirmed)
+          notices.push(t("runtimeSwitch.grokDraftNotice", { url: canonicalBotUrl }));
+        if (needsWebSetup) notices.push(t("runtimeSwitch.webConnectionRequired"));
+        try {
+          await refreshRuntimeSwitchGroup(targetGroupId);
+        } catch {
+          notices.push(t("runtimeSwitch.refreshFailed"));
+        }
+        if (isCurrentEdit()) {
+          setEditingActor(null);
+          showNotice({
+            message: joinRuntimeSentences(notices),
+            ...(needsWebSetup || grokUnconfirmed
+              ? {
+                  actionLabel: t("runtimeSwitch.openWebSetup"),
+                  onAction: () => {
+                    const result = openWebSetup(
+                      targetGroupId,
+                      actorId,
+                      response.result.to.runtime,
+                      generation,
+                    );
+                    if (result !== "opened")
+                      useUIStore
+                        .getState()
+                        .showError(
+                          t(
+                            result === "editor_open"
+                              ? "runtimeSwitch.closeEditorFirst"
+                              : "runtimeSwitch.refreshFailed",
+                          ),
+                        );
+                  },
+                }
+              : {}),
+          });
+        }
+        return;
+      }
+      let actorSnapshot: Record<string, unknown> = savedActor as unknown as Record<string, unknown>;
+      let confirmationResult: unknown;
+
+      if (mode === "custom" && linkedBefore && convertToCustom) {
+        const convertResp = await api.updateActor(
+          targetGroupId,
+          actorId,
+          undefined,
+          undefined,
+          nextTitle,
+          {
+            profileAction: "convert_to_custom",
+            capabilityAutoload: nextCapabilityAutoload,
+            ...(scopeChanged ? { defaultScopeKey: nextDefaultScopeKey } : {}),
+          },
+        );
+        if (!convertResp.ok) {
+          throw new Error(`${convertResp.error.code}: ${actorUpdateError(convertResp.error)}`);
+        }
+        confirmationResult = convertResp.result;
+        const updated =
+          convertResp.result && typeof convertResp.result === "object"
+            ? (convertResp.result as { actor?: Record<string, unknown> }).actor
+            : undefined;
+        if (updated && typeof updated === "object") {
+          actorSnapshot = updated;
+          if (isCurrentEdit())
+            setEditingActor(
+              api.actorWithAvatar(targetGroupId, { ...updated, role: savedActor.role } as Actor),
+            );
+        }
+      }
+
+      if (mode === "profile") {
+        const needProfilePatch =
+          profileChanged || titleChanged || autoloadChanged || scopeChanged || modelConfigChanged;
+        if (needProfilePatch) {
+          const profileResp = await api.updateActor(
+            targetGroupId,
+            actorId,
+            undefined,
+            undefined,
+            nextTitle,
+            {
+              profileId,
+              profileScope: (selectedProfile?.scope || "global") as api.ProfileScope,
+              profileOwner: String(selectedProfile?.owner_id || "").trim() || undefined,
+              capabilityAutoload: nextCapabilityAutoload,
+              ...(modelConfigChanged ? { modelConfig: payload.modelConfig } : {}),
+              ...(scopeChanged ? { defaultScopeKey: nextDefaultScopeKey } : {}),
+            },
+          );
+          if (!profileResp.ok) {
+            throw new Error(`${profileResp.error.code}: ${actorUpdateError(profileResp.error)}`);
+          }
+          confirmationResult = profileResp.result;
+          const updated =
+            profileResp.result && typeof profileResp.result === "object"
+              ? (profileResp.result as { actor?: Record<string, unknown> }).actor
+              : undefined;
+          if (updated && typeof updated === "object") {
+            actorSnapshot = updated;
+            if (isCurrentEdit())
+              setEditingActor(
+                api.actorWithAvatar(targetGroupId, { ...updated, role: savedActor.role } as Actor),
+              );
+          }
+        }
+      } else {
+        const snapshotRuntime = String(actorSnapshot.runtime || currentRuntime || "codex").trim();
+        const snapshotCommand = formatRuntimeCommand(actorSnapshot.command);
+        const snapshotTitle = String(actorSnapshot.title || "").trim();
+        const snapshotScopeChanged =
+          nextDefaultScopeKey !== (actorSnapshot.default_scope_key || "");
+        const needCustomPatch =
+          modelConfigChanged ||
+          nextRuntime !== snapshotRuntime ||
+          nextRuntimeMode !== (actorSnapshot.runtime_mode || "default") ||
+          nextCommand !== snapshotCommand ||
+          nextTitle !== snapshotTitle ||
+          snapshotScopeChanged ||
+          autoloadChanged;
+        if (needCustomPatch) {
+          const customResp = await api.updateActor(
+            targetGroupId,
+            actorId,
+            nextRuntime !== snapshotRuntime ? editActorRuntime : undefined,
+            nextCommand !== snapshotCommand ? nextCommand : undefined,
+            nextTitle,
+            {
+              capabilityAutoload: nextCapabilityAutoload,
+              ...(modelConfigChanged ? { modelConfig: payload.modelConfig } : {}),
+              ...(snapshotScopeChanged ? { defaultScopeKey: nextDefaultScopeKey } : {}),
+              ...(supportsAcpMode(nextRuntime) || actorSnapshot.runtime_mode === "acp"
+                ? { runtimeMode: nextRuntimeMode }
+                : {}),
+            },
+          );
+          if (!customResp.ok) {
+            throw new Error(`${customResp.error.code}: ${actorUpdateError(customResp.error)}`);
+          }
+          confirmationResult = customResp.result;
+          const updated =
+            customResp.result && typeof customResp.result === "object"
+              ? (customResp.result as { actor?: Record<string, unknown> }).actor
+              : undefined;
+          if (updated && typeof updated === "object") {
+            actorSnapshot = updated;
+            if (isCurrentEdit())
+              setEditingActor(
+                api.actorWithAvatar(targetGroupId, { ...updated, role: savedActor.role } as Actor),
+              );
+          }
+        }
+      }
+
+      if (willChangeSecrets) {
+        const envResp = await api.updateActorPrivateEnv(
+          targetGroupId,
+          actorId,
+          setVars,
+          unsetKeys,
+          clear,
+        );
+        if (!envResp.ok) {
+          throw new Error(`${envResp.error.code}: ${envResp.error.message}`);
+        }
+        if (isCurrentEdit()) payload.onSecretsSaved?.(envResp.result.keys);
+      }
+
+      if (actorNotesChanged) {
+        const actorNotesResp = await persistActorNotes(
+          targetGroupId,
+          actorId,
+          nextActorNotes,
+          actors.map((item) => String(item.id || "").trim()).filter(Boolean),
+        );
+        if (!actorNotesResp.ok) {
+          throw new Error(actorNotesResp.error);
+        }
+        if (isCurrentEdit()) editActorNotesBaselineRef.current = nextActorNotes;
+      }
+
+      if (grokBotUrl !== undefined) {
+        const bindResp = await api.bindGrokBot(targetGroupId, actorId, grokBotUrl);
+        if (!bindResp.ok) throw new Error(`${bindResp.error.code}: ${bindResp.error.message}`);
+      }
+
+      if (options.restart) {
+        const restartResp =
+          grokBotUrl !== undefined
+            ? await api.startActor(targetGroupId, actorId)
+            : await api.restartActor(targetGroupId, actorId);
+        if (!restartResp.ok) {
+          throw new Error(`${restartResp.error.code}: ${restartResp.error.message}`);
+        }
+        confirmationResult = restartResp.result;
+      }
+
+      await refreshActors(targetGroupId);
+      if (!isCurrentEdit()) return;
+      // Saving the Bot is the first connection step; keep Routine setup reachable.
+      if (grokBotUrl === undefined) setEditingActor(null);
+
+      let restartNotice = "";
+      if (!options.restart && grokBotUrl === undefined) {
+        const isRunning = Boolean(editingActor.running ?? editingActor.enabled ?? false);
+        const restartRequired =
+          isRunning &&
+          (willChangeSecrets ||
+            modelConfigChanged ||
+            profileChanged ||
+            runtimeChanged ||
+            commandChanged ||
+            scopeChanged ||
+            convertToCustom);
+        if (restartRequired) {
+          restartNotice = t("savedRestartRequired", { label });
+        }
+      }
+      const awaitingConfirmation = revealRuntimeConfirmation(
+        targetGroupId,
+        actorId,
+        expectedTab,
+        confirmationResult,
+        { noticePrefix: restartNotice },
+      );
+      if (!awaitingConfirmation && restartNotice) showNotice({ message: restartNotice });
+    } catch (error) {
+      // A failed save leaves the editor open with its draft; the Actor's own view shows any
+      // confirmation still waiting once the user returns to it.
+      await refreshActors(targetGroupId);
+      throw error;
+    } finally {
+      if (useUIStore.getState().busy === "actor-update") setBusy("");
+    }
+  };
+
+  const handleSaveEditActorOnly = async (payload: EditActorSavePayload) => {
+    await handleSaveEditActor(payload, { restart: false });
+  };
+
+  const handleSaveEditActorAndRestart = async (payload: EditActorSavePayload) => {
+    await handleSaveEditActor(payload, { restart: true });
+  };
+
+  const handleSaveEditActorBasics = async () => {
+    if (!selectedGroupId || !editingActor) return;
+    if (editActorNotesError) throw new Error(t("actorNotesLoadFailed"));
+    const groupId = selectedGroupId;
+    const actorId = editingActor.id;
+    const visit = ++editActorVisitRef.current;
+    const isCurrentEdit = () =>
+      editActorVisitRef.current === visit && useGroupStore.getState().selectedGroupId === groupId;
+    setBusy("actor-update");
+    try {
+      const title = editActorTitle.trim();
+      if (title !== (editingActor.title || "").trim()) {
+        const response = await api.updateActor(groupId, actorId, undefined, undefined, title);
+        if (!response.ok) throw new Error(`${response.error.code}: ${response.error.message}`);
+        if (response.result.actor && isCurrentEdit())
+          setEditingActor(
+            api.actorWithAvatar(groupId, { ...response.result.actor, role: editingActor.role }),
+          );
+      }
+      const notes = editActorNotes.trim();
+      if (notes !== editActorNotesBaselineRef.current.trim()) {
+        const response = await persistActorNotes(
+          groupId,
+          actorId,
+          notes,
+          actors.map((item) => String(item.id || "").trim()).filter(Boolean),
+        );
+        if (!response.ok) throw new Error(response.error);
+        if (isCurrentEdit()) editActorNotesBaselineRef.current = notes;
+      }
+      await refreshActors(groupId);
+      if (isCurrentEdit()) setEditingActor(null);
+    } finally {
+      if (useUIStore.getState().busy === "actor-update") setBusy("");
+    }
+  };
+
+  useEffect(() => {
+    if (!editingActorId || !selectedGroupId) return;
+    void loadEditingActorNotes(selectedGroupId, editingActorId);
+  }, [editingActorId, selectedGroupId, loadEditingActorNotes]);
+
+  useEffect(() => {
+    if (!editingActor) return;
+    const latest = actors.find((item) => item.id === editingActor.id);
+    if (!latest) return;
+    // A poll may predate an avatar write. Do not replace that write with an
+    // older image, or rebase an editor after another registration changed.
+    if (
+      actorGenerationIdentity(latest) !== actorGenerationIdentity(editingActor) ||
+      latest.updated_at !== editingActor.updated_at
+    )
+      return;
+    // Only the independently saved avatar is refreshed; runtime fields and
+    // secret edits belong to the open draft.
+    if (
+      editingActor.avatar_url !== latest.avatar_url ||
+      editingActor.has_custom_avatar !== latest.has_custom_avatar
+    ) {
+      setEditingActor({
+        ...editingActor,
+        avatar_url: latest.avatar_url,
+        has_custom_avatar: latest.has_custom_avatar,
+      });
+    }
+  }, [actors, editingActor, setEditingActor]);
+
+  const handleSaveEditActorAsProfile = async (
+    secrets?: ActorSecretSaveChanges,
+    runtimeMode?: "default" | "acp",
+    options?: { savedActor?: boolean },
+  ): Promise<SaveActorProfileResult | void> => {
+    if (!editingActor || !selectedGroupId) return;
+    const savedActor = options?.savedActor === true;
+    const expectedGeneration = actorGenerationIdentity(editingActor);
+    if (savedActor && (expectedGeneration === undefined || editingActor.updated_at === undefined)) {
+      showError(t("runtimeSwitch.identityMissing"));
+      return;
+    }
+    if (editProfileSaveRef.current && editProfileSaveRef.current.savedActor !== savedActor) {
+      editProfileSaveRef.current = null;
+    }
+    const profileRuntime = savedActor ? String(editingActor.runtime || "codex") : editActorRuntime;
+    const profileCommand = savedActor
+      ? formatRuntimeCommand(editingActor.command)
+      : editActorCommand;
+    const profileMode = savedActor
+      ? editingActor.runtime_mode || "default"
+      : runtimeMode || "default";
+    const profileCapabilities = savedActor
+      ? editingActor.capability_autoload || []
+      : parseCapabilityIdInput(editActorCapabilityAutoloadText);
+    const suggested = String(
+      editActorTitle || editingActor.title || editingActor.id || "New Profile",
+    ).trim();
+    const name =
+      editProfileSaveRef.current?.profile.name || window.prompt(t("profileNamePrompt"), suggested);
+    if (!name || !name.trim()) return;
+    setBusy("actor-profile-save");
+    try {
+      const resp = await api.upsertActorProfile(
+        {
+          id: editProfileSaveRef.current?.profile.id,
+          name: name.trim(),
+          runtime: profileRuntime,
+          ...(supportsAcpMode(profileRuntime) ? { runtime_mode: profileMode } : {}),
+          command: isWebModelRuntime(profileRuntime) ? "" : profileCommand.trim(),
+          submit: String(editingActor.submit || "enter"),
+          env: {},
+          capability_defaults: {
+            autoload_capabilities: profileCapabilities,
+            default_scope: "actor",
+            session_ttl_seconds: 3600,
+          },
+        },
+        editProfileSaveRef.current?.profile.revision,
+      );
+      if (!resp.ok) {
+        showError(`${resp.error.code}: ${resp.error.message}`);
+        return;
+      }
+      const profileId = String(resp.result?.profile?.id || "").trim();
+      if (profileId) {
+        editProfileSaveRef.current = {
+          profile: resp.result.profile,
+          copied: editProfileSaveRef.current?.copied || false,
+          savedActor,
+        };
+      }
+      if (profileId && !isWebModelRuntime(profileRuntime) && !editProfileSaveRef.current?.copied) {
+        const copyResp = await api.copyActorPrivateEnvToProfile(
+          profileId,
+          selectedGroupId,
+          editingActor.id,
+          savedActor
+            ? {
+                expectedActorGeneration: expectedGeneration,
+                expectedActorUpdatedAt: editingActor.updated_at,
+              }
+            : undefined,
+        );
+        if (!copyResp.ok) {
+          showError(`${copyResp.error.code}: ${copyResp.error.message}`);
+          return;
+        }
+        if (editProfileSaveRef.current) editProfileSaveRef.current.copied = true;
+      }
+      if (
+        profileId &&
+        !isWebModelRuntime(profileRuntime) &&
+        secrets &&
+        (secrets.clear || secrets.unsetKeys.length || Object.keys(secrets.setVars).length)
+      ) {
+        const secretResp = await api.updateActorProfilePrivateEnv(
+          profileId,
+          secrets.setVars,
+          secrets.unsetKeys,
+          secrets.clear,
+        );
+        if (!secretResp.ok) {
+          showError(`${secretResp.error.code}: ${secretResp.error.message}`);
+          return;
+        }
+      }
+      await loadActorProfiles();
+      const profileName = String(resp.result?.profile?.name || "").trim() || name.trim();
+      editProfileSaveRef.current = null;
+      showNotice({ message: t("savedToActorProfiles") });
+      if (!profileId) return;
+      if (savedActor) return { profileId, profileName, useNow: false };
+      const useNow = window.confirm(
+        t("useSavedProfileNowConfirm", {
+          name: profileName,
+          actor:
+            String(editActorTitle || editingActor.title || editingActor.id || "").trim() ||
+            editingActor.id,
+        }),
+      );
+      return { profileId, profileName, useNow };
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const suggestedActorId = (() => {
+    const selectedProfile =
+      actorProfiles.find(
+        (item) => actorProfileIdentityKey(item) === String(newActorProfileId || "").trim(),
+      ) || null;
+    const profileRuntime = String(selectedProfile?.runtime || "").trim();
+    const prefix = newActorUseProfile
+      ? profileRuntime || "actor"
+      : isWebModelRuntime(newActorRuntime)
+        ? newActorRuntime === "chatgpt_dots"
+          ? "chatgpt-dots"
+          : newActorRuntime === "grok_web_model"
+            ? "grok-web"
+            : "chatgpt-web"
+        : newActorRuntime;
+    const existing = new Set(actors.map((a) => String(a.id || "")));
+    for (let i = 1; i <= 999; i++) {
+      const candidate = `${prefix}-${i}`;
+      if (!existing.has(candidate)) return candidate;
+    }
+    return `${prefix}-${Date.now()}`;
+  })();
+
+  const canAddActor = (() => {
+    if (busy === "actor-add") return false;
+    if (newActorUseProfile) return Boolean(String(newActorProfileId || "").trim());
+    if (isWebModelRuntime(newActorRuntime)) return true;
+    const rtInfo = runtimes.find((r) => r.name === newActorRuntime);
+    const available = runtimeDetectionStatus === "ready" && (rtInfo?.available ?? false);
+    if (!newActorUseDefaultCommand && !newActorCommand.trim()) return false;
+    if (newActorRuntime === "custom" && (newActorUseDefaultCommand || !newActorCommand.trim()))
+      return false;
+    if (
+      !available &&
+      newActorRuntime !== "antigravity" &&
+      (newActorUseDefaultCommand || !newActorCommand.trim())
+    )
+      return false;
+    return true;
+  })();
+
+  const addActorDisabledReason = (() => {
+    if (busy === "actor-add") return "";
+    if (newActorUseProfile && !String(newActorProfileId || "").trim()) {
+      return t("profileRequired");
+    }
+    if (isWebModelRuntime(newActorRuntime)) return "";
+    const rtInfo = runtimes.find((r) => r.name === newActorRuntime);
+    const available = runtimeDetectionStatus === "ready" && (rtInfo?.available ?? false);
+    if (!newActorUseDefaultCommand && !newActorCommand.trim()) {
+      return t("commandOverrideRequired");
+    }
+    if (newActorRuntime === "custom" && (newActorUseDefaultCommand || !newActorCommand.trim())) {
+      return t("customRuntimeRequiresCommand");
+    }
+    if (
+      !available &&
+      newActorRuntime !== "antigravity" &&
+      (newActorUseDefaultCommand || !newActorCommand.trim())
+    ) {
+      const key = runtimeDetectionKey(newActorRuntime, rtInfo, runtimeDetectionStatus);
+      return key === "missing"
+        ? t("runtimeDetection.missingRuntime", {
+            runtime: RUNTIME_INFO[newActorRuntime]?.label || newActorRuntime,
+          })
+        : t(`runtimeDetection.${key}`);
+    }
+    return "";
+  })();
+
+  const handleAddActor = async (
+    avatarFile?: File | null,
+    runtimeMode?: "default" | "acp",
+    defaultScopeKey = "",
+    modelConfig?: ActorModelConfig | null,
+  ): Promise<boolean> => {
+    if (!selectedGroupId) return false;
+    const creationGroupId = selectedGroupId;
+    const creationActiveTab = useUIStore.getState().activeTab;
+    const actorId = resolveNewActorId(newActorId, suggestedActorId);
+    const secretsText = String(newActorSecretsSetText || "");
+    const actorNotes = String(newActorNotes || "").trim();
+    const selectedProfile =
+      actorProfiles.find(
+        (item) => actorProfileIdentityKey(item) === String(newActorProfileId || "").trim(),
+      ) || null;
+    const capabilityAutoload = parseCapabilityIdInput(newActorCapabilityAutoloadText);
+
+    if (newActorUseProfile && !selectedProfile) {
+      setAddActorError(t("selectProfileFirst"));
+      return false;
+    }
+
+    let secretsSetVars: Record<string, string> = {};
+    if (!newActorUseProfile && !isWebModelRuntime(newActorRuntime)) {
+      const parsedSecrets = parsePrivateEnvSetText(secretsText);
+      if (!parsedSecrets.ok) {
+        setAddActorError(parsedSecrets.error);
+        return false;
+      }
+      secretsSetVars = parsedSecrets.setVars;
+    }
+
+    setBusy("actor-add");
+    setAddActorError("");
+    try {
+      const commandToUse =
+        newActorUseProfile || isWebModelRuntime(newActorRuntime)
+          ? ""
+          : newActorUseDefaultCommand
+            ? ""
+            : newActorCommand;
+      const resp = await api.addActor(
+        selectedGroupId,
+        actorId,
+        newActorRole,
+        newActorUseProfile ? String(selectedProfile?.runtime || "codex") : newActorRuntime,
+        commandToUse,
+        newActorUseProfile
+          ? undefined
+          : Object.keys(secretsSetVars).length
+            ? secretsSetVars
+            : undefined,
+        newActorUseProfile
+          ? {
+              profileId: String(selectedProfile?.id || "").trim(),
+              ...(modelConfig !== undefined ? { modelConfig } : {}),
+              profileScope: (selectedProfile?.scope || "global") as api.ProfileScope,
+              profileOwner: String(selectedProfile?.owner_id || "").trim() || undefined,
+              capabilityAutoload,
+              defaultScopeKey,
+            }
+          : {
+              capabilityAutoload,
+              ...(modelConfig !== undefined ? { modelConfig } : {}),
+              defaultScopeKey,
+              ...(supportsAcpMode(newActorRuntime) ? { runtimeMode } : {}),
+            },
+      );
+      if (!resp.ok) {
+        setAddActorError(resp.error?.message || t("failedToAddAgent"));
+        return false;
+      }
+
+      const createdActorId = String(
+        (resp.result && typeof resp.result === "object"
+          ? (resp.result as { actor?: { id?: string } }).actor?.id
+          : "") ||
+          actorId ||
+          suggestedActorId,
+      ).trim();
+
+      const postCreateErrors: string[] = [];
+
+      if (actorNotes && createdActorId) {
+        const actorNotesResp = await persistActorNotes(
+          selectedGroupId,
+          createdActorId,
+          actorNotes,
+          [...actors.map((item) => String(item.id || "").trim()).filter(Boolean), createdActorId],
+        );
+        if (!actorNotesResp.ok) {
+          postCreateErrors.push(`${t("actorNotes")}: ${actorNotesResp.error}`);
+        }
+      }
+
+      if (avatarFile && createdActorId) {
+        const avatarResp = await api.uploadActorAvatar(selectedGroupId, createdActorId, avatarFile);
+        if (!avatarResp.ok) {
+          postCreateErrors.push(
+            `${t("avatarTitle")}: ${avatarResp.error?.message || t("avatarUploadFailed")}`,
+          );
+        }
+      }
+
+      const createdRuntime = (resp.result as { actor?: { runtime?: string } })?.actor?.runtime;
+      if (
+        (createdRuntime === "chatgpt_dots" || createdRuntime === "grok_web_model") &&
+        useGroupStore.getState().selectedGroupId === creationGroupId &&
+        useUIStore.getState().activeTab === creationActiveTab
+      ) {
+        onNativeActorCreated?.({
+          groupId: creationGroupId,
+          actorId: createdActorId,
+          activeTab: creationActiveTab,
+          runtime: createdRuntime,
+        });
+      }
+      closeModal("addActor");
+      resetAddActorForm();
+      await refreshActors(creationGroupId);
+      if (postCreateErrors.length > 0) {
+        showError(
+          t("actorCreatedSetupFailed", {
+            actor: createdActorId,
+            details: postCreateErrors.join(" · "),
+          }),
+        );
+      }
+      return true;
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const handleSaveNewActorAsProfile = async (
+    _secrets?: ActorSecretSaveChanges,
+    runtimeMode?: "default" | "acp",
+  ) => {
+    if (newActorUseProfile) return;
+    const parsed = parsePrivateEnvSetText(
+      isWebModelRuntime(newActorRuntime) ? "" : newActorSecretsSetText,
+    );
+    if (!parsed.ok) {
+      setAddActorError(parsed.error);
+      return;
+    }
+    const suggested = String(newActorId || `${newActorRuntime}-profile`).trim();
+    const name =
+      newProfileSaveRef.current?.name || window.prompt(t("profileNamePrompt"), suggested);
+    if (!name || !name.trim()) return;
+    setBusy("actor-profile-save");
+    try {
+      const commandToUse =
+        newActorUseDefaultCommand || isWebModelRuntime(newActorRuntime)
+          ? ""
+          : newActorCommand.trim();
+      const resp = await api.upsertActorProfile(
+        {
+          id: newProfileSaveRef.current?.id,
+          name: name.trim(),
+          runtime: newActorRuntime,
+          ...(supportsAcpMode(newActorRuntime) ? { runtime_mode: runtimeMode || "default" } : {}),
+          command: commandToUse,
+          submit: "enter",
+          env: {},
+          capability_defaults: {
+            autoload_capabilities: parseCapabilityIdInput(newActorCapabilityAutoloadText),
+            default_scope: "actor",
+            session_ttl_seconds: 3600,
+          },
+        },
+        newProfileSaveRef.current?.revision,
+      );
+      if (!resp.ok) {
+        setAddActorError(resp.error?.message || t("failedToSaveActorProfile"));
+        return;
+      }
+      const profileId = String(resp.result?.profile?.id || "").trim();
+      if (profileId) {
+        newProfileSaveRef.current = resp.result.profile;
+        const hasSecrets = Object.keys(parsed.setVars).length > 0;
+        if (hasSecrets) {
+          const secretResp = await api.updateActorProfilePrivateEnv(
+            profileId,
+            parsed.setVars,
+            [],
+            false,
+          );
+          if (!secretResp.ok) {
+            setAddActorError(secretResp.error?.message || t("failedToSaveActorProfile"));
+            return;
+          }
+        }
+      }
+      newProfileSaveRef.current = null;
+      showNotice({ message: t("savedToActorProfiles") });
+      await loadActorProfiles();
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const handleCloseAddActor = useCallback(() => {
+    closeModal("addActor");
+    resetAddActorForm();
+  }, [closeModal, resetAddActorForm]);
+
+  const handleCancelEditActor = useCallback(() => {
+    editActorVisitRef.current += 1;
+    editActorNotesSeqRef.current += 1;
+    editActorNotesBaselineRef.current = "";
+    setEditActorNotesBusy(false);
+    setEditActorNotesError(false);
+    setEditActorNotes("");
+    setEditingActor(null);
+  }, [setEditActorNotes, setEditingActor]);
+
+  return {
+    actorProfiles,
+    actorProfilesBusy,
+    editActorNotesBusy,
+    editActorNotesError,
+    savedActorNotes: editActorNotesError ? undefined : editActorNotesBaselineRef.current,
+    retryEditActorNotes: () => {
+      if (selectedGroupId && editingActorId)
+        void loadEditingActorNotes(selectedGroupId, editingActorId);
+    },
+    loadActorProfiles,
+    handleSaveEditActorOnly,
+    handleSaveEditActorAndRestart,
+    handleSaveEditActorBasics,
+    handleSaveEditActorAsProfile,
+    handleAddActor,
+    handleSaveNewActorAsProfile,
+    suggestedActorId,
+    canAddActor,
+    addActorDisabledReason,
+    handleCloseAddActor,
+    handleCancelEditActor,
+  };
+}

@@ -1,0 +1,1804 @@
+// Shared type definitions for CCCC Web UI
+
+// Theme types
+export type Theme = "light" | "dark" | "system";
+export type TextScale = 70 | 90 | 100 | 125;
+
+export type GroupRuntimeStatus = {
+  lifecycle_state: "active" | "idle" | "paused" | "stopped" | string;
+  runtime_running: boolean;
+  running_actor_count: number;
+  has_running_foreman: boolean;
+};
+
+export type GroupMeta = {
+  group_id: string;
+  title?: string;
+  topic?: string;
+  updated_at?: string;
+  created_at?: string;
+  running?: boolean;
+  state?: "active" | "idle" | "paused" | "stopped";
+  runtime_status?: GroupRuntimeStatus;
+};
+
+export type WorkspaceGitStatus =
+  | "modified"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "untracked"
+  | "conflicted";
+
+export type WorkspaceEntry = {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  is_symlink?: boolean;
+  unavailable?: "missing" | "outside_scope" | "unreadable" | "unsupported";
+  mime_type?: string;
+  size?: number;
+  git_status?: WorkspaceGitStatus;
+  /** A clean directory whose subtree contains changes. */
+  git_dirty_descendant?: boolean;
+  ignored?: boolean;
+};
+
+export type WorkspaceListing = {
+  scope_key: string;
+  scope_url: string;
+  root_path: string;
+  path: string;
+  parent: string | null;
+  items: WorkspaceEntry[];
+};
+
+export type WorkspaceFile = {
+  scope_key: string;
+  scope_url: string;
+  path: string;
+  content: string;
+  bytes: number;
+  mime_type: string;
+  binary: boolean;
+  truncated: boolean;
+  /** Digest of the bytes this content was read from; echoed back on save. */
+  sha256: string;
+};
+
+export type GroupDoc = {
+  actor_leaves?: Record<string, ActorLeave>;
+  generation?: string;
+  /** Names the generation of a Group created before generations were stored. */
+  created_at?: string;
+  group_id: string;
+  title?: string;
+  topic?: string;
+  active_scope_key?: string;
+  scopes?: Array<{ scope_key?: string; url?: string; label?: string }>;
+  running?: boolean;
+  state?: "active" | "idle" | "paused" | "stopped";
+  runtime_status?: GroupRuntimeStatus;
+  runtime_switches?: Array<{ actor_id?: string; actor_generation?: string; pending?: boolean }>;
+};
+
+// Server-backed attachment metadata carried by canonical ledger events.
+export type EventAttachment = {
+  kind?: string;
+  path?: string;
+  title?: string;
+  bytes?: number;
+  mime_type?: string;
+  local_preview_url?: string;
+};
+
+// Local-only preview attachment used by optimistic messages before upload confirmation.
+export type OptimisticAttachment = {
+  kind?: string;
+  path?: string;
+  title?: string;
+  bytes?: number;
+  mime_type?: string;
+  local_preview_url: string;
+};
+
+export type MessageAttachment = EventAttachment | OptimisticAttachment;
+
+export type MessageRef = { kind?: string; [key: string]: unknown };
+
+export type PresentationRefStatus = "open" | "needs_user" | "resolved";
+
+export type PresentationRefSnapshot = {
+  path: string;
+  mime_type?: string;
+  bytes?: number;
+  sha256?: string;
+  width?: number;
+  height?: number;
+  captured_at?: string;
+  source?: string;
+};
+
+export type PresentationMessageRef = MessageRef & {
+  kind: "presentation_ref";
+  v?: number;
+  slot_id: string;
+  label?: string;
+  locator_label?: string;
+  title?: string;
+  card_type?: string;
+  status?: PresentationRefStatus | string;
+  href?: string;
+  excerpt?: string;
+  locator?: Record<string, unknown>;
+  snapshot?: PresentationRefSnapshot;
+};
+
+export type VoiceDocumentMessageRef = MessageRef & {
+  kind: "voice_document_ref";
+  v?: number;
+  group_id: string;
+  document_path: string;
+  document_id?: string;
+  title?: string;
+};
+
+export type TaskMessageRef = MessageRef & {
+  kind: "task_ref";
+  task_id: string;
+  title?: string;
+  status?: string;
+  waiting_on?: TaskWaitingOn | null;
+  handoff_to?: string | null;
+};
+
+export type LocalGroupRouteMessageRef = MessageRef & {
+  kind: "local_group_route";
+  group_id: string;
+  group_title?: string;
+  token?: string;
+};
+
+export type ConnectGroupMessageRef = MessageRef & {
+  kind: "connect_group_ref";
+  instance_id: string;
+  instance_name?: string;
+  group_id: string;
+  group_title?: string;
+  token?: string;
+};
+
+export type StreamingActivity = {
+  id: string;
+  kind: "queued" | "thinking" | "plan" | "search" | "command" | "patch" | "tool" | "reply" | string;
+  status: "started" | "updated" | "completed" | string;
+  summary: string;
+  detail?: string;
+  ts?: string;
+  raw_item_type?: string;
+  tool_name?: string;
+  server_name?: string;
+  command?: string;
+  cwd?: string;
+  file_paths?: string[];
+  query?: string;
+};
+
+export type HeadlessPreviewBlock = {
+  id: string;
+  streamId: string;
+  streamPhase: string;
+  text: string;
+  updatedAt: string;
+  completed: boolean;
+  transient: boolean;
+};
+
+export type HeadlessPreviewSession = {
+  actorId: string;
+  pendingEventId: string;
+  currentStreamId: string;
+  phase: string;
+  streamPhase: string;
+  updatedAt: string;
+  latestText: string;
+  transcriptBlocks: HeadlessPreviewBlock[];
+  activities: StreamingActivity[];
+};
+
+// Chat message payload
+export type MessageMode = "send" | "request_reply" | "mail";
+
+// The canonical Connect envelope fields needed by message status projections.
+export type ConnectMessageRouting = {
+  delivery_id: string;
+  source: { instance_id: string; device_id: string; group_id: string };
+  target: { instance_id: string; device_id: string; group_id: string };
+  sender: { id: string; generation: string };
+  recipients: Array<{ id: string; generation: string }>;
+  reply_to?: { event_id: string; delivery_id: string } | null;
+};
+
+export type UserReplyRequestStatus = {
+  question: "valid" | "none" | "unavailable";
+  requester: "available" | "unavailable" | "unknown" | "unsupported";
+  reply_event_id?: string;
+  reply_route?: "composer";
+};
+
+export type ChatMessageData = {
+  connect_message?: ConnectMessageRouting;
+  text?: string;
+  insight?: string;
+  to?: string[];
+  message_mode?: MessageMode;
+  question?: unknown;
+  sender_title?: string;
+  sender_runtime?: string;
+  sender_avatar_path?: string;
+  source_platform?: string;
+  source_user_id?: string;
+  source_user_name?: string;
+  reply_to?: string;
+  stream_id?: string;
+  stream_phase?: string;
+  pending_event_id?: string;
+  pending_placeholder?: boolean;
+  client_id?: string;
+  suggested_user_message?: string;
+  quote_text?: string;
+  src_group_id?: string;
+  src_group_title?: string;
+  src_instance_id?: string;
+  src_instance_name?: string;
+  src_event_id?: string;
+  dst_group_id?: string;
+  dst_group_title?: string;
+  dst_instance_id?: string;
+  dst_instance_name?: string;
+  dst_actor_titles?: Record<string, string>;
+  dst_to?: string[];
+  dst_message_mode?: MessageMode;
+  dst_reply_to?: string;
+  dst_event_id?: string;
+  remote_event_id?: string;
+  activities?: StreamingActivity[];
+  refs?: MessageRef[];
+  attachments?: MessageAttachment[];
+};
+
+export type ObligationStatus = {
+  replied: boolean;
+  reply_requested: boolean;
+  cancelled: boolean;
+  delivery_state: "" | "claimed" | "accepted" | "failed" | "ambiguous" | string;
+};
+
+// Mail read receipt payload
+export type MailReadData = { actor_id?: string; event_id?: string };
+
+// Ledger event data union
+export type LedgerEventData = ChatMessageData | MailReadData | Record<string, unknown>;
+
+export type ConnectDeliveryStatus = {
+  state: "queued" | "sent" | "failed" | "unconfirmed";
+  error?: string | null;
+  remote_event_id?: string | null;
+};
+
+export type LedgerEvent = {
+  id?: string;
+  ts?: string;
+  kind?: string;
+  group_id?: string;
+  by?: string;
+  data?: LedgerEventData;
+  _streaming?: boolean;
+  _read_status?: Record<string, boolean>;
+  _obligation_status?: Record<string, ObligationStatus>;
+  _user_request?: UserReplyRequestStatus;
+  _retired_bridge?: boolean;
+  _connect_delivery?: ConnectDeliveryStatus;
+  _connect_cancellation?: ConnectDeliveryStatus;
+  _web_model_delivery_status?: WebModelDeliveryStatusPayload;
+  _officeLiveAt?: number;
+};
+
+export type HeadlessStreamEvent = {
+  id?: string;
+  ts?: string;
+  group_id?: string;
+  actor_id?: string;
+  type?: string;
+  data?: Record<string, unknown>;
+  /** Browser receipt time for live increments only; restored history has no timestamp. */
+  _receivedAt?: number;
+};
+
+export type LedgerEventStatusPayload = {
+  read_status?: Record<string, boolean>;
+  obligation_status?: Record<string, ObligationStatus>;
+  user_request?: UserReplyRequestStatus;
+  retired_bridge?: boolean;
+  connect_delivery?: ConnectDeliveryStatus;
+  connect_cancellation?: ConnectDeliveryStatus;
+  web_model_delivery_status?: WebModelDeliveryStatusPayload;
+};
+
+export type WebModelDeliveryStatusPayload = {
+  state?: "submitting" | "submitted" | "bound" | "pending" | "ambiguous" | "failed" | string;
+  actor_id?: string;
+  delivery_id?: string;
+  updated_at?: string;
+  detail?: string;
+};
+
+export type RuntimeMode = "default" | "acp";
+
+export type ActorModelConfig = {
+  runtime: "codex" | "claude";
+  model: string;
+  reasoning_effort: string;
+};
+
+export type ActorModelOption = { id: string; name: string; reasoning_efforts: string[] };
+
+export type ActorAvailability = "available" | "handoff" | "away" | "returning";
+export type ActorLeave = {
+  revision?: number;
+  id: string;
+  actor_id: string;
+  actor_generation: string;
+  manager_id: string;
+  manager_generation: string;
+  status:
+    | "preparing"
+    | "assigning"
+    | "accepting"
+    | "finalizing"
+    | "away"
+    | "returning"
+    | "returned"
+    | "cancelled";
+  immediate: boolean;
+  summary: string;
+  summary_by: string;
+  tasks: Array<{
+    task_id: string;
+    title: string;
+    revision: number;
+    to: string;
+    to_generation: string;
+    assignment_id: string;
+    accepted_at?: string | null;
+    transferred: boolean;
+    closed?: boolean;
+  }>;
+  requested_at: string;
+  updated_at: string;
+  last_error: string;
+  recall_summary: string;
+  notify_attempt: number;
+};
+
+export type Actor = {
+  availability?: ActorAvailability;
+  leave_id?: string;
+  work_after?: string;
+  model_config?: ActorModelConfig | null;
+  effective_model_config?: ActorModelConfig | null;
+  /** User-owned native runtime; CCCC manages collaboration access only. */
+  external_session_id?: string;
+  id: string;
+  generation?: string;
+  created_at?: string;
+  role?: string;
+  internal_kind?: string | null;
+  title?: string;
+  model_label?: string;
+  avatar_asset_path?: string;
+  avatar_url?: string | null;
+  has_custom_avatar?: boolean;
+  enabled?: boolean;
+  running?: boolean; // Actual process running status
+  idle_seconds?: number | null; // Legacy idle duration, independent of terminal output activity.
+  effective_working_state?: "stopped" | "idle" | "working" | "waiting" | "stuck" | string;
+  effective_working_reason?: string;
+  effective_working_updated_at?: string | null;
+  effective_active_task_id?: string | null;
+  command?: string[];
+  env?: Record<string, string>;
+  capability_autoload?: string[];
+  capability_hidden?: string[];
+  default_scope_key?: string;
+  runner?: string;
+  runner_effective?: string;
+  runtime?: string;
+  runtime_mode?: RuntimeMode;
+  effective_runtime_mode?: RuntimeMode;
+  effective_runtime?: string;
+  runtime_state_source?: "terminal" | "managed_session" | string;
+  runtime_session_status?: string | null;
+  runtime_session_resume_eligible?: boolean | null;
+  runtime_session_last_resume_error?: string | null;
+  /** The original PTY is waiting for the user before managed runtime admission. */
+  runtime_confirmation_required?: boolean;
+  /** That confirmation ended before admission: automatic retries are paused in the current
+   *  daemon process, and an explicit retry can clear it. Absent when the daemon cannot observe it. */
+  runtime_confirmation_paused?: boolean;
+  submit?: "enter" | "newline" | "none";
+  profile_id?: string;
+  profile_scope?: "global" | "user";
+  profile_owner?: string;
+  profile_revision_applied?: number;
+  updated_at?: string;
+  unread_count?: number;
+  web_model_queued_count?: number;
+  web_model_queued_after_event_id?: string;
+  web_model_queued_latest_event_id?: string;
+  web_model_queued_latest_ts?: string;
+};
+
+export type ActorProfile = {
+  id: string;
+  name: string;
+  scope?: "global" | "user";
+  owner_id?: string;
+  runtime: SupportedRuntime | string;
+  runtime_mode?: RuntimeMode;
+  runner: "pty" | "headless";
+  command: string[] | string;
+  submit: "enter" | "newline" | "none";
+  env: Record<string, string>;
+  capability_defaults?: {
+    autoload_capabilities?: string[];
+    default_scope?: "actor" | "session";
+    session_ttl_seconds?: number;
+  };
+  created_at: string;
+  updated_at: string;
+  revision: number;
+  usage_count?: number;
+};
+
+export type ActorProfileUsage = {
+  consumer?: "voice_secretary";
+  group_id: string;
+  group_title?: string;
+  actor_id: string;
+  actor_title?: string;
+};
+
+export type CapabilityRecentSuccess = {
+  success_count: number;
+  last_success_at?: string;
+  last_group_id?: string;
+  last_actor_id?: string;
+  last_action?: string;
+};
+
+export type CapabilityReadinessPreview = {
+  preview_status?: string;
+  next_step?: string;
+  preview_basis?: string[];
+  policy_level?: string;
+  enable_supported?: boolean;
+  already_active?: boolean;
+  install_mode?: string;
+  required_env?: string[];
+  missing_env?: string[];
+  cached_install_state?: string;
+  install_error_code?: string;
+  enable_block_reason?: string;
+  policy_source?: string;
+  policy_mode?: string;
+};
+
+export type CapabilityOverviewItem = {
+  capability_id: string;
+  kind?: string;
+  name?: string;
+  description_short?: string;
+  use_when?: string[];
+  avoid_when?: string[];
+  gotchas?: string[];
+  evidence_kind?: string;
+  source_id?: string;
+  source_uri?: string;
+  source_record_id?: string;
+  source_record_version?: string;
+  origin_group_id?: string;
+  source_tier?: string;
+  trust_tier?: string;
+  license?: string;
+  sync_state?: string;
+  updated_at_source?: string;
+  last_synced_at?: string;
+  policy_level?: string;
+  policy_visible?: boolean;
+  enable_supported?: boolean;
+  qualification_status?: string;
+  qualification_reasons?: string[];
+  install_mode?: string;
+  tags?: string[];
+  blocked_global?: boolean;
+  blocked_reason?: string;
+  autoload_candidate?: boolean;
+  recent_success?: CapabilityRecentSuccess;
+  readiness_preview?: CapabilityReadinessPreview;
+  cached_install_state?: string;
+  cached_install_error_code?: string;
+  cached_install_error?: string;
+  capsule_text?: string;
+  tool_count?: number;
+  tool_names?: string[];
+};
+
+export type CapabilitySourceState = {
+  source_id: string;
+  enabled: boolean;
+  source_level?: string;
+  rationale?: string;
+  sync_state?: string;
+  last_synced_at?: string;
+  staleness_seconds?: number;
+  record_count?: number;
+  error?: string;
+};
+
+export type CapabilitySourceInstance = {
+  source_instance_key: string;
+  source_id: string;
+  label?: string;
+  source_uri?: string;
+  record_count?: number;
+  capability_ids?: string[];
+  last_synced_at?: string;
+  sync_state?: string;
+};
+
+export type CapabilityBlockEntry = {
+  capability_id: string;
+  scope?: string;
+  reason?: string;
+  by?: string;
+  blocked_at?: string;
+  expires_at?: string;
+};
+
+export type CapabilityEnabledEntry = {
+  capability_id: string;
+  scope?: string;
+  actor_id?: string;
+  enabled_at?: string;
+  expires_at?: string;
+  ttl_seconds?: number;
+  reason?: string;
+  tool_count?: number;
+  tool_names?: string[];
+};
+
+export type CapabilityStateResult = {
+  group_id: string;
+  actor_id: string;
+  enabled: CapabilityEnabledEntry[];
+  enabled_capabilities?: string[];
+  dynamic_tools?: Array<{
+    name: string;
+    capability_id: string;
+    description?: string;
+    real_tool_name?: string;
+    inputSchema?: Record<string, unknown>;
+  }>;
+  active_capsule_skills?: Array<{
+    capability_id: string;
+    name?: string;
+    description_short?: string;
+    capsule_preview?: string;
+    capsule_text?: string;
+    source_id?: string;
+    source_uri?: string;
+    policy_level?: string;
+  }>;
+  actor_hidden_capabilities?: string[];
+  capability_usage?: CapabilityUsageSummary;
+};
+
+export type CapabilityUsageActorEntry = {
+  actor_id: string;
+  actor_title?: string;
+  label?: string;
+  expires_at?: string;
+  ttl_seconds?: number;
+  profile_id?: string;
+  profile_name?: string;
+};
+
+export type CapabilityUsageSummary = {
+  capability_id: string;
+  used: boolean;
+  group_enabled?: boolean;
+  group_actor_count?: number;
+  active_actor_count?: number;
+  startup_autoload_actor_count?: number;
+  actor_enabled?: CapabilityUsageActorEntry[];
+  session_enabled?: CapabilityUsageActorEntry[];
+  actor_autoload?: CapabilityUsageActorEntry[];
+  profile_autoload?: CapabilityUsageActorEntry[];
+  actor_hidden?: CapabilityUsageActorEntry[];
+  blocked?: boolean;
+  blocked_scope?: string;
+  blocked_reason?: string;
+};
+
+export type CapabilityImportRecord = {
+  capability_id: string;
+  kind: "mcp_toolpack" | "skill";
+  install_mode?: "command" | "package" | "remote_only";
+  install_spec?: { command?: string; package?: string; url?: string };
+  name?: string;
+  description_short?: string;
+  use_when?: string[];
+  avoid_when?: string[];
+  gotchas?: string[];
+  evidence_kind?: string;
+  source_id?: string;
+  [key: string]: unknown;
+};
+
+export type AgentStateHot = {
+  active_task_id?: string | null;
+  focus?: string | null;
+  next_action?: string | null;
+  blockers?: string[];
+};
+
+export type AgentStateWarm = {
+  what_changed?: string | null;
+  open_loops?: string[];
+  commitments?: string[];
+  environment_summary?: string | null;
+  user_model?: string | null;
+  persona_notes?: string | null;
+};
+
+export type AgentState = {
+  id: string;
+  hot?: AgentStateHot | null;
+  warm?: AgentStateWarm | null;
+  updated_at?: string | null;
+};
+
+export type ActorRuntimeState = {
+  id: string;
+  runtime?: string;
+  runner?: string;
+  runner_effective?: string;
+  running?: boolean;
+  idle_seconds?: number | null;
+  effective_working_state?: "stopped" | "idle" | "working" | "waiting" | "stuck" | string;
+  effective_working_reason?: string;
+  effective_working_updated_at?: string | null;
+  effective_active_task_id?: string | null;
+};
+
+export type RuntimeInfo = {
+  name: string;
+  display_name: string;
+  recommended_command?: string;
+  available: boolean;
+  mode_availability?: Partial<Record<RuntimeMode, boolean>>;
+};
+
+export type ReplyTarget = {
+  eventId: string;
+  by: string;
+  text: string;
+  /** A reply to a message Chet wrote goes back to Chet, which has no Mail. */
+  toChet?: boolean;
+  connectInstanceId?: string;
+  remoteDstGroupId?: string;
+  remoteDstTo?: string[];
+  remoteReplyToEventId?: string;
+} | null;
+
+export type TaskStep = {
+  id: string;
+  name: string;
+  acceptance?: string | null;
+  status?: string | null;
+};
+
+export type TaskStatus = "planned" | "active" | "done" | "archived" | string;
+
+export type ChecklistStatus = "pending" | "in_progress" | "done" | string;
+
+export type TaskWaitingOn = "none" | "user" | "actor" | "external" | string;
+
+export type TaskChecklistItem = { id: string; text: string; status?: ChecklistStatus | null };
+
+export type Task = {
+  id: string;
+  /** Daemon-owned revision used to protect edits against concurrent changes. */
+  rev?: number;
+  title?: string | null;
+  outcome?: string | null;
+  parent_id?: string | null;
+  status?: TaskStatus | null;
+  archived_from?: string | null;
+  assignee?: string | null;
+  priority?: string | null;
+  blocked_by?: string[];
+  waiting_on?: TaskWaitingOn | null;
+  handoff_to?: string | null;
+  task_type?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  checklist?: TaskChecklistItem[];
+  steps?: TaskStep[];
+  current_step?: string | null;
+  progress?: number | null;
+  children?: Task[];
+};
+
+export type CoordinationBrief = {
+  objective?: string | null;
+  current_focus?: string | null;
+  constraints?: string[];
+  project_brief?: string | null;
+  project_brief_stale?: boolean;
+  updated_by?: string | null;
+  updated_at?: string | null;
+};
+
+export type CoordinationNote = {
+  at?: string | null;
+  by?: string | null;
+  summary?: string | null;
+  task_id?: string | null;
+};
+
+export type GroupTasksSummary = {
+  total: number;
+  done: number;
+  active: number;
+  planned: number;
+  archived?: number;
+  root_count?: number;
+};
+
+export type TaskBoardEntry = string | Partial<Task>;
+
+export type PresentationCardType = "markdown" | "table" | "image" | "pdf" | "file" | "web_preview";
+
+export type PresentationTableData = { columns: string[]; rows: string[][] };
+
+export type PresentationContent = {
+  mode?: "inline" | "reference" | "workspace_link";
+  markdown?: string | null;
+  table?: PresentationTableData | null;
+  url?: string | null;
+  blob_rel_path?: string | null;
+  workspace_rel_path?: string | null;
+  mime_type?: string | null;
+  file_name?: string | null;
+};
+
+export type PresentationCard = {
+  slot_id: string;
+  title: string;
+  card_type: PresentationCardType;
+  published_by: string;
+  published_at: string;
+  source_label?: string;
+  source_ref?: string;
+  summary?: string;
+  content: PresentationContent;
+};
+
+export type PresentationSlot = { slot_id: string; index: number; card?: PresentationCard | null };
+
+export type GroupPresentation = {
+  v: number;
+  updated_at?: string;
+  highlight_slot_id?: string;
+  slots: PresentationSlot[];
+};
+
+export type PresentationBrowserSurfaceState = {
+  active: boolean;
+  state: string;
+  message?: string | null;
+  error?: { code?: string | null; message?: string | null } | null;
+  strategy?: string | null;
+  url?: string | null;
+  width?: number;
+  height?: number;
+  started_at?: string | null;
+  updated_at?: string | null;
+  last_frame_seq?: number;
+  last_frame_at?: string | null;
+  controller_attached?: boolean;
+  metadata?: {
+    display?: string | null;
+    display_owned?: boolean;
+    display_owner?: string | null;
+    adopted?: boolean;
+  } | null;
+  viewer?: {
+    kind?: string | null;
+    vnc?: { available?: boolean; error?: string | null; started_at?: string | null } | null;
+  } | null;
+};
+
+export type ContextAttention = {
+  blocked?: number | TaskBoardEntry[];
+  waiting_user?: number | TaskBoardEntry[];
+  pending_handoffs?: number | TaskBoardEntry[];
+};
+
+export type ContextBoard = {
+  planned?: TaskBoardEntry[];
+  active?: TaskBoardEntry[];
+  done?: TaskBoardEntry[];
+  archived?: TaskBoardEntry[];
+};
+
+export type ContextDetailLevel = "overview" | "summary" | "full";
+export type GroupContext = {
+  version?: string;
+  tasks_version?: string;
+  coordination?: {
+    brief?: CoordinationBrief | null;
+    tasks?: Task[];
+    recent_decisions?: CoordinationNote[];
+    recent_handoffs?: CoordinationNote[];
+  };
+  agent_states?: AgentState[];
+  actors_runtime?: ActorRuntimeState[];
+  attention?: ContextAttention | null;
+  board?: ContextBoard | null;
+  tasks_summary?: GroupTasksSummary;
+  meta?: { project_status?: string | null; [key: string]: unknown };
+};
+
+export type AgentsMdInfo = {
+  exists: boolean;
+  path?: string | null;
+  content?: string | null;
+  error?: string | null;
+};
+
+export type GroupSettings = {
+  default_send_to: "foreman" | "broadcast";
+  actor_idle_timeout_seconds: number;
+  keepalive_delay_seconds: number;
+  keepalive_max_per_actor: number;
+  silence_timeout_seconds: number;
+  help_nudge_interval_seconds: number;
+  help_nudge_min_messages: number;
+  mail_notice_after_seconds: number;
+  mail_notice_idle_after_seconds: number;
+  reply_notice_after_seconds: number;
+
+  terminal_transcript_visibility: "off" | "foreman" | "all";
+  terminal_transcript_notify_tail: boolean;
+  terminal_transcript_notify_lines: number;
+};
+
+export type BuiltinAssistantPolicy = {
+  action_allowlist?: string[];
+  requires_user_confirmation?: string[];
+};
+
+export type BuiltinAssistant = {
+  assistant_id: string;
+  kind: "voice_secretary" | string;
+  enabled: boolean;
+  principal?: string;
+  lifecycle: "disabled" | "idle" | "running" | "working" | "waiting" | "failed" | string;
+  health?: Record<string, unknown>;
+  policy?: BuiltinAssistantPolicy;
+  config?: Record<string, unknown>;
+  ui?: Record<string, unknown>;
+};
+
+export type AssistantServiceModel = {
+  model_id: string;
+  kind?: string;
+  runtime_id?: string;
+  title?: string;
+  description?: string;
+  status?: "not_installed" | "downloading" | "installing" | "ready" | "failed" | "unknown" | string;
+  available?: boolean;
+  installed?: boolean;
+  managed?: boolean;
+  removable?: boolean;
+  implementation?: string;
+  install_dir?: string;
+  installed_at?: string;
+  updated_at?: string;
+  command_ready?: boolean;
+  offline_ready?: boolean;
+  streaming_ready?: boolean;
+  diarization_ready?: boolean;
+  offline?: Record<string, unknown>;
+  streaming?: Record<string, unknown>;
+  diarization?: Record<string, unknown>;
+  manifest_sha256?: string;
+  downloaded_bytes?: number;
+  total_size_bytes?: number;
+  disk_usage_bytes?: number;
+  progress_percent?: number;
+  current_artifact_path?: string;
+  artifact_index?: number;
+  artifact_count?: number;
+  error?: Record<string, unknown>;
+  last_update_error?: Record<string, unknown>;
+  installed_manifest_sha256?: string;
+  update_available?: boolean;
+  artifacts?: Array<{
+    path?: string;
+    url?: string;
+    sha256?: string;
+    size_bytes?: number;
+    archive?: string;
+  }>;
+};
+
+export type AssistantServiceRuntime = {
+  runtime_id: string;
+  status?: "not_installed" | "installing" | "ready" | "failed" | string;
+  available?: boolean;
+  installed?: boolean;
+  installed_version?: string;
+  error?: Record<string, unknown>;
+};
+
+export type AssistantStateResult = {
+  group_id: string;
+  assistants?: BuiltinAssistant[];
+  assistants_by_id?: Record<string, BuiltinAssistant>;
+  assistant?: BuiltinAssistant;
+  documents?: AssistantVoiceDocument[];
+  documents_by_id?: Record<string, AssistantVoiceDocument>;
+  active_document_id?: string;
+  capture_target_document_id?: string;
+  active_document_path?: string;
+  capture_target_document_path?: string;
+  documents_by_path?: Record<string, AssistantVoiceDocument>;
+  new_input_available?: boolean;
+  secretary_tasks?: SecretaryTaskSummary[];
+  prompt_draft?: AssistantVoicePromptDraft;
+  ask_requests?: AssistantVoiceAskFeedback[];
+  latest_ask_request?: AssistantVoiceAskFeedback;
+  service_models?: AssistantServiceModel[];
+  service_models_by_id?: Record<string, AssistantServiceModel>;
+  service_runtime?: AssistantServiceRuntime;
+  recording_lease?: AssistantVoiceRecordingLease;
+};
+
+export type AssistantVoiceRecordingLease = {
+  owner_id: string;
+  group_id: string;
+  group_title?: string;
+  capture_mode?: string;
+  recognition_backend?: string;
+  by?: string;
+  created_at?: string;
+  updated_at?: string;
+  expires_at?: string;
+};
+
+export type SecretaryTaskPhase =
+  | "queued"
+  | "starting"
+  | "running"
+  | "done"
+  | "needs_user"
+  | "conflict"
+  | "failed"
+  | "cancelled"
+  | "unconfirmed";
+export type SecretaryTaskSummary = {
+  task_id: string;
+  target: {
+    group_id: string;
+    scope_key: string;
+    kind: "document" | "ask" | "prompt";
+    document_path: string;
+    document_id?: string;
+    request_id: string;
+  };
+  phase: SecretaryTaskPhase;
+  created_at: string;
+  updated_at: string;
+  cleanup_confirmed: boolean;
+  source_count: number;
+  preview: string;
+  diagnostic: string;
+  projection_error: string;
+  projected_at?: string;
+  prompt_draft_status?: "pending" | "applied" | "dismissed" | "stale" | "no_change";
+  previous_task_id: string;
+  superseded_by: string;
+  candidate_available: boolean;
+  forwarded_event_id?: string;
+  cancellation_reason?: string;
+  recovery_attempts?: number;
+  execution?: {
+    generation: string;
+    runtime: string;
+    native_terminal: boolean;
+    progress: string;
+    activity?: string;
+  };
+  receipt?: {
+    status: SecretaryTaskPhase;
+    document_version?: string;
+    output: {
+      no_op?: boolean;
+      reply_text?: string;
+      draft_text?: string;
+      handoff_target?: string;
+      handoff_text?: string;
+    };
+  } | null;
+};
+
+export type AssistantVoiceRecordingLeaseResult = {
+  group_id: string;
+  action: string;
+  acquired?: boolean;
+  released?: boolean;
+  lost?: boolean;
+  leaseId?: string;
+  lease?: AssistantVoiceRecordingLease;
+};
+
+export type AssistantVoiceTrigger = {
+  schema?: number;
+  trigger_kind?: string;
+  mode?: string;
+  capture_mode?: string;
+  recognition_backend?: string;
+  client_session_id?: string;
+  input_device_label?: string;
+  document_path?: string;
+  language?: string;
+  intent_hint?: string;
+};
+
+export type AssistantVoiceDocument = {
+  document_id: string;
+  document_path?: string;
+  filename?: string;
+  assistant_id?: string;
+  title: string;
+  status: "active" | "archived" | "deleted" | string;
+  storage_kind?: "workspace" | "cccc_home" | string;
+  workspace_path?: string;
+  content?: string;
+  content_sha256?: string;
+  content_target_id?: string;
+  content_chars?: number;
+  revision_count?: number;
+  source_segment_count?: number;
+  last_source_segment_id?: string;
+  last_source_path?: string;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: string;
+};
+
+export type AssistantVoiceTranscriptionResult = {
+  group_id: string;
+  assistant?: BuiltinAssistant;
+  transcript: string;
+  mime_type?: string;
+  language?: string;
+  bytes?: number;
+  backend?: string;
+  service?: Record<string, unknown>;
+  asr?: Record<string, unknown>;
+};
+
+export type AssistantVoiceTranscriptSegmentResult = {
+  group_id: string;
+  assistant?: BuiltinAssistant;
+  session_id: string;
+  segment?: Record<string, unknown>;
+  segment_path?: string;
+  document?: AssistantVoiceDocument;
+  document_updated?: boolean;
+  input_event?: Record<string, unknown>;
+  input_event_created?: boolean;
+  secretary_processing_deferred?: boolean;
+  secretary_processing_error?: string;
+};
+
+export type AssistantVoiceMeetingSession = {
+  schema?: number;
+  group_id?: string;
+  session_id: string;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  sample_rate?: number;
+  audio_duration_ms?: number;
+  language?: string;
+  capture_mode?: string;
+  document_path?: string;
+  latest_partial?: string;
+  last_final_text?: string;
+  diarization_ready?: boolean;
+  diarization_artifact_path?: string;
+  segments?: Record<string, unknown>[];
+  diarization?: Record<string, unknown>;
+  error?: Record<string, unknown> | null;
+};
+
+export type AssistantVoiceDocumentMutationResult = {
+  group_id: string;
+  assistant?: BuiltinAssistant;
+  document?: AssistantVoiceDocument;
+  input_event?: Record<string, unknown>;
+  input_event_created?: boolean;
+  secretary_processing_deferred?: boolean;
+  secretary_processing_error?: string;
+  event?: unknown;
+  request_id?: string;
+  input_append_id?: string;
+};
+
+export type AssistantVoicePromptDraft = {
+  request_id: string;
+  status: "pending" | "no_change" | "applied" | "dismissed" | "stale" | string;
+  operation?: string;
+  draft_text: string;
+  draft_preview?: string;
+  summary?: string;
+  composer_snapshot_hash?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type AssistantVoiceAskFeedback = {
+  request_id: string;
+  secretary_task_id?: string;
+  status: "pending" | "working" | "done" | "needs_user" | "failed" | "handed_off" | string;
+  request_text?: string;
+  request_preview?: string;
+  reply_text?: string;
+  document_path?: string;
+  artifact_paths?: string[];
+  source_summary?: string;
+  checked_at?: string;
+  source_urls?: string[];
+  target_kind?: string;
+  intent_hint?: string;
+  language?: string;
+  handoff_target?: string;
+  handoff_request_id?: string;
+  target_actor_id?: string;
+  created_at?: string;
+  updated_at?: string;
+  cleared_at?: string;
+};
+
+export type AssistantVoiceInputResult = {
+  group_id: string;
+  assistant?: BuiltinAssistant;
+  document?: AssistantVoiceDocument;
+  input_event?: Record<string, unknown>;
+  input_event_created?: boolean;
+  secretary_processing_deferred?: boolean;
+  secretary_processing_error?: string;
+  event?: unknown;
+  request_id?: string;
+  input_append_id?: string;
+};
+
+export type AssistantVoicePromptDraftMutationResult = {
+  group_id: string;
+  assistant?: BuiltinAssistant;
+  prompt_draft?: AssistantVoicePromptDraft;
+  event?: unknown;
+};
+
+export type MembershipState = {
+  account_label?: string | null;
+  logged_in: boolean;
+  device_id?: string | null;
+  hostname?: string | null;
+  web_url?: string | null;
+  online?: boolean;
+  cut?: boolean;
+  disabled?: boolean;
+  in_reach?: boolean;
+  reach_enabled?: boolean;
+  reach_status?: "off" | "connecting" | "online" | "offline" | "unknown";
+  checked_at?: string | null;
+  cloudflared?: { running: boolean; installed?: boolean; matches_pin?: boolean };
+  reach_supported?: boolean;
+  account_reachable?: boolean | null;
+  account_origin?: string | null;
+  last_error?: string | null;
+  pending?: {
+    user_code?: string | null;
+    verification_uri?: string | null;
+    verification_uri_complete?: string | null;
+    interval?: number | null;
+    expires_at?: string | null;
+  } | null;
+};
+
+export type RemoteAccessState = {
+  provider: "off" | "manual" | "tailscale" | "reach" | string;
+  mode: string;
+  require_access_token: boolean;
+  enabled: boolean;
+  status:
+    | "stopped"
+    | "running"
+    | "not_installed"
+    | "not_authenticated"
+    | "misconfigured"
+    | "error"
+    | string;
+  status_reason?:
+    | "local_only"
+    | "apply_pending"
+    | "missing_access_token"
+    | "binding_unreachable"
+    | "unsupported_mode"
+    | "provider_not_installed"
+    | "provider_not_authenticated"
+    | "provider_error"
+    | "stopped"
+    | "running"
+    | "misconfigured"
+    | "unknown"
+    | string;
+  endpoint?: string | null;
+  updated_at?: string | null;
+  restart_required?: boolean;
+  apply_supported?: boolean;
+  diagnostics?: {
+    access_token_present?: boolean;
+    access_token_requirement_satisfied?: boolean;
+    access_token_source?: "store" | "none" | string;
+    access_token_count?: number;
+    admin_access_token_present?: boolean;
+    admin_access_token_count?: number;
+    remote_listener_auth_required?: boolean;
+    remote_listener_auth_requirement_satisfied?: boolean;
+    allow_unauthenticated_listener_override?: boolean;
+    allow_insecure_remote_override?: boolean;
+    effective_require_access_token?: boolean;
+    exposure_class?: "local" | "private" | "public" | string;
+    running_in_wsl?: boolean;
+    web_host?: string;
+    web_host_source?: "settings" | "env" | "default" | string;
+    web_port?: number;
+    web_port_source?: "settings" | "env" | "default" | string;
+    web_public_url?: string | null;
+    web_public_url_source?: "settings" | "env" | "none" | string;
+    web_bind_loopback?: boolean;
+    web_bind_reachable?: boolean;
+    mode_supported?: boolean;
+    desired_local_url?: string | null;
+    desired_remote_url?: string | null;
+    live_runtime_present?: boolean;
+    live_runtime_pid?: number | null;
+    live_runtime_host?: string | null;
+    live_runtime_port?: number | null;
+    live_runtime_mode?: string | null;
+    live_runtime_supervisor_managed?: boolean;
+    live_runtime_matches_binding?: boolean;
+    live_local_url?: string | null;
+    live_remote_url?: string | null;
+    apply_supported?: boolean;
+    last_apply_error?: string | null;
+    tailscale_installed?: boolean | null;
+    tailscale_backend_state?: string | null;
+  } | null;
+  config?: {
+    web_host?: string;
+    web_port?: number;
+    web_public_url?: string | null;
+    access_token_configured?: boolean;
+    access_token_count?: number;
+    admin_access_token_configured?: boolean;
+    admin_access_token_count?: number;
+    access_token_source?: "store" | "none" | string;
+  } | null;
+  next_steps?: string[] | null;
+};
+
+export type WebAccessSession = {
+  login_active: boolean;
+  current_browser_signed_in: boolean;
+  principal_kind?: string;
+  user_id?: string | null;
+  is_admin?: boolean;
+  allowed_groups?: string[];
+  access_token_count?: number;
+  can_access_global_settings?: boolean;
+  bootstrap_required?: boolean;
+  runtime_visibility?: {
+    peer_runtime?: "hidden" | "visible" | string;
+    assistant_runtime?: "hidden" | "visible" | string;
+  };
+};
+
+export type WebBranding = {
+  product_name: string;
+  logo_icon_url?: string | null;
+  favicon_url?: string | null;
+  has_custom_logo_icon?: boolean;
+  has_custom_favicon?: boolean;
+  updated_at?: string | null;
+};
+
+export type GroupSpaceProviderState = {
+  provider: "notebooklm" | string;
+  enabled: boolean;
+  real_enabled?: boolean;
+  mode: "disabled" | "active" | "degraded" | string;
+  last_health_at?: string | null;
+  last_error?: string | null;
+  real_adapter_enabled?: boolean;
+  stub_adapter_enabled?: boolean;
+  auth_configured?: boolean;
+  write_ready?: boolean;
+  readiness_reason?: string;
+};
+
+export type GroupSpaceProviderCredentialStatus = {
+  provider: "notebooklm" | string;
+  key: string;
+  configured: boolean;
+  source: "none" | "store" | "env" | string;
+  env_configured: boolean;
+  store_configured: boolean;
+  updated_at?: string | null;
+  masked_value?: string | null;
+};
+
+export type GroupSpaceProviderAuthState =
+  | "idle"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "canceled"
+  | string;
+
+export type GroupSpaceProviderAuthStatus = {
+  provider: "notebooklm" | string;
+  state: GroupSpaceProviderAuthState;
+  phase?: string;
+  delivery?: "local_browser" | "projected_browser" | string;
+  session_id?: string;
+  started_at?: string;
+  updated_at?: string;
+  finished_at?: string;
+  message?: string;
+  error?: { code?: string; message?: string } | null;
+  projected_browser?: PresentationBrowserSurfaceState | null;
+};
+
+export type GroupSpaceLane = "work" | "memory" | string;
+
+export type GroupSpaceBinding = {
+  group_id: string;
+  provider: "notebooklm" | string;
+  lane?: GroupSpaceLane;
+  remote_space_id?: string;
+  bound_by?: string;
+  bound_at?: string;
+  status: "bound" | "unbound" | "error" | string;
+};
+
+export type GroupSpaceRemoteSpace = {
+  remote_space_id: string;
+  title?: string;
+  created_at?: string;
+  is_owner?: boolean;
+};
+
+export type GroupSpaceSource = {
+  source_id: string;
+  title?: string;
+  url?: string;
+  status?: number | string;
+  kind?: string;
+};
+
+export type GroupSpaceArtifact = {
+  artifact_id: string;
+  title?: string;
+  kind?: string;
+  status?: string;
+  created_at?: string;
+  url?: string;
+};
+
+export type GroupSpaceQueueSummary = { pending: number; running: number; failed: number };
+
+export type GroupSpaceMemorySyncSummary = {
+  lane: "memory" | string;
+  manifest_path: string;
+  last_scan_at?: string | null;
+  last_success_at?: string | null;
+  pending_files: number;
+  running_files: number;
+  failed_files: number;
+  blocked_files: number;
+};
+
+export type GroupSpaceJobError = { code?: string; message?: string };
+
+export type GroupSpaceJob = {
+  job_id: string;
+  group_id: string;
+  provider: "notebooklm" | string;
+  lane?: GroupSpaceLane;
+  remote_space_id: string;
+  kind: "context_sync" | "resource_ingest" | string;
+  payload: Record<string, unknown>;
+  payload_digest?: string;
+  idempotency_key?: string;
+  state: "pending" | "running" | "succeeded" | "failed" | "canceled" | string;
+  attempt: number;
+  max_attempts: number;
+  next_run_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  last_error?: GroupSpaceJobError;
+};
+
+export type GroupSpaceStatus = {
+  group_id: string;
+  provider: GroupSpaceProviderState;
+  bindings: Record<string, GroupSpaceBinding>;
+  queue_summary: Record<string, GroupSpaceQueueSummary>;
+  sync?: GroupSpaceSyncState;
+  memory_sync?: GroupSpaceMemorySyncSummary;
+  sync_result?: GroupSpaceSyncResult | Record<string, unknown>;
+};
+
+export type GroupSpaceSyncState = {
+  available?: boolean;
+  reason?: string;
+  space_root?: string;
+  group_id?: string;
+  provider?: string;
+  remote_space_id?: string;
+  last_run_at?: string;
+  converged?: boolean;
+  unsynced_count?: number;
+  uploaded?: number;
+  updated?: number;
+  deleted?: number;
+  reused?: number;
+  last_error?: string;
+  last_fingerprint?: Record<string, unknown>;
+  errors?: Array<Record<string, unknown>>;
+};
+
+export type GroupSpaceSyncResult = {
+  ok?: boolean;
+  group_id?: string;
+  provider?: string;
+  remote_space_id?: string;
+  space_root?: string;
+  skipped?: boolean;
+  reason?: string;
+  converged?: boolean;
+  unsynced_count?: number;
+  local_files?: number;
+  uploaded?: number;
+  updated?: number;
+  deleted?: number;
+  reused?: number;
+  errors?: Array<Record<string, unknown>>;
+};
+
+export type AutomationRuleTriggerInterval = {
+  kind: "interval";
+  every_seconds: number;
+  max_runs?: number;
+};
+
+export type AutomationRuleTriggerCron = {
+  kind: "cron";
+  cron: string;
+  timezone?: string;
+  max_runs?: number;
+};
+
+export type AutomationRuleTriggerAt = { kind: "at"; at: string };
+
+export type AutomationRuleTrigger =
+  | AutomationRuleTriggerInterval
+  | AutomationRuleTriggerCron
+  | AutomationRuleTriggerAt;
+
+export type AutomationRuleAction =
+  | {
+      kind: "notify";
+      title?: string;
+      snippet_ref?: string | null;
+      message?: string;
+      priority?: "low" | "normal" | "high" | "urgent";
+    }
+  | { kind: "group_state"; state: "active" | "idle" | "paused" | "stopped" }
+  | { kind: "actor_control"; operation: "start" | "stop" | "restart"; targets?: string[] };
+
+export type AutomationRule = {
+  id: string;
+  enabled?: boolean;
+  scope?: "group" | "personal";
+  owner_actor_id?: string | null;
+  to?: string[];
+  trigger?: AutomationRuleTrigger;
+  action?: AutomationRuleAction;
+};
+
+export type AutomationRuleSet = { rules: AutomationRule[]; snippets: Record<string, string> };
+
+export type AutomationSnippetCatalog = {
+  built_in: Record<string, string>;
+  built_in_overrides: Record<string, string>;
+  custom: Record<string, string>;
+};
+
+export type AutomationRuleStatus = {
+  last_fired_at?: string;
+  last_error_at?: string;
+  last_error?: string;
+  next_fire_at?: string;
+  fired_count?: number;
+  completed?: boolean;
+  completed_at?: string;
+};
+
+export type GroupAutomation = {
+  ruleset: AutomationRuleSet;
+  snippet_catalog?: AutomationSnippetCatalog;
+  status: Record<string, AutomationRuleStatus>;
+  config_path: string;
+  supported_vars: string[];
+  version?: number;
+  server_now?: string;
+};
+
+export type IMPlatform =
+  | "telegram"
+  | "slack"
+  | "discord"
+  | "mattermost"
+  | "feishu"
+  | "dingtalk"
+  | "wecom"
+  | "weixin";
+
+export type IMConfig = {
+  platform?: IMPlatform;
+  // Legacy single token field (backward compat)
+  token_env?: string;
+  token?: string;
+  // Canonical token fields
+  bot_token?: string;
+  app_token?: string;
+  // Token env fields (Slack/Telegram/Discord/Mattermost)
+  bot_token_env?: string;
+  app_token_env?: string;
+  mattermost_url?: string;
+  // Feishu fields
+  feishu_domain?: string;
+  feishu_app_id?: string;
+  feishu_app_id_env?: string;
+  feishu_app_secret?: string;
+  feishu_app_secret_env?: string;
+  // DingTalk fields
+  dingtalk_app_key?: string;
+  dingtalk_app_key_env?: string;
+  dingtalk_app_secret?: string;
+  dingtalk_app_secret_env?: string;
+  dingtalk_robot_code?: string;
+  dingtalk_robot_code_env?: string;
+  // WeCom fields
+  wecom_bot_id?: string;
+  wecom_secret?: string;
+  // Weixin fields
+  weixin_account_id?: string;
+};
+
+export type IMStatus = {
+  group_id: string;
+  configured: boolean;
+  enabled: boolean;
+  platform?: string;
+  running: boolean;
+  adapter_available?: boolean;
+  last_error?: string | null;
+  pid?: number | null;
+  subscribers: number;
+};
+
+export type WeixinLoginStatus = {
+  status: string;
+  logged_in: boolean;
+  account_id?: string;
+  qrcode_url?: string;
+  qr_ascii?: string;
+  error?: string;
+  auto_subscribed?: boolean;
+  verification_required?: boolean;
+  running: boolean;
+  pid?: number | null;
+  updated_at?: string;
+};
+
+export type DirItem = { name: string; path: string; is_dir: boolean };
+export type DirSuggestion = { name: string; path: string; icon: string };
+export type PresentationWorkspaceItem = {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  mime_type?: string | null;
+};
+export type PresentationWorkspaceListing = {
+  root_path: string;
+  path: string;
+  parent: string | null;
+  items: PresentationWorkspaceItem[];
+};
+
+// Runtime configuration
+export const SUPPORTED_RUNTIMES = [
+  "claude",
+  "cline",
+  "codex",
+  "deepseek",
+  "copilot",
+  "cursor",
+  "devin",
+  "kiro",
+  "kilo",
+  "antigravity",
+  "droid",
+  "amp",
+  "auggie",
+  "grok",
+  "hermes",
+  "kimi",
+  "opencode",
+  "pi",
+  "web_model",
+  "chatgpt_dots",
+  "grok_web_model",
+  "custom",
+] as const;
+
+export type SupportedRuntime = (typeof SUPPORTED_RUNTIMES)[number];
+
+export function isWebModelRuntime(runtime: string | undefined): boolean {
+  return (
+    runtime === "chatgpt_dots" || runtime === "grok_web_model" || isBrowserWebModelRuntime(runtime)
+  );
+}
+
+export function isBrowserWebModelRuntime(runtime: string | undefined): boolean {
+  return runtime === "web_model";
+}
+
+export const RUNTIME_INFO: Record<string, { label: string; desc: string }> = {
+  amp: { label: "Amp", desc: "" },
+  auggie: { label: "Auggie (Augment)", desc: "" },
+  claude: { label: "Claude Code", desc: "" },
+  cline: { label: "Cline CLI", desc: "Uses Cline's native terminal with CCCC MCP" },
+  codex: { label: "Codex CLI", desc: "" },
+  deepseek: {
+    label: "DeepSeek Harness",
+    desc: "Experimental ACP runtime; CCCC installs its pinned composition on first start",
+  },
+  copilot: { label: "GitHub Copilot CLI", desc: "Uses Copilot's native terminal with CCCC MCP" },
+  cursor: {
+    label: "Cursor CLI",
+    desc: "Uses an idempotent MCP setup prompt in Cursor's native terminal",
+  },
+  devin: { label: "Devin CLI", desc: "Uses Devin's native terminal with CCCC MCP" },
+  kiro: { label: "Kiro CLI", desc: "Uses Kiro's native terminal with CCCC MCP" },
+  kilo: { label: "Kilo Code CLI", desc: "Managed delivery in the same native Kilo TUI" },
+  antigravity: {
+    label: "Antigravity CLI",
+    desc: "Configures CCCC MCP before opening Antigravity's native terminal",
+  },
+  droid: { label: "Droid", desc: "" },
+  grok: { label: "Grok Build", desc: "Managed delivery in the same native Grok TUI" },
+  hermes: { label: "Hermes Agent", desc: "Uses your Hermes profile with CCCC MCP" },
+  kimi: { label: "Kimi Code", desc: "" },
+  opencode: { label: "OpenCode", desc: "Managed delivery in the same native OpenCode TUI" },
+  pi: { label: "Pi", desc: "" },
+  web_model: {
+    label: "ChatGPT Web Model",
+    desc: "ChatGPT browser delivery + remote MCP connector",
+  },
+  chatgpt_dots: {
+    label: "ChatGPT Dots",
+    desc: "ChatGPT event tasks + shared remote MCP connector",
+  },
+  grok_web_model: {
+    label: "Grok Bot Web Model",
+    desc: "Grok Bot native Webhook + remote MCP connector",
+  },
+  custom: { label: "Custom", desc: "Manual MCP installation needed" },
+};
+
+/** Number of accent slots; an actor keeps its slot, and the LCD accent it maps to. */
+const ACTOR_ACCENT_COUNT = 8;
+
+function _fnv1a32(input: string): number {
+  // Deterministic, fast, and stable across JS engines.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+/** Stable per-actor slot in the accent palette. */
+export function getActorAccentIndex(actorId?: string): number {
+  const id = String(actorId || "").trim();
+  return id ? _fnv1a32(id) % ACTOR_ACCENT_COUNT : 0;
+}
+
+export function supportsAcpMode(runtime?: string | null): boolean {
+  return [
+    "antigravity",
+    "copilot",
+    "devin",
+    "cursor",
+    "kimi",
+    "auggie",
+    "kiro",
+    "hermes",
+    "droid",
+  ].includes(runtime || "");
+}
+
+export interface LocalSessionSource {
+  source_id: string;
+  runtime: "codex" | "claude" | "pi" | "opencode";
+  native_session_id: string;
+  cwd: string;
+  title: string;
+  origin?: string | null;
+  connected: boolean;
+}
+
+export interface LocalSessionRecovery {
+  group_id: string;
+  actor_id: string;
+  source_id: string;
+  /** Explicit qualification result; recovery data is revalidated independently. */
+  refresh_status?: "checked" | "unavailable" | "not_checked";
+  recovery: {
+    state:
+      | "connected"
+      | "disconnected"
+      | "host_exited"
+      | "session_ended"
+      | "integration_disabled"
+      | "unknown";
+    cwd: string | null;
+    shell: "posix" | "powershell";
+    /** Server-quoted command for the declared shell; manual use only. */
+    command: string;
+  };
+}

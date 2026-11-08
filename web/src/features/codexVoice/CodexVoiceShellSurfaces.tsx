@@ -1,0 +1,63 @@
+import { CodexVoiceDock } from "../../components/layout/CodexVoiceDock";
+import { CodexVoiceAnalystModal } from "../../components/modals/CodexVoiceAnalystModal";
+import { useModalStore } from "../../stores";
+import type { CodexVoiceShellState } from "./useCodexVoiceShell";
+
+type SharedProps = { voice: CodexVoiceShellState };
+
+export function CodexVoiceSidebarDock(props: SharedProps & { collapsed: boolean }) {
+  const { voice, collapsed } = props;
+  return (
+    <CodexVoiceDock
+      controller={voice.controller}
+      chetWorking={voice.chet.working}
+      chetUnread={voice.chet.unread}
+      collapsed={collapsed}
+      onOpen={voice.openDetails}
+      onStart={voice.start}
+    />
+  );
+}
+
+export function CodexVoiceMobileDock(props: SharedProps) {
+  const { voice } = props;
+  // The phone bar shows while a call or Chet's work runs, and folds away after.
+  if (!voice.controller.isEngaged && !voice.chet.working) return null;
+  return (
+    <div className="mt-[48px] flex-none md:hidden">
+      <CodexVoiceDock
+        variant="mobile"
+        controller={voice.controller}
+        chetWorking={voice.chet.working}
+        chetUnread={voice.chet.unread}
+        onOpen={voice.openDetails}
+        onStart={voice.start}
+      />
+    </div>
+  );
+}
+
+export function CodexVoiceOverlays(
+  props: SharedProps & {
+    isDark: boolean;
+    isSmallScreen: boolean;
+    onOpenSource?: (groupId: string, eventId: string) => void;
+  },
+) {
+  const { voice, isDark, isSmallScreen } = props;
+  const settingsOpen = useModalStore((state) => state.modals.settings);
+  return (
+    <>
+      <audio ref={voice.controller.audioRef} autoPlay playsInline className="hidden" />
+      <CodexVoiceAnalystModal
+        isOpen={voice.detailsOpen && !settingsOpen}
+        isDark={isDark}
+        isSmallScreen={isSmallScreen}
+        controller={voice.controller}
+        chet={voice.chet}
+        onClose={voice.closeDetails}
+        onOpenSource={props.onOpenSource}
+      />
+    </>
+  );
+}

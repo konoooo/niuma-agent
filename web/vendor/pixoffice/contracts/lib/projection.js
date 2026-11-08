@@ -1,0 +1,1 @@
+export { worldDirectionFromFacing } from '@pixoffice/protocol/spatial';

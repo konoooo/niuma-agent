@@ -1,0 +1,332 @@
+// @vitest-environment happy-dom
+import { act, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../components/ui/dialog";
+import { useModalA11y } from "./useModalA11y";
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
+  true;
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  document.body.innerHTML = "";
+});
+
+function Fixture() {
+  const { modalRef } = useModalA11y(true, () => {});
+  return (
+    <div ref={modalRef}>
+      <div hidden>
+        <button>hidden first</button>
+      </div>
+      <fieldset disabled>
+        <button>disabled first</button>
+      </fieldset>
+      <button id="first">first</button>
+      <details>
+        <summary tabIndex={0}>advanced</summary>
+        <button>closed detail</button>
+      </details>
+      <button id="last">last</button>
+      <fieldset disabled>
+        <button>disabled last</button>
+      </fieldset>
+      <div inert>
+        <button>inert last</button>
+      </div>
+      <div aria-hidden="true">
+        <button>aria hidden last</button>
+      </div>
+      <div style={{ display: "none" }}>
+        <button>CSS hidden last</button>
+      </div>
+      <div style={{ visibility: "hidden" }}>
+        <button>invisible last</button>
+      </div>
+    </div>
+  );
+}
+
+describe("modal keyboard focus", () => {
+  it("starts and wraps on visible controls, skipping hidden panels, inert content and closed details", async () => {
+    // happy-dom does not yet implement fieldset-inherited :disabled. Model
+    // that browser CSS state here; the native browser acceptance also exercises it.
+    const matches = HTMLElement.prototype.matches;
+    vi.spyOn(HTMLElement.prototype, "matches").mockImplementation(function (
+      this: HTMLElement,
+      selector: string,
+    ) {
+      if (selector === ":disabled" && this.closest("fieldset[disabled]")) return true;
+      return matches.call(this, selector);
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<Fixture />));
+    const first = host.querySelector<HTMLButtonElement>("#first")!;
+    const last = host.querySelector<HTMLButtonElement>("#last")!;
+    expect(document.activeElement).toBe(first);
+    const backwards = new KeyboardEvent("keydown", {
+      key: "Tab",
+      shiftKey: true,
+      cancelable: true,
+    });
+    document.dispatchEvent(backwards);
+    expect(backwards.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(last);
+    const forwards = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
+    document.dispatchEvent(forwards);
+    expect(forwards.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(first);
+    // Removing the last visible control makes the summary the new boundary.
+    last.hidden = true;
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true }));
+    expect(document.activeElement).toBe(host.querySelector("summary"));
+    await act(async () => root.unmount());
+    expect(document.body.style.overflow).toBe("");
+  });
+});
+
+it("honors an initial field and lets a nested popup consume Escape before the modal", async () => {
+  const close = vi.fn();
+  function SearchFixture() {
+    const input = useRef<HTMLInputElement>(null);
+    const { modalRef } = useModalA11y(true, close, { initialFocusRef: input });
+    return (
+      <div ref={modalRef}>
+        <button>Close</button>
+        <input ref={input} />
+      </div>
+    );
+  }
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<SearchFixture />));
+  expect(document.activeElement).toBe(host.querySelector("input"));
+  const nestedEscape = (event: KeyboardEvent) => event.preventDefault();
+  document.addEventListener("keydown", nestedEscape, { capture: true });
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+  expect(close).not.toHaveBeenCalled();
+  document.removeEventListener("keydown", nestedEscape, { capture: true });
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", cancelable: true }));
+  expect(close).toHaveBeenCalledOnce();
+  await act(async () => root.unmount());
+});
+
+it("returns focus to the opener after a nested dialog changes its initial field", async () => {
+  // Frames run after effects, as in a browser, so focus lost to a removed
+  // control is seen by an effect that runs again.
+  const frames = new Map<number, FrameRequestCallback>();
+  let nextFrame = 0;
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    frames.set(++nextFrame, callback);
+    return nextFrame;
+  });
+  vi.stubGlobal("cancelAnimationFrame", (frame: number) => frames.delete(frame));
+  const flushFrames = () => {
+    for (const [frame, callback] of [...frames]) {
+      frames.delete(frame);
+      callback(0);
+    }
+  };
+  let setEditorOpen: (open: boolean) => void = () => {};
+  function Editor({ open }: { open: boolean }) {
+    const [creating, setCreating] = useState(false);
+    const title = useRef<HTMLInputElement>(null);
+    const { modalRef } = useModalA11y(open, () => {}, {
+      initialFocusRef: creating ? title : undefined,
+    });
+    if (!open) return null;
+    return (
+      <div ref={modalRef}>
+        {creating ? (
+          <input ref={title} aria-label="title" />
+        ) : (
+          <button onClick={() => setCreating(true)}>Add subtask</button>
+        )}
+      </div>
+    );
+  }
+  function Board() {
+    const [open, setOpen] = useState(false);
+    setEditorOpen = setOpen;
+    const { modalRef } = useModalA11y(true, () => {});
+    return (
+      <div ref={modalRef}>
+        <button>Close board</button>
+        <button id="card" onClick={() => setOpen(true)}>
+          Card
+        </button>
+        <Editor open={open} />
+      </div>
+    );
+  }
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<Board />));
+  flushFrames();
+  const card = host.querySelector<HTMLButtonElement>("#card")!;
+  card.focus();
+  await act(async () => card.click());
+  flushFrames();
+  const add = [...host.querySelectorAll("button")].find((b) => b.textContent === "Add subtask")!;
+  expect(document.activeElement).toBe(add);
+  await act(async () => add.click());
+  flushFrames();
+  expect(document.activeElement).toBe(host.querySelector('input[aria-label="title"]'));
+  await act(async () => setEditorOpen(false));
+  flushFrames();
+  expect(document.activeElement).toBe(card);
+  await act(async () => root.unmount());
+});
+
+it("leaves focus inside a portaled child dialog and restores the parent trigger after Escape", async () => {
+  const close = vi.fn();
+  function NestedFixture() {
+    const [childOpen, setChildOpen] = useState(false);
+    const { modalRef } = useModalA11y(true, close);
+    return (
+      <div ref={modalRef}>
+        <button id="parent-first">Parent first</button>
+        <button id="open-child" onClick={() => setChildOpen(true)}>
+          New folder
+        </button>
+        <Dialog open={childOpen} onOpenChange={setChildOpen}>
+          <DialogContent>
+            <DialogTitle>New folder</DialogTitle>
+            <DialogDescription>Folder name</DialogDescription>
+            <input id="child-name" />
+            <button id="child-save">Save</button>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<NestedFixture />));
+  const trigger = host.querySelector<HTMLButtonElement>("#open-child")!;
+  trigger.focus();
+  await act(async () => trigger.click());
+  const child = document.querySelector<HTMLElement>('[role="dialog"]')!;
+  const childInput = document.querySelector<HTMLInputElement>("#child-name")!;
+  expect(host.contains(child)).toBe(false);
+  expect(document.activeElement).toBe(childInput);
+  childInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+  childInput.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }),
+  );
+  expect(child.contains(document.activeElement)).toBe(true);
+  await act(async () => {
+    childInput.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+    );
+  });
+  // Radix restores focus from a timer scheduled during the unmount commit.
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(close).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(trigger);
+  await act(async () => root.unmount());
+});
+
+function MediaFixture() {
+  const { modalRef } = useModalA11y(true, () => {});
+  return (
+    <div ref={modalRef}>
+      <button id="download">download</button>
+      <button id="close">close</button>
+      <video id="player" controls />
+      <span id="guard" tabIndex={0} data-focus-guard />
+    </div>
+  );
+}
+
+it("lets Tab walk a media player's own controls and enters them from the end on Shift+Tab", async () => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<MediaFixture />));
+  const download = host.querySelector<HTMLButtonElement>("#download")!;
+  const player = host.querySelector<HTMLVideoElement>("#player")!;
+  const guard = host.querySelector<HTMLElement>("#guard")!;
+  expect(document.activeElement).toBe(download);
+
+  // Focus stays on the element while Tab moves between its native controls.
+  player.focus();
+  const insidePlayer = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
+  document.dispatchEvent(insidePlayer);
+  expect(insidePlayer.defaultPrevented).toBe(false);
+  expect(document.activeElement).toBe(player);
+
+  // Wrapping backward lands on the guard so the browser steps into the
+  // player's last control; the guard itself is never a boundary.
+  download.focus();
+  const backwards = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, cancelable: true });
+  document.dispatchEvent(backwards);
+  expect(backwards.defaultPrevented).toBe(false);
+  expect(document.activeElement).toBe(guard);
+  expect(guard.dataset.focusPassThrough).toBe("true");
+  await act(async () => root.unmount());
+});
+
+function UnguardedMediaFixture() {
+  const { modalRef } = useModalA11y(true, () => {});
+  return (
+    <div ref={modalRef}>
+      <button id="action">action</button>
+      <video id="unguarded-player" controls />
+    </div>
+  );
+}
+
+it("keeps a media player as one wrapping stop in a modal without a focus guard", async () => {
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    callback(0);
+    return 1;
+  });
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  const host = document.createElement("div");
+  document.body.appendChild(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<UnguardedMediaFixture />));
+  const action = host.querySelector<HTMLButtonElement>("#action")!;
+  const player = host.querySelector<HTMLVideoElement>("#unguarded-player")!;
+
+  // Nothing would catch focus leaving the player, so the trap keeps it inside.
+  player.focus();
+  const forwards = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
+  document.dispatchEvent(forwards);
+  expect(forwards.defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(action);
+
+  const backwards = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, cancelable: true });
+  document.dispatchEvent(backwards);
+  expect(backwards.defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(player);
+  await act(async () => root.unmount());
+});

@@ -1,0 +1,129 @@
+import { supportsAcpMode } from "../../types";
+import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { RefreshCw } from "lucide-react";
+import { useGroupStore } from "../../stores";
+import { RUNTIME_INFO, SUPPORTED_RUNTIMES, type RuntimeMode } from "../../types";
+import { runtimeDetectionKey } from "../../utils/runtimeDetection";
+import { SelectCombobox } from "../SelectCombobox";
+import { Button } from "../ui/button";
+import { LcdSpinner } from "../LcdSpinner";
+import { LcdIcon } from "../Icons";
+
+export function RuntimeSelector({
+  value,
+  onChange,
+  runtimeMode = "default",
+  disabled = false,
+  allowUndetected = false,
+  ariaLabel,
+  className,
+  allowedRuntimes,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  runtimeMode?: RuntimeMode;
+  disabled?: boolean;
+  allowUndetected?: boolean;
+  ariaLabel?: string;
+  className?: string;
+  allowedRuntimes?: readonly string[];
+}) {
+  const { t } = useTranslation("actors");
+  const runtimes = useGroupStore((s) => s.runtimes);
+  const status = useGroupStore((s) => s.runtimeDetectionStatus);
+  const refresh = useGroupStore((s) => s.refreshRuntimes);
+  useEffect(() => {
+    if (status === "idle") void refresh();
+  }, [status, refresh]);
+  const selectedInfo = runtimes.find((item) => item.name === value);
+  const selectedKey = runtimeDetectionKey(value, selectedInfo, status, runtimeMode);
+  const captionKey = status === "error" ? "failed" : selectedKey;
+  const checking = status === "idle" || status === "loading";
+  const modeLabel = supportsAcpMode(value)
+    ? runtimeMode === "acp"
+      ? "ACP"
+      : "TUI"
+    : value === "pi"
+      ? "RPC"
+      : "";
+
+  return (
+    <div className="space-y-1">
+      <SelectCombobox
+        className={
+          className ||
+          "w-full min-h-[44px] rounded-xl border px-4 py-2.5 text-sm glass-input text-[var(--color-text-primary)]"
+        }
+        contentClassName="[&_[role=option]_.truncate]:whitespace-normal"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        ariaLabel={ariaLabel || t("runtime")}
+        items={SUPPORTED_RUNTIMES.filter(
+          (runtime) => !allowedRuntimes || allowedRuntimes.includes(runtime),
+        )
+          .map((runtime) => {
+            const info = runtimes.find((item) => item.name === runtime);
+            const key = runtimeDetectionKey(runtime, info, status);
+            const description =
+              runtime === "antigravity"
+                ? `TUI: ${t(`runtimeDetection.${key}`)} · ACP: ${t(`runtimeDetection.${runtimeDetectionKey(runtime, info, status, "acp")}`)}`
+                : key === "failed" || key === "unknown"
+                  ? t(`runtimeDetection.${key}`)
+                  : undefined;
+            return {
+              value: runtime,
+              label:
+                runtime === "pi"
+                  ? `${RUNTIME_INFO[runtime].label} (RPC)`
+                  : RUNTIME_INFO[runtime]?.label || runtime,
+              description,
+              group: key === "missing" ? t("runtimeSwitch.notDetected") : undefined,
+              disabled: !allowUndetected && runtime !== "antigravity" && key === "missing",
+            };
+          })
+          .sort((left, right) => Number(Boolean(left.group)) - Number(Boolean(right.group)))}
+        searchable
+      />
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
+        <span
+          role="status"
+          data-status-tone={
+            captionKey === "failed" || captionKey === "missing" ? "warning" : undefined
+          }
+          className={
+            captionKey === "failed" || captionKey === "missing"
+              ? "text-orange-700 dark:text-orange-300"
+              : "text-[var(--color-text-muted)]"
+          }
+        >
+          {modeLabel ? `${modeLabel}: ` : ""}
+          {t(`runtimeDetection.${captionKey}`)}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          data-lcd-key
+          size="sm"
+          className="min-h-[44px] gap-1.5 text-xs"
+          disabled={disabled || checking}
+          onClick={() => void refresh()}
+        >
+          {checking ? (
+            <LcdSpinner className="h-[13px] w-[13px]">
+              <LcdIcon icon={RefreshCw} glyph="reload" size={13} aria-hidden="true" />
+            </LcdSpinner>
+          ) : (
+            <LcdIcon icon={RefreshCw} glyph="reload" size={13} aria-hidden="true" />
+          )}
+          {t("runtimeDetection.recheck")}
+        </Button>
+      </div>
+      <p className="text-[11px] leading-4 text-[var(--color-text-muted)]">
+        {t("runtimeDetection.scope")}
+        {value === "pi" ? ` ${t("piRuntimeHint")}` : ""}
+      </p>
+    </div>
+  );
+}

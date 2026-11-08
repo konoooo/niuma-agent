@@ -1,0 +1,671 @@
+// @vitest-environment happy-dom
+import { act, type ReactNode } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { useModalStore, useUIStore } from "../../stores";
+import type { ActorSecretChanges } from "./actorSecretManagerModel";
+const mocks = vi.hoisted(() => ({ env: vi.fn(), status: vi.fn(), native: vi.fn() }));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock("../../services/api", () => ({
+  fetchActorModels: vi
+    .fn()
+    .mockResolvedValue({ ok: true, result: { models: [], available: false } }),
+  fetchGrokActorState: (...a: unknown[]) => mocks.native(...a),
+  fetchWebModelBrowserSurfaceSession: (...a: unknown[]) => mocks.status(...a),
+  fetchActorPrivateEnvKeys: (...a: unknown[]) => mocks.env(...a),
+  fetchActorProfilePrivateEnvKeys: (...a: unknown[]) => mocks.env(...a),
+}));
+vi.mock("../CapabilityPicker", () => ({ CapabilityPicker: () => <div>capability-picker</div> }));
+vi.mock("../RolePresetPicker", () => ({ RolePresetPicker: () => <div>actor-preset</div> }));
+vi.mock("../webModel/WebModelActorSetup", () => ({
+  WebModelActorSetup: ({ onOpenSharedSettings }: { onOpenSharedSettings?: () => void }) => (
+    <div>
+      conversation-setup<button onClick={onOpenSharedSettings}>shared-settings</button>
+    </div>
+  ),
+}));
+vi.mock("../webModel/DotsActorPanel", () => ({
+  DotsActorPanel: ({ onOpenSharedSettings }: { onOpenSharedSettings?: () => void }) => (
+    <div>
+      dots-event-setup<button onClick={onOpenSharedSettings}>dots-shared-settings</button>
+    </div>
+  ),
+}));
+vi.mock("./ModalFrame", () => ({
+  ModalFrame: ({
+    children,
+    footerActions,
+    isOpen,
+  }: {
+    children: ReactNode;
+    footerActions: ReactNode;
+    isOpen: boolean;
+  }) => (
+    <div data-visible={isOpen}>
+      {children}
+      {footerActions}
+    </div>
+  ),
+}));
+vi.mock("./ActorSecretManager", () => ({
+  ActorSecretManager: ({
+    changes,
+    onChangesChange,
+  }: {
+    changes: ActorSecretChanges;
+    onChangesChange: (c: ActorSecretChanges) => void;
+  }) => (
+    <button
+      onClick={() =>
+        onChangesChange({
+          ...changes,
+          setVars: { FIXTURE_KEY: "synthetic" },
+          unsetKeys: ["OLD_FIXTURE"],
+          clearAll: false,
+        })
+      }
+    >
+      stage-env-draft
+    </button>
+  ),
+}));
+import { ActorConfigModal, type EditActorConfigProps } from "./ActorConfigModal";
+
+describe("Web Model effective Actor configuration", () => {
+  const host = document.createElement("div");
+  let root: ReturnType<typeof createRoot>;
+  const props = (): EditActorConfigProps => ({
+    mode: "edit",
+    isOpen: true,
+    isDark: false,
+    busy: "",
+    groupId: "g_fixture",
+    actorId: "alpha",
+    isRunning: false,
+    savedRuntime: "codex",
+    runtimes: [],
+    runtime: "codex",
+    onChangeRuntime: vi.fn(),
+    command: "codex",
+    onChangeCommand: vi.fn(),
+    title: "Alpha",
+    onChangeTitle: vi.fn(),
+    actorNotes: "Keep these instructions",
+    onChangeActorNotes: vi.fn(),
+    capabilityAutoloadText: "skill:fixture",
+    onChangeCapabilityAutoloadText: vi.fn(),
+    actorProfiles: [],
+    actorProfilesBusy: false,
+    onSaveAsProfile: vi.fn(),
+    onSave: vi.fn().mockResolvedValue(undefined),
+    onSaveAndRestart: vi.fn().mockResolvedValue(undefined),
+    onCancel: vi.fn(),
+  });
+  beforeEach(() => {
+    mocks.native.mockImplementation(async (g: string, a: string) => ({
+      ok: true,
+      result: {
+        group_id: g,
+        actor_id: a,
+        connected: true,
+        bound: false,
+        configured: false,
+        enabled: false,
+        phase: "unconfigured",
+        pending_count: 0,
+      },
+    }));
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    vi.clearAllMocks();
+    useModalStore.getState().closeModal("settings");
+    document.body.append(host);
+    root = createRoot(host);
+    mocks.env.mockResolvedValue({ ok: true, result: { keys: ["OLD_FIXTURE"] } });
+  });
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  });
+  const button = (label: string) =>
+    [...host.querySelectorAll("button")].find((b) => b.textContent === label)!;
+  it.each([
+    { revision: 2, switches: false },
+    { revision: 3, switches: true },
+  ])(
+    "uses the applied Profile revision to distinguish a restart from a switch ($revision)",
+    async ({ revision, switches }) => {
+      const previous = useUIStore.getState();
+      useUIStore.setState({ isWebAdmin: true, webReadOnly: false });
+      const p = props();
+      p.linkedProfileId = "profile-1";
+      p.linkedProfileScope = "global";
+      p.savedActor = {
+        id: "alpha",
+        title: p.title,
+        runtime: "codex",
+        runtime_mode: "default",
+        command: ["codex"],
+        capability_autoload: ["skill:fixture"],
+        profile_id: "profile-1",
+        profile_scope: "global",
+        profile_revision_applied: 2,
+      };
+      p.actorProfiles = [
+        {
+          id: "profile-1",
+          name: "Profile",
+          scope: "global",
+          runtime: "codex",
+          runner: "pty",
+          command: ["codex"],
+          submit: "enter",
+          env: {},
+          created_at: "",
+          updated_at: "",
+          revision,
+        },
+      ];
+      try {
+        await act(async () => root.render(<ActorConfigModal {...p} />));
+        await act(async () => button("saveAndRestart").click());
+        if (switches) {
+          expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+          const confirm = [...document.querySelectorAll("button")].find(
+            (item) => item.textContent === "runtimeSwitch.confirm",
+          )!;
+          await act(async () => confirm.click());
+          expect(p.onSaveAndRestart).toHaveBeenCalledWith(
+            expect.objectContaining({ runtimeSwitch: expect.objectContaining({ start: true }) }),
+          );
+        } else {
+          expect(p.onSaveAndRestart).toHaveBeenCalledWith(
+            expect.not.objectContaining({ runtimeSwitch: expect.anything() }),
+          );
+        }
+      } finally {
+        useUIStore.setState(previous, true);
+      }
+    },
+  );
+  it("shows ACP settings on runtime selection and preserves the saved mode baseline", async () => {
+    const p = props();
+    p.runtime = "antigravity";
+    p.command = "agy";
+    p.savedRuntime = "antigravity";
+    p.savedActor = {
+      id: "alpha",
+      runtime: "antigravity",
+      runtime_mode: "acp",
+      command: ["agy"],
+      title: p.title,
+      capability_autoload: ["skill:fixture"],
+    };
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(host.textContent).toContain("antigravityMode.hint");
+    expect(button("common:done")).toBeDefined();
+    await act(async () => button("stage-env-draft").click());
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ runtimeMode: "acp" }));
+    // A partial-save snapshot must refresh the baseline without erasing the draft.
+    p.savedActor = { ...p.savedActor, runtime_mode: "default" };
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(host.textContent).toContain("antigravityMode.hint");
+    expect(button("common:save")).toBeDefined();
+  });
+  it.each(["copilot", "devin", "cursor", "kimi", "auggie", "kiro", "hermes", "droid"] as const)(
+    "preserves %s ACP mode when saving an Actor",
+    async (runtime) => {
+      const p = props();
+      p.runtime = runtime;
+      p.savedRuntime = runtime;
+      p.command = runtime === "cursor" ? "cursor-agent" : runtime;
+      p.savedActor = {
+        id: "alpha",
+        runtime,
+        runtime_mode: "acp",
+        command: [p.command],
+        title: p.title,
+        capability_autoload: ["skill:fixture"],
+      };
+      await act(async () => root.render(<ActorConfigModal {...p} />));
+      expect(host.textContent).toContain("acpMode.hint");
+      expect(button("common:done")).toBeDefined();
+      await act(async () => button("stage-env-draft").click());
+      await act(async () => button("common:save").click());
+      expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ runtimeMode: "acp" }));
+    },
+  );
+  it("saves Pi's default controlled surface without offering ACP or a native mode switch", async () => {
+    const p = props();
+    p.runtime = "pi";
+    p.savedRuntime = "pi";
+    p.command = "pi";
+    p.savedActor = {
+      id: "alpha",
+      runtime: "pi",
+      runtime_mode: "default",
+      command: ["pi"],
+      title: p.title,
+      capability_autoload: ["skill:fixture"],
+    };
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(host.textContent).toContain("piRuntimeHint");
+    expect(host.textContent).not.toContain("acpMode.hint");
+    await act(async () => button("stage-env-draft").click());
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ runtimeMode: "default" }));
+  });
+  it("retains secret drafts when unlinking succeeds but private-env saving fails", async () => {
+    const p = props();
+    p.linkedProfileId = "fixture-profile";
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("customAgent").click());
+    await act(async () => button("convertToCustom").click());
+    await act(async () => button("stage-env-draft").click());
+    p.onSave = vi.fn().mockImplementationOnce(async () => {
+      p.linkedProfileId = undefined;
+      root.render(<ActorConfigModal {...p} />);
+      throw new Error("fixture private-env write failed");
+    });
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("common:save").click());
+    expect(host.textContent).toContain("fixture private-env write failed");
+    expect(button("common:save")).toBeDefined();
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        convertToCustom: false,
+        setVars: { FIXTURE_KEY: "synthetic" },
+        unsetKeys: ["OLD_FIXTURE"],
+      }),
+    );
+    await act(async () => root.render(<ActorConfigModal {...p} actorId="beta" />));
+    expect(button("common:done")).toBeDefined();
+  });
+  it("clears committed secrets even if a later save step fails", async () => {
+    const p = props();
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("stage-env-draft").click());
+    p.actorNotes = "An unsaved note";
+    p.onSave = vi.fn().mockImplementationOnce(async (payload) => {
+      payload.onSecretsSaved(["FIXTURE_KEY"]);
+      throw new Error("fixture notes write failed");
+    });
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("common:save").click());
+    expect(host.textContent).toContain("fixture notes write failed");
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({ setVars: {}, unsetKeys: [], clear: false }),
+    );
+  });
+  it("hides launch fields without fetching secrets while preserving valid controls and saving", async () => {
+    const p = props();
+    p.runtime = "web_model";
+    p.savedRuntime = "web_model";
+    p.command = "";
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(mocks.env).not.toHaveBeenCalled();
+    expect(host.textContent).not.toContain("stage-env-draft");
+    expect(button("secretsSection")).toBeUndefined();
+    expect(host.textContent).toContain("capability-picker");
+    expect(host.textContent).toContain("actor-preset");
+    expect(host.textContent).toContain("webModelProfileHint");
+    expect(host.textContent).toContain("conversation-setup");
+    expect(host.querySelector('input[placeholder="enterCommand"]')).toBeNull();
+    expect(button("common:done").disabled).toBe(false);
+    await act(async () => button("common:done").click());
+    expect(p.onCancel).toHaveBeenCalledOnce();
+    expect(p.onSave).not.toHaveBeenCalled();
+    await act(async () => root.render(<ActorConfigModal {...p} title="Changed" />));
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        setVars: {},
+        unsetKeys: [],
+        clear: false,
+        capabilityAutoload: ["skill:fixture"],
+      }),
+    );
+  });
+  it("does not apply hidden launch drafts and restores them if the user switches back", async () => {
+    const p = props();
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("stage-env-draft").click());
+    await act(async () => root.render(<ActorConfigModal {...p} runtime="web_model" command="" />));
+    expect(host.textContent).not.toContain("conversation-setup");
+    await act(async () => button("common:save").click());
+    expect(p.onSave).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("secretDraftNotApplied");
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        setVars: { FIXTURE_KEY: "synthetic" },
+        unsetKeys: ["OLD_FIXTURE"],
+        clear: false,
+      }),
+    );
+  });
+  it("uses Dots event setup and opens the Dots settings view without browser pairing or secrets", async () => {
+    const p = props();
+    p.runtime = "chatgpt_dots";
+    p.savedRuntime = "chatgpt_dots";
+    p.command = "";
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(mocks.env).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("dots-event-setup");
+    expect(host.textContent).not.toContain("conversation-setup");
+    expect(host.textContent).not.toContain("stage-env-draft");
+    expect(host.querySelector('input[placeholder="enterCommand"]')).toBeNull();
+    await act(async () => button("dots-shared-settings").click());
+    expect(useModalStore.getState().settingsTarget).toMatchObject({
+      scope: "global",
+      tab: "webModels",
+      webModelProvider: "chatgpt_web",
+      webModelSection: "connector",
+    });
+    expect(p.onCancel).not.toHaveBeenCalled();
+  });
+  it("opening shared settings suspends the Actor dialog without discarding its draft", async () => {
+    const p = props();
+    p.runtime = "web_model";
+    p.savedRuntime = "web_model";
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("fromActorProfile").click());
+    await act(async () => button("shared-settings").click());
+    expect(useModalStore.getState().settingsTarget).toMatchObject({
+      scope: "global",
+      tab: "webModels",
+    });
+    expect(host.querySelector("[data-visible]")?.getAttribute("data-visible")).toBe("false");
+    expect(p.onCancel).not.toHaveBeenCalled();
+    await act(async () => useModalStore.getState().closeModal("settings"));
+    expect(host.querySelector("[data-visible]")?.getAttribute("data-visible")).toBe("true");
+    expect(host.textContent).toContain("selectActorProfile");
+  });
+
+  it("edits a running Grok route locally and submits once from the footer", async () => {
+    const p = props();
+    p.runtime = "grok_web_model";
+    p.savedRuntime = "grok_web_model";
+    p.isRunning = true;
+    const oldUrl = "https://grok.com/bot/1373170d-9cf2-408c-b597-e243e5884f4a";
+    const url = "https://grok.com/bot/958f2446-013f-4225-8dd3-f146295992d7";
+    mocks.native.mockResolvedValue({
+      ok: true,
+      result: {
+        group_id: "g_fixture",
+        actor_id: "alpha",
+        connected: true,
+        bound: true,
+        configured: true,
+        enabled: true,
+        bot_url: oldUrl,
+        phase: "ready",
+        pending_count: 0,
+      },
+    });
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(button("common:done")).toBeDefined();
+    await act(async () => button("grokActor.change").click());
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    expect(input.disabled).toBe(false);
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, url);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(p.onSave).not.toHaveBeenCalled();
+    expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+    expect(button("grokActor.save")).toBeUndefined();
+    expect(button("saveAndRestart")).toBeUndefined();
+    vi.stubGlobal("confirm", vi.fn().mockReturnValueOnce(false).mockReturnValue(true));
+    await act(async () => button("saveAndApply").click());
+    expect(p.onSave).not.toHaveBeenCalled();
+    expect(input.value).toBe(url);
+    p.onSave = vi.fn().mockRejectedValueOnce(new Error("delivery_unresolved"));
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("saveAndApply").click());
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ grokBotUrl: url }));
+    expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+    expect(input.value).toBe(url);
+    expect(host.textContent).toContain("delivery_unresolved");
+  });
+
+  it("keeps Bot URL drafts editable but defers the footer apply until the task completes", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    try {
+      const p = props();
+      p.runtime = "grok_web_model";
+      p.savedRuntime = "grok_web_model";
+      p.isRunning = true;
+      const result = {
+        group_id: "g_fixture",
+        actor_id: "alpha",
+        connected: true,
+        bound: true,
+        configured: true,
+        enabled: true,
+        phase: "working",
+        pending_count: 0,
+        bot_url: "https://grok.com/bot/00000000-0000-4000-8000-000000000001",
+        active_turn_id: "task",
+      };
+      mocks.native.mockResolvedValue({ ok: true, result });
+      await act(async () => root.render(<ActorConfigModal {...p} />));
+      await act(async () => button("grokActor.change").click());
+      const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+      const next = "https://grok.com/bot/00000000-0000-4000-8000-000000000002";
+      expect(input.disabled).toBe(false);
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          input,
+          next,
+        );
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(button("saveAndApply").disabled).toBe(true);
+      expect(host.textContent).toContain("grokWebhook.waitForTask");
+      expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+      mocks.native.mockResolvedValue({
+        ok: true,
+        result: { ...result, active_turn_id: null, phase: "ready" },
+      });
+      await act(async () => vi.advanceTimersByTime(2000));
+      expect(input.value).toBe(next);
+      expect(button("saveAndApply").disabled).toBe(false);
+      await act(async () => button("saveAndApply").click());
+      expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ grokBotUrl: next }));
+      expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("saves an Actor-local Bot URL while retaining its linked Grok Profile", async () => {
+    const p = props();
+    p.runtime = "grok_web_model";
+    p.savedRuntime = "grok_web_model";
+    p.linkedProfileId = "grok-profile";
+    p.actorProfiles = [
+      {
+        id: "grok-profile",
+        name: "Grok",
+        runtime: "grok_web_model",
+        scope: "global",
+        runner: "headless",
+        command: [],
+        submit: "enter",
+        env: {},
+        created_at: "",
+        updated_at: "",
+        revision: 1,
+      },
+    ];
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    const url = "https://grok.com/bot/1373170d-9cf2-408c-b597-e243e5884f4a";
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, url);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(button("common:save")).toBeDefined();
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "profile", grokBotUrl: url }),
+    );
+  });
+
+  it("compares a failed multi-step save against the persisted Actor while keeping the draft", async () => {
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    const p = props();
+    p.savedActor = {
+      id: p.actorId,
+      runtime: "codex",
+      command: ["codex"],
+      title: p.title,
+      capability_autoload: ["skill:fixture"],
+    };
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () =>
+      root.render(<ActorConfigModal {...p} runtime="grok_web_model" title="Saved title" />),
+    );
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+    const url = "https://grok.com/bot/1373170d-9cf2-408c-b597-e243e5884f4a";
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, url);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    p.onSave = vi.fn().mockRejectedValue(new Error("connector missing"));
+    p.savedRuntime = "grok_web_model";
+    p.savedActor = { ...p.savedActor, runtime: "grok_web_model", title: "Saved title" };
+    await act(async () =>
+      root.render(<ActorConfigModal {...p} runtime="grok_web_model" title="Saved title" />),
+    );
+    await act(async () => button("common:save").click());
+    expect(host.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe(url);
+    // Restore the old runtime/title after the server saved the new configuration.
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(button("common:save")).toBeDefined();
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ grokBotUrl: expect.anything() }),
+    );
+  });
+
+  it("accepts a Bot URL immediately when switching to Grok and submits it with the runtime draft", async () => {
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    const p = props();
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => root.render(<ActorConfigModal {...p} runtime="grok_web_model" />));
+    const input = host.querySelector<HTMLInputElement>('input[type="url"]');
+    expect(input).not.toBeNull();
+    expect(input!.disabled).toBe(false);
+    expect(button("common:save").disabled).toBe(true);
+    const fill = async (value: string) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+          input,
+          value,
+        );
+        input!.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    await fill("https://grok.com/");
+    await act(async () => button("common:save").click());
+    expect(p.onSave).not.toHaveBeenCalled();
+    expect(host.textContent).toContain("settings:grokActor.invalidUrl");
+    const url = "https://grok.com/bot/1373170d-9cf2-408c-b597-e243e5884f4a";
+    await fill(url);
+    p.onSave = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("fixture bind failed"))
+      .mockResolvedValue(undefined);
+    await act(async () => root.render(<ActorConfigModal {...p} runtime="grok_web_model" />));
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ grokBotUrl: url }));
+    expect(input!.value).toBe(url);
+    expect(host.textContent).toContain("fixture bind failed");
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    expect(host.querySelector('input[type="url"]')).toBeNull();
+    const calls = vi.mocked(p.onSave).mock.calls.length;
+    await act(async () => button("common:done").click());
+    expect(p.onSave).toHaveBeenCalledTimes(calls);
+    await act(async () => root.render(<ActorConfigModal {...p} runtime="grok_web_model" />));
+    expect(host.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe(url);
+    await act(async () =>
+      root.render(<ActorConfigModal {...p} actorId="beta" runtime="grok_web_model" />),
+    );
+    expect(host.querySelector<HTMLInputElement>('input[type="url"]')!.value).toBe("");
+  });
+
+  it("offers separate save and safe restart actions when changing a running member to Grok", async () => {
+    const confirmSave = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    vi.stubGlobal("confirm", confirmSave);
+    const before = useUIStore.getState();
+    useUIStore.setState({ isWebAdmin: true, webReadOnly: false });
+    const p = props();
+    p.isRunning = true;
+    p.savedActor = {
+      id: p.actorId,
+      generation: "generation-1",
+      updated_at: "2026-01-01T00:00:00Z",
+      runtime: "codex",
+      command: ["codex"],
+      title: p.title,
+      capability_autoload: ["skill:fixture"],
+    };
+    try {
+      await act(async () => root.render(<ActorConfigModal {...p} />));
+      await act(async () => root.render(<ActorConfigModal {...p} runtime="grok_web_model" />));
+      const input = host.querySelector<HTMLInputElement>('input[type="url"]')!;
+      const url = "https://grok.com/bot/1373170d-9cf2-408c-b597-e243e5884f4a";
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, url);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      expect(button("common:save")).toBeDefined();
+      expect(button("saveAndRestart")).toBeDefined();
+      await act(async () => button("common:save").click());
+      expect(confirmSave).toHaveBeenCalledWith("runtimeSwitch.managedToWebSaveConfirm");
+      expect(p.onSave).not.toHaveBeenCalled();
+      await act(async () => button("common:save").click());
+      expect(p.onSave).toHaveBeenCalledWith(expect.objectContaining({ grokBotUrl: url }));
+      expect(p.onSaveAndRestart).not.toHaveBeenCalled();
+
+      await act(async () => button("saveAndRestart").click());
+      expect(document.body.textContent).toContain("runtimeSwitch.managedToWeb");
+      const confirm = [...document.querySelectorAll("button")].find(
+        (item) => item.textContent === "runtimeSwitch.confirm",
+      )!;
+      await act(async () => confirm.click());
+      expect(p.onSaveAndRestart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          grokBotUrl: url,
+          runtimeSwitch: expect.objectContaining({ start: true }),
+        }),
+      );
+    } finally {
+      useUIStore.setState(before, true);
+    }
+  });
+
+  it("warns before saving away from a Web conversation that may still be processing", async () => {
+    const confirmSave = vi.fn().mockReturnValueOnce(false).mockReturnValue(true);
+    vi.stubGlobal("confirm", confirmSave);
+    const p = props();
+    p.savedRuntime = "web_model";
+    p.runtime = "web_model";
+    p.savedActor = { id: p.actorId, runtime: "web_model", title: p.title };
+    await act(async () => root.render(<ActorConfigModal {...p} />));
+    await act(async () => button("runtimeSwitch.managed").click());
+    await act(async () => root.render(<ActorConfigModal {...p} runtime="codex" />));
+    await act(async () => button("common:save").click());
+    expect(confirmSave).toHaveBeenCalledWith("runtimeSwitch.oldWebSaveConfirm");
+    expect(p.onSave).not.toHaveBeenCalled();
+    await act(async () => button("common:save").click());
+    expect(p.onSave).toHaveBeenCalledOnce();
+  });
+});

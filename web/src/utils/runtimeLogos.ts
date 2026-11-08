@@ -1,0 +1,37 @@
+import type { SupportedRuntime } from "../types";
+
+type RuntimeLogoRuntime = Exclude<SupportedRuntime, "custom">;
+
+export const RUNTIME_LOGO_FILE_BY_RUNTIME: Partial<Record<RuntimeLogoRuntime, string>> = {
+  amp: "logos/amp.png",
+  auggie: "logos/auggie.png",
+  cline: "logos/cline.svg",
+  codex: "logos/codex.png",
+  deepseek: "logos/deepseek.svg",
+  copilot: "logos/copilot.svg",
+  cursor: "logos/cursor.svg",
+  devin: "logos/devin.svg",
+  kiro: "logos/kiro.svg",
+  kilo: "logos/kilo.svg",
+  antigravity: "logos/antigravity.svg",
+  droid: "logos/droid.png",
+  grok: "logos/grok.svg",
+  hermes: "logos/hermes.svg",
+  kimi: "logos/kimi.png",
+  opencode: "logos/opencode.svg",
+  pi: "logos/pi.svg",
+  web_model: "logos/codex.png",
+  chatgpt_dots: "logos/chatgpt-dots.png",
+  grok_web_model: "logos/grok-bot.svg",
+};
+
+function normalizeRuntime(runtime: string | null | undefined): RuntimeLogoRuntime {
+  return String(runtime || "")
+    .trim()
+    .toLowerCase() as RuntimeLogoRuntime;
+}
+
+export function getRuntimeLogoSrc(runtime: string | null | undefined): string | null {
+  const relativePath = RUNTIME_LOGO_FILE_BY_RUNTIME[normalizeRuntime(runtime)];
+  return relativePath ? `${import.meta.env.BASE_URL}${relativePath}` : null;
+}

@@ -1,0 +1,41 @@
+---
+layout: home
+
+hero:
+  name: CCCC
+  text: Coordinate coding agents like a group chat
+  tagline: Read receipts, delivery tracking, and phone-side ops across 17 first-class runtimes, including Claude Code, Cline, Codex, and ChatGPT Web — local-first, one native product
+  image:
+    src: /logo.svg
+    alt: CCCC
+  actions:
+    - theme: brand
+      text: Start in 10 Minutes
+      link: /guide/getting-started
+    - theme: alt
+      text: High-ROI Use Cases
+      link: /guide/use-cases
+    - theme: alt
+      text: SDK Integration
+      link: /sdk/
+
+features:
+  - icon: 🤖
+    title: Multi-Agent Runtime Orchestration
+    details: Coordinate multiple coding agents in one group with clear recipient semantics and role-aware operations.
+  - icon: 📝
+    title: Durable Collaboration Ledger
+    details: Every event is append-only and replayable, so you can debug, audit, and recover without losing context.
+  - icon: 🌐
+    title: Unified Control Plane
+    details: Web UI, CLI, MCP, and IM bridge all map to one daemon truth model.
+  - icon: 💬
+    title: IM-Grade Collaboration Semantics
+    details: Use @routing, explicit Mail or Send delivery, read status, and concrete reply obligations for reliable coordination.
+  - icon: 🔧
+    title: Automation + Operations
+    details: Combine reminders, one-time operational actions, and policy guardrails to keep groups moving.
+  - icon: 🔌
+    title: Remote-Ready by Design
+    details: Bridge to Telegram, Slack, Discord, Feishu, DingTalk, and WeCom for mobile ops and out-of-band intervention.
+---

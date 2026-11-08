@@ -1,0 +1,51 @@
+{
+  "name": "@pixoffice/animation-frame",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "lib",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "import": "./lib/index.js"
+    },
+    "./FrameAdapter": {
+      "types": "./lib/FrameAdapter.d.ts",
+      "import": "./lib/FrameAdapter.js"
+    },
+    "./AssetLoadQueue": {
+      "types": "./lib/AssetLoadQueue.d.ts",
+      "import": "./lib/AssetLoadQueue.js"
+    },
+    "./CharacterPackResources": {
+      "types": "./lib/CharacterPackResources.d.ts",
+      "import": "./lib/CharacterPackResources.js"
+    },
+    "./resources/ResourceLeaseCache": {
+      "types": "./lib/resources/ResourceLeaseCache.d.ts",
+      "import": "./lib/resources/ResourceLeaseCache.js"
+    },
+    "./resources": {
+      "types": "./lib/resources.d.ts",
+      "import": "./lib/resources.js"
+    },
+    "./packSchema": {
+      "types": "./lib/packSchema.d.ts",
+      "import": "./lib/packSchema.js"
+    },
+    "./FrameSprite": {
+      "types": "./lib/FrameSprite.d.ts",
+      "import": "./lib/FrameSprite.js"
+    }
+  },
+  "dependencies": {
+    "@pixoffice/contracts": "0.1.0",
+    "zod": "^4.6.5"
+  },
+  "peerDependencies": {
+    "pixi.js": "^8.18.1"
+  }
+}

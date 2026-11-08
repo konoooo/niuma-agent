@@ -1,0 +1,309 @@
+use fs2::FileExt;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use std::fs::OpenOptions;
+use std::fs::{self, File};
+use std::io::{self, Write};
+use std::path::Path;
+
+pub fn atomic_write(path: &Path, data: &[u8]) -> io::Result<()> {
+    atomic_write_with(path, data, false)
+}
+
+/// Atomic replace that carries the destination's existing permissions onto the replacement.
+///
+/// Internal state files are fine with the temp file's private mode, but a user's workspace file
+/// is not: replacing a `0755` script through a fresh temp file would silently drop its
+/// executable bit and its group/other read access.
+pub fn atomic_write_preserving_mode(path: &Path, data: &[u8]) -> io::Result<()> {
+    atomic_write_with(path, data, true)
+}
+
+fn atomic_write_with(path: &Path, data: &[u8], preserve_mode: bool) -> io::Result<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| io::Error::other("path has no parent"))?;
+    fs::create_dir_all(parent)?;
+    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    temp.write_all(data)?;
+    temp.as_file().sync_all()?;
+    // Applied before persist so the destination is never briefly owner-only.
+    if preserve_mode && let Ok(existing) = fs::metadata(path) {
+        temp.as_file().set_permissions(existing.permissions())?;
+    }
+    // Replace with the standard library's rename: on Windows it can replace a
+    // file that another handle is reading, where tempfile's persist is refused.
+    // Keeping the temporary path first clears its temporary-file attribute.
+    let kept = temp.into_temp_path().keep().map_err(|error| error.error)?;
+    if let Err(error) = fs::rename(&kept, path) {
+        let _ = fs::remove_file(&kept);
+        return Err(error);
+    }
+    sync_dir(parent)
+}
+
+pub fn write_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+    let mut bytes = serde_json::to_vec_pretty(value).map_err(io::Error::other)?;
+    bytes.push(b'\n');
+    atomic_write(path, &bytes)
+}
+
+pub fn write_json_committed<T>(path: &Path, value: &T) -> io::Result<()>
+where
+    T: Serialize + DeserializeOwned + PartialEq,
+{
+    write_json_committed_with(path, value, write_json)
+}
+
+pub(crate) fn write_json_committed_with<T>(
+    path: &Path,
+    value: &T,
+    write: impl FnOnce(&Path, &T) -> io::Result<()>,
+) -> io::Result<()>
+where
+    T: Serialize + DeserializeOwned + PartialEq,
+{
+    match write(path, value) {
+        Ok(()) => Ok(()),
+        Err(error) => match read_json::<T>(path) {
+            Ok(actual) if actual == *value => Ok(()),
+            _ => Err(error),
+        },
+    }
+}
+
+pub fn write_secret_json<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+    write_json(path, value)?;
+    protect(path)
+}
+
+pub fn read_json<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
+    serde_json::from_slice(&fs::read(path)?).map_err(io::Error::other)
+}
+
+pub fn write_yaml<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+    let text = serde_yaml::to_string(value).map_err(io::Error::other)?;
+    let text = quote_rfc3339_yaml_scalars(&text);
+    atomic_write(path, text.as_bytes())
+}
+
+fn quote_rfc3339_yaml_scalars(text: &str) -> String {
+    text.split_inclusive('\n')
+        .map(|line| {
+            let body = line.strip_suffix('\n').unwrap_or(line);
+            let newline = if line.ends_with('\n') { "\n" } else { "" };
+            let Some((prefix, scalar)) = yaml_scalar_parts(body) else {
+                return line.to_owned();
+            };
+            if chrono::DateTime::parse_from_rfc3339(scalar).is_err() {
+                return line.to_owned();
+            }
+            format!(
+                "{prefix}{}{}",
+                serde_json::to_string(scalar).unwrap_or_else(|_| "\"\"".into()),
+                newline
+            )
+        })
+        .collect()
+}
+
+fn yaml_scalar_parts(line: &str) -> Option<(&str, &str)> {
+    let trimmed = line.trim_start();
+    if let Some(scalar) = trimmed.strip_prefix("- ") {
+        let prefix_len = line.len() - trimmed.len() + 2;
+        return Some((&line[..prefix_len], scalar.trim()));
+    }
+    let separator = line.find(": ")?;
+    let scalar_start = separator + 2;
+    Some((&line[..scalar_start], line[scalar_start..].trim()))
+}
+
+pub fn write_yaml_committed<T>(path: &Path, value: &T) -> io::Result<()>
+where
+    T: Serialize + DeserializeOwned + PartialEq,
+{
+    match write_yaml(path, value) {
+        Ok(()) => Ok(()),
+        Err(error) => match read_yaml::<T>(path) {
+            Ok(actual) if actual == *value => Ok(()),
+            _ => Err(error),
+        },
+    }
+}
+
+pub fn write_secret_yaml<T: Serialize>(path: &Path, value: &T) -> io::Result<()> {
+    write_yaml(path, value)?;
+    protect(path)
+}
+
+pub fn read_yaml<T: DeserializeOwned>(path: &Path) -> io::Result<T> {
+    serde_yaml::from_reader(File::open(path)?).map_err(io::Error::other)
+}
+
+pub fn with_exclusive_lock<T>(
+    path: &Path,
+    operation: impl FnOnce() -> io::Result<T>,
+) -> io::Result<T> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    file.lock_exclusive()?;
+    let result = operation();
+    // The descriptor is dropped on return and releases the advisory lock even if an explicit
+    // unlock reports an OS-level error. Do not turn a committed operation into an ambiguous
+    // failure after its durable write has already completed.
+    let _ = FileExt::unlock(&file);
+    result
+}
+
+/// An exclusive advisory lock held until the returned file is dropped, or
+/// `None` while another holder has it. It never waits, and the OS releases it
+/// when its holder exits, however that happens. Holders must not delete the
+/// file: a new file under the same name would be a second, unrelated lock.
+pub fn try_exclusive_lock(path: &Path) -> io::Result<Option<File>> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    match file.try_lock_exclusive() {
+        Ok(()) => Ok(Some(file)),
+        Err(error) if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() => {
+            Ok(None)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(unix)]
+pub(crate) fn sync_dir(path: &Path) -> io::Result<()> {
+    File::open(path)?.sync_all()
+}
+
+#[cfg(unix)]
+fn protect(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
+}
+
+#[cfg(not(unix))]
+fn protect(_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub(crate) fn sync_dir(_path: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::quote_rfc3339_yaml_scalars;
+
+    #[test]
+    fn a_held_lock_answers_busy_to_another_open_until_it_is_dropped() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("nested/work.lock");
+
+        let held = super::try_exclusive_lock(&path)
+            .expect("lock")
+            .expect("free");
+        assert!(super::try_exclusive_lock(&path).expect("lock").is_none());
+
+        drop(held);
+        assert!(super::try_exclusive_lock(&path).expect("lock").is_some());
+    }
+
+    #[test]
+    fn an_atomic_write_replaces_a_file_another_handle_is_reading() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("group.yaml");
+        super::atomic_write(&path, b"old").expect("first write");
+        // As the daemon or the Web reading the same file at that moment.
+        let mut reader = std::fs::File::open(&path).expect("reader");
+        super::atomic_write(&path, b"new").expect("replace while it is being read");
+        // The reader keeps what it opened; the path has the new content.
+        let mut held = Vec::new();
+        std::io::Read::read_to_end(&mut reader, &mut held).expect("read held file");
+        assert_eq!(held, b"old");
+        assert_eq!(std::fs::read(&path).expect("read"), b"new");
+        drop(reader);
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::MetadataExt;
+            const FILE_ATTRIBUTE_TEMPORARY: u32 = 0x100;
+            let attributes = std::fs::metadata(&path)
+                .expect("metadata")
+                .file_attributes();
+            assert_eq!(
+                attributes & FILE_ATTRIBUTE_TEMPORARY,
+                0,
+                "kept as a temporary file"
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_atomic_write_leaves_no_temporary_file() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("taken");
+        std::fs::create_dir(&path).expect("a directory where the file would go");
+        assert!(super::atomic_write(&path, b"new").is_err());
+        let names: Vec<_> = std::fs::read_dir(temp.path())
+            .expect("list")
+            .map(|entry| entry.expect("entry").file_name())
+            .collect();
+        assert_eq!(names, ["taken"]);
+    }
+
+    /// Windows refuses to replace a read-only file, and an atomic write keeps
+    /// that refusal rather than overriding a user's read-only setting.
+    #[cfg(windows)]
+    #[test]
+    #[allow(clippy::permissions_set_readonly_false)]
+    fn an_atomic_write_leaves_a_read_only_file_as_it_is() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("locked.txt");
+        std::fs::write(&path, b"old").expect("write");
+        let set_readonly = |readonly: bool| {
+            let mut permissions = std::fs::metadata(&path).expect("metadata").permissions();
+            permissions.set_readonly(readonly);
+            std::fs::set_permissions(&path, permissions).expect("permissions");
+        };
+        set_readonly(true);
+        let result = super::atomic_write(&path, b"new");
+        let content = std::fs::read(&path).expect("read");
+        let still_readonly = std::fs::metadata(&path)
+            .expect("metadata")
+            .permissions()
+            .readonly();
+        set_readonly(false);
+        assert_eq!(
+            result.expect_err("read-only target").kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert_eq!(content, b"old");
+        assert!(still_readonly);
+    }
+
+    #[test]
+    fn python_yaml_loaders_keep_rfc3339_values_as_strings() {
+        let output = quote_rfc3339_yaml_scalars(
+            "created_at: 2026-07-31T01:02:03.456789Z\nitems:\n- 2026-07-31T01:02:03Z\n",
+        );
+        assert_eq!(
+            output,
+            "created_at: \"2026-07-31T01:02:03.456789Z\"\nitems:\n- \"2026-07-31T01:02:03Z\"\n"
+        );
+    }
+}

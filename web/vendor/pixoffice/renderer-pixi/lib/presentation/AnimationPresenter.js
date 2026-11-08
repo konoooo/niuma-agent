@@ -1,0 +1,69 @@
+import { assessVisualRequest } from '@pixoffice/contracts/animationSupport';
+export function resolveVisualRequest(manifest, intent) {
+    const find = (action) => manifest.capabilities.variants.find(v => v.actionId === action && v.poseId === intent.poseId && v.view === intent.view);
+    // Leisure is optional artwork; its defined default is the same pose's neutral idle.
+    // Speech interrupts leisure rather than combining a drink/read animation with a mouth layer.
+    const base = intent.actionId === 'core.leisure'
+        ? (!intent.speech && find('core.leisure')) || find('core.idle')
+        : find(intent.actionId);
+    if (!base)
+        throw new Error(`Unsupported action: ${manifest.asset.id} / ${intent.actionId}.${intent.poseId}.${intent.view}`);
+    const speech = intent.speech && find('core.speak');
+    const request = { poseId: intent.poseId, view: intent.view, variantIds: [base.variantId, ...(speech ? [speech.variantId] : [])], contactProfileId: intent.contactProfileId };
+    const support = assessVisualRequest(manifest, request);
+    if (!support.supported)
+        throw new Error(`Unsupported action combination: ${support.missing.join(', ')}`);
+    return request;
+}
+/** Host-controlled clocks. Direction changes preserve gait phase; action changes restart it. */
+export class AnimationPresenter {
+    action = '';
+    elapsedMs = 0;
+    travelledDu = 0;
+    generation = 0;
+    speech = '';
+    speechMs = 0;
+    speechGeneration = 0;
+    previousPosition;
+    previousGroundPosition;
+    sample(actor, manifest, dt) {
+        const intent = actor.intent, actionId = intent.actionId === 'core.leisure' && intent.speech ? 'core.idle' : intent.actionId;
+        const key = `${actionId}:${intent.poseId}`, ms = Math.max(0, Number.isFinite(dt) ? dt * 1000 : 0);
+        if (this.action !== key) {
+            this.action = key;
+            this.elapsedMs = 0;
+            this.travelledDu = 0;
+            this.generation++;
+        }
+        if (this.speech !== (intent.speech ?? '')) {
+            this.speech = intent.speech ?? '';
+            this.speechMs = 0;
+            this.speechGeneration++;
+        }
+        this.elapsedMs += ms;
+        if (this.speech)
+            this.speechMs += ms;
+        if (actor.locomotion) {
+            if (!Number.isFinite(actor.locomotion.strideCells) || actor.locomotion.strideCells <= 0)
+                throw new Error('Invalid ground-space stride');
+            if (intent.actionId === 'core.walk' && this.previousGroundPosition)
+                this.travelledDu += Math.hypot(actor.locomotion.position.x - this.previousGroundPosition.x, actor.locomotion.position.y - this.previousGroundPosition.y) / actor.locomotion.strideCells * .72;
+            this.previousGroundPosition = { ...actor.locomotion.position };
+        }
+        else {
+            this.previousGroundPosition = undefined;
+            if (intent.actionId === 'core.walk' && this.previousPosition)
+                this.travelledDu += Math.hypot(actor.position.x - this.previousPosition.x, actor.position.y - this.previousPosition.y) / actor.displayHeight;
+        }
+        this.previousPosition = { ...actor.position };
+        const request = resolveVisualRequest(manifest, intent);
+        return { entityId: actor.id, request, contacts: intent.contacts ?? [], actions: request.variantIds.map(variantId => {
+                const speech = manifest.capabilities.variants.find(v => v.variantId === variantId)?.channel === 'speech';
+                return { variantId, instanceId: `${actor.id}:${speech ? 'speech' : 'body'}:${speech ? this.speechGeneration : this.generation}`,
+                    clock: speech ? { mode: 'time', elapsedMs: this.speechMs, loop: true }
+                        : intent.progress !== undefined ? { mode: 'progress', progress: intent.progress }
+                            : intent.actionId === 'core.walk' ? { mode: 'distance', travelledDu: this.travelledDu, strideDu: .72 }
+                                : { mode: 'time', elapsedMs: this.elapsedMs, loop: true } };
+            }) };
+    }
+}

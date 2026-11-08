@@ -1,0 +1,218 @@
+.office-animation {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  padding: clamp(6px, 1vw, 12px);
+  background: var(--color-bg-secondary);
+}
+
+.office-animation__stage {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 14px;
+  background: #ebece8;
+}
+
+.office-animation__stage-top {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  right: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.office-animation__stage-top > span,
+.office-animation__pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #53655b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 4px 16px rgba(46, 55, 48, 0.08);
+}
+
+.office-animation__pager {
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.office-animation__stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: auto;
+}
+
+.office-animation__pending-summary,
+.office-canvas__attention button {
+  border: 1px solid #9a620e;
+  border-radius: 999px;
+  background: #ffdf9b;
+  color: #4b2e06;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(70, 43, 6, 0.18);
+}
+
+.office-animation__pending-summary {
+  padding: 6px 9px;
+}
+
+.office-canvas__attention {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  visibility: hidden;
+  transform: translateY(-50%);
+}
+
+.office-canvas__attention button {
+  padding: 4px 7px;
+}
+
+.office-animation__pending-summary:focus-visible,
+.office-canvas__attention button:focus-visible,
+.office-animation__pending-menu button:focus-visible {
+  outline: 2px solid var(--color-accent-secondary);
+  outline-offset: 2px;
+}
+
+.office-animation__pending-menu {
+  position: absolute;
+  z-index: 4;
+  top: 52px;
+  right: 10px;
+  display: flex;
+  width: min(320px, calc(100% - 20px));
+  max-height: calc(100% - 62px);
+  flex-direction: column;
+  gap: 4px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 12px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.2);
+}
+
+.office-animation__pending-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 6px;
+  font-size: 12px;
+}
+
+.office-animation__pending-menu-header button {
+  width: 26px;
+  height: 26px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.office-animation__pending-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.office-animation__pending-item:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.office-animation__pending-item strong {
+  font-size: 12px;
+}
+
+.office-animation__pending-item span {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.office-animation__pager button {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #53655b;
+  font-size: 19px;
+  line-height: 20px;
+}
+
+.office-animation__pager button:disabled {
+  opacity: 0.3;
+}
+
+.office-animation__pager button:focus-visible {
+  outline: 2px solid var(--color-accent-secondary);
+  outline-offset: 2px;
+}
+
+.office-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.office-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.office-canvas__notice,
+.office-animation__empty {
+  position: absolute;
+  z-index: 1;
+  right: 20px;
+  bottom: 18px;
+  left: 20px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #58665d;
+  font-size: 12px;
+  text-align: center;
+}
+
+.office-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: #a9b3ad;
+}
+
+.office-dot--working {
+  background: #45a778;
+}

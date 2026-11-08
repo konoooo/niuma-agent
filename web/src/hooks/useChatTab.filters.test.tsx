@@ -1,0 +1,485 @@
+// @vitest-environment happy-dom
+import { act } from "react";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import * as api from "../services/api";
+import { useComposerStore, useGroupStore, useUIStore } from "../stores";
+import { EMPTY_CHAT_BUCKET } from "../stores/groupStoreCore";
+import { getChatSession } from "../stores/useUIStore";
+import type { Actor, GroupMeta, LedgerEvent } from "../types";
+import { useChatTab } from "./useChatTab";
+import { ChatSenderFilter } from "../pages/chat/ChatSenderFilter";
+import * as composerSendPlan from "./composerSendPlan";
+import { useAppGroupLifecycle } from "./useAppGroupLifecycle";
+import { PendingSummaryContext } from "../features/pendingReplies/context";
+import type { Summary } from "../features/pendingReplies/usePendingSummary";
+import { fetchPendingReplies } from "../services/api/pendingReplies";
+
+vi.mock("../services/api", () => ({
+  sendMessage: vi.fn(),
+  sendCrossGroupMessage: vi.fn(),
+  searchChatMessages: vi.fn(),
+  fetchMessageWindow: vi.fn(),
+}));
+// The Waiting for you view reads its own pages; tests give them, without the network.
+vi.mock("../services/api/pendingReplies", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../services/api/pendingReplies")>()),
+  fetchPendingReplies: vi.fn(),
+}));
+vi.mock("./useSlashCommandState", () => ({
+  useSlashCommandState: () => ({ items: [], loading: false }),
+}));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+const actors = [
+  { id: "leader", title: "Coordinator", runtime: "custom", role: "foreman", enabled: false },
+] as Actor[];
+const message = (id: string, by: string): LedgerEvent => ({
+  id,
+  by,
+  kind: "chat.message",
+  group_id: "a",
+  ts: `2026-10-15T00:00:0${id}Z`,
+  data: { text: `text ${id}`, to: ["user"], message_mode: "send" },
+});
+let root: Root;
+let host: HTMLDivElement;
+let chat: ReturnType<typeof useChatTab>;
+const noop = () => undefined;
+function Harness() {
+  const selectedGroupId = useGroupStore((state) => state.selectedGroupId);
+  chat = useChatTab({
+    selectedGroupId,
+    selectedGroupRunning: false,
+    actors,
+    recipientActors: actors,
+  });
+  useAppGroupLifecycle({
+    selectedGroupId,
+    destGroupId: selectedGroupId,
+    sendGroupId: selectedGroupId,
+    hasReplyTarget: false,
+    setDestGroupId: noop,
+    fileInputRef: { current: null },
+    resetDragDrop: noop,
+    setActiveTab: useUIStore.getState().setActiveTab,
+    closeChatWindow: useGroupStore.getState().closeChatWindow,
+    loadGroup: noop,
+    connectStream: noop,
+    cleanupSSE: noop,
+  });
+  return (
+    <ChatSenderFilter
+      value={chat.chatSenderFilter}
+      actors={actors}
+      onChange={chat.setChatSenderFilter}
+    />
+  );
+}
+beforeEach(async () => {
+  vi.resetAllMocks();
+  vi.mocked(fetchPendingReplies).mockReturnValue(new Promise<never>(() => {}));
+  useComposerStore.setState({ ...useComposerStore.getInitialState() });
+  useGroupStore.setState({
+    selectedGroupId: "a",
+    actors,
+    groups: [
+      { group_id: "a", title: "Test" },
+      { group_id: "b", title: "Other" },
+    ] as GroupMeta[],
+    groupDoc: null,
+    groupSettings: null,
+    groupContext: null,
+    chatByGroup: {
+      a: {
+        ...EMPTY_CHAT_BUCKET,
+        hasLoadedTail: true,
+        hasMoreHistory: true,
+        events: [message("1", "worker")],
+      },
+    },
+  });
+  useUIStore.setState({
+    chatSessions: {},
+    busy: "",
+    errorMsg: "",
+    notice: null,
+    activeTab: "chat",
+  });
+  useComposerStore.getState().switchGroup(null, "a");
+  vi.mocked(api.searchChatMessages).mockResolvedValue({
+    ok: true,
+    result: { events: [message("2", "leader")], count: 1, has_more: false },
+  });
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () => root.render(<Harness />));
+});
+afterEach(async () => {
+  await act(async () => root.unmount());
+  host.remove();
+  useUIStore.getState().dismissNotice();
+  vi.restoreAllMocks();
+});
+
+it("keeps sender history separate, then restores complete raw history on clear", async () => {
+  const workBefore = chat.liveWorkEvents;
+  await act(async () => chat.setChatSenderFilter(["leader"]));
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["2"]);
+  expect(chat.liveWorkEvents).toEqual(workBefore);
+  expect(chat.suggestionSourceMessages.map((event) => event.id)).toEqual(["1"]);
+  expect(useGroupStore.getState().chatByGroup.a.hasMoreHistory).toBe(true);
+  await act(async () => chat.setChatSenderFilter([]));
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["1"]);
+  expect(chat.hasMoreHistory).toBe(true);
+});
+
+it("clears only the sender with its close button and keeps the message type selected", async () => {
+  await act(async () => {
+    chat.setChatFilter("user");
+    chat.setChatSenderFilter(["leader"]);
+  });
+  const clear = host.querySelector<HTMLButtonElement>('button[aria-label="clearSenderFilter"]');
+  expect(clear).not.toBeNull();
+  await act(async () => clear!.click());
+  expect(chat).toMatchObject({ chatSenderFilter: [], chatFilter: "user" });
+  expect(getChatSession("a", useUIStore.getState().chatSessions)).toMatchObject({
+    chatSenderFilter: [],
+    chatFilter: "user",
+  });
+  expect(host.querySelector('button[aria-label="clearSenderFilter"]')).toBeNull();
+  expect(document.activeElement).toBe(host.querySelector('button[aria-haspopup="dialog"]'));
+});
+
+it("reads and displays a selected sender union without changing the raw Group cache", async () => {
+  const events = [message("1", "worker"), message("2", "leader")];
+  vi.mocked(api.searchChatMessages).mockResolvedValue({
+    ok: true,
+    result: { events, count: 2, has_more: false },
+  });
+  await act(async () => chat.setChatSenderFilter(["worker", "leader"]));
+  expect(chat.chatMessages.map((event) => event.by)).toEqual(["worker", "leader"]);
+  expect(api.searchChatMessages).toHaveBeenLastCalledWith(
+    "a",
+    "",
+    { byAny: ["leader", "worker"], before: undefined, limit: 50 },
+    expect.anything(),
+  );
+  expect(useGroupStore.getState().chatByGroup.a.events.map((event) => event.id)).toEqual(["1"]);
+});
+
+it("keeps filters when sending and offers the exact hidden message in full context", async () => {
+  const sent = message("3", "user");
+  vi.mocked(api.sendMessage).mockResolvedValue({ ok: true, result: { event: sent } });
+  vi.mocked(api.fetchMessageWindow).mockResolvedValue({
+    ok: true,
+    result: {
+      center_id: "3",
+      center_index: 1,
+      events: [message("2", "leader"), sent],
+      count: 2,
+      has_more_before: false,
+      has_more_after: false,
+    },
+  });
+  await act(async () => {
+    chat.setChatSenderFilter(["leader"]);
+    useComposerStore.getState().setComposerText("hello");
+  });
+  await act(async () => {
+    await chat.sendMessage();
+  });
+  expect(chat.chatSenderFilter).toEqual(["leader"]);
+  expect(chat.chatMessages.map((event) => event.by)).toEqual(["leader"]);
+  expect(chat.sendScrollRequest).toBeNull();
+  const notice = useUIStore.getState().notice;
+  expect(notice).toMatchObject({
+    message: "sentOutsideChatFilter",
+    actionLabel: "viewSentMessage",
+  });
+  await act(async () => notice?.onAction?.());
+  expect(api.fetchMessageWindow).toHaveBeenCalledWith("a", "3", { before: 30, after: 30 });
+  expect(chat.inChatWindow).toBe(true);
+  expect(chat.chatMessages.map((event) => event.by)).toEqual(["leader", "user"]);
+  await act(async () => chat.exitChatWindow());
+  expect(chat.chatMessages.map((event) => event.by)).toEqual(["leader"]);
+  expect(getChatSession("a", useUIStore.getState().chatSessions).chatSenderFilter).toEqual([
+    "leader",
+  ]);
+});
+
+it("does not change routing or reset the message category when sending within a filter", async () => {
+  const sent = message("3", "user");
+  vi.mocked(api.sendMessage).mockResolvedValue({ ok: true, result: { event: sent } });
+  await act(async () => {
+    chat.setChatSenderFilter(["user"]);
+    chat.setChatFilter("user");
+    useComposerStore.getState().setComposerText("hello");
+  });
+  await act(async () => {
+    await chat.sendMessage();
+  });
+  expect(chat).toMatchObject({ chatSenderFilter: ["user"], chatFilter: "user" });
+  expect(api.sendMessage).toHaveBeenCalledTimes(1);
+  expect(useUIStore.getState().notice).toBeNull();
+});
+
+it("resolves the active Group when a persistent hidden-send notice is followed", async () => {
+  const sent = message("3", "user");
+  vi.mocked(api.sendMessage).mockResolvedValue({ ok: true, result: { event: sent } });
+  await act(async () => {
+    chat.setChatSenderFilter(["leader"]);
+    useComposerStore.getState().setComposerText("hello");
+  });
+  await act(async () => chat.sendMessage());
+  const notice = useUIStore.getState().notice;
+  vi.mocked(api.fetchMessageWindow).mockResolvedValue({
+    ok: true,
+    result: {
+      center_id: "3",
+      center_index: 0,
+      events: [sent],
+      count: 1,
+      has_more_before: false,
+      has_more_after: false,
+    },
+  });
+  await act(async () => useGroupStore.getState().setSelectedGroupId("b"));
+  expect(useGroupStore.getState().selectedGroupId).toBe("b");
+  await act(async () => notice?.onAction?.());
+  expect(useGroupStore.getState().selectedGroupId).toBe("a");
+  expect(new URL(window.location.href).searchParams.get("group")).toBe("a");
+  expect(new URL(window.location.href).searchParams.get("event")).toBe("3");
+  expect(api.fetchMessageWindow).toHaveBeenCalledWith("a", "3", { before: 30, after: 30 });
+  expect(chat.inChatWindow).toBe(true);
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["3"]);
+  expect(getChatSession("a", useUIStore.getState().chatSessions).chatSenderFilter).toEqual([
+    "leader",
+  ]);
+});
+
+it.each(["source_event", "src_event"])(
+  "confirms a filtered cross-Group send using its %s in the originating Group",
+  async (field) => {
+    const source = {
+      ...message("3", "user"),
+      data: { text: "cross send", message_mode: "send" as const, dst_group_id: "b" },
+    };
+    vi.mocked(api.sendCrossGroupMessage).mockResolvedValue({
+      ok: true,
+      result: { [field]: source },
+    });
+    vi.mocked(api.fetchMessageWindow).mockResolvedValue({
+      ok: true,
+      result: {
+        center_id: "3",
+        center_index: 0,
+        events: [source],
+        count: 1,
+        has_more_before: false,
+        has_more_after: false,
+      },
+    });
+    await act(async () => {
+      chat.setChatSenderFilter(["leader"]);
+      useComposerStore.getState().setDestGroupId("b");
+      useComposerStore.getState().setComposerText("hello other Group");
+    });
+    await act(async () => chat.sendMessage());
+    expect(api.sendCrossGroupMessage).toHaveBeenCalledTimes(1);
+    expect(api.sendMessage).not.toHaveBeenCalled();
+    expect(useComposerStore.getState().composerText).toBe("");
+    expect(chat.chatSenderFilter).toEqual(["leader"]);
+    const notice = useUIStore.getState().notice;
+    expect(notice).toMatchObject({
+      message: "sentOutsideChatFilter",
+      actionLabel: "viewSentMessage",
+    });
+    await act(async () => notice?.onAction?.());
+    expect(api.fetchMessageWindow).toHaveBeenCalledWith("a", "3", { before: 30, after: 30 });
+  },
+);
+
+it("confirms the originating message after a mixed local and cross-Group send", async () => {
+  vi.spyOn(composerSendPlan, "buildComposerSendPlanTargets").mockReturnValueOnce([
+    { groupId: "a", isCrossGroup: false, source: "selected_group" },
+    { groupId: "b", isCrossGroup: true, source: "group_mention" },
+  ]);
+  vi.mocked(api.sendMessage).mockResolvedValue({
+    ok: true,
+    result: { event: message("3", "user") },
+  });
+  vi.mocked(api.sendCrossGroupMessage).mockResolvedValue({
+    ok: true,
+    result: {
+      source_event: message("4", "user"),
+      event: { ...message("destination", "user"), group_id: "b" },
+    },
+  });
+  vi.mocked(api.fetchMessageWindow).mockResolvedValue({
+    ok: true,
+    result: {
+      center_id: "4",
+      center_index: 0,
+      events: [message("4", "user")],
+      count: 1,
+      has_more_before: false,
+      has_more_after: false,
+    },
+  });
+  await act(async () => {
+    chat.setChatSenderFilter(["leader"]);
+    useComposerStore.getState().setComposerText("hello both");
+  });
+  await act(async () => chat.sendMessage());
+  expect(api.sendMessage).toHaveBeenCalledTimes(1);
+  expect(api.sendCrossGroupMessage).toHaveBeenCalledTimes(1);
+  const notice = useUIStore.getState().notice;
+  expect(notice?.actionLabel).toBe("viewSentMessage");
+  await act(async () => notice?.onAction?.());
+  expect(api.fetchMessageWindow).toHaveBeenCalledWith("a", "4", { before: 30, after: 30 });
+});
+
+it("renders the filtered conversation in ledger order despite clock rollback", async () => {
+  const events = [
+    message("2", "leader"),
+    { ...message("3", "leader"), ts: "2026-10-14T00:00:00Z" },
+  ];
+  vi.mocked(api.searchChatMessages).mockResolvedValue({
+    ok: true,
+    result: { events, count: 2, has_more: false },
+  });
+  await act(async () => chat.setChatSenderFilter(["leader"]));
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["2", "3"]);
+});
+
+it("drops a stored Waiting for you filter while those prompts are off", async () => {
+  const summaries = { a: { state: "fresh" as const, pending: 1 } };
+  const withPending = (
+    <PendingSummaryContext.Provider value={{ summaries, refresh: noop }}>
+      <Harness />
+    </PendingSummaryContext.Provider>
+  );
+  await act(async () => useUIStore.getState().setChatFilter("a", "pending_user"));
+  await act(async () => root.render(withPending));
+  expect(chat.chatFilter).toBe("pending_user");
+
+  // Its tab is gone, so the filter must not keep hiding ordinary messages.
+  await act(async () => useUIStore.getState().setShowPendingPrompts(false));
+  expect(chat.chatFilter).toBe("all");
+  expect(getChatSession("a", useUIStore.getState().chatSessions).chatFilter).toBe("pending_user");
+
+  // Nor what the user sends: no notice that the sent message is hidden by the filter.
+  vi.mocked(api.sendMessage).mockResolvedValue({
+    ok: true,
+    result: { event: message("3", "user") },
+  });
+  await act(async () => useComposerStore.getState().setComposerText("hello"));
+  await act(async () => {
+    await chat.sendMessage();
+  });
+  expect(api.sendMessage).toHaveBeenCalledOnce();
+  expect(useUIStore.getState().notice?.message).not.toBe("sentOutsideChatFilter");
+
+  await act(async () => useUIStore.getState().setShowPendingPrompts(true));
+  expect(chat.chatFilter).toBe("pending_user");
+  localStorage.removeItem("cccc-pending-prompts");
+});
+
+const pendingPage = (events: LedgerEvent[]) =>
+  vi
+    .mocked(fetchPendingReplies)
+    .mockResolvedValue({
+      ok: true,
+      result: { events, statuses: {}, total: events.length, has_more: false },
+    });
+
+it("returns to All when Waiting for you opens empty with nothing waiting", async () => {
+  let summaries: Record<string, Summary> = { a: { state: "fresh", pending: 0 } };
+  const render = () =>
+    act(async () =>
+      root.render(
+        <PendingSummaryContext.Provider value={{ summaries, refresh: noop }}>
+          <Harness />
+        </PendingSummaryContext.Provider>,
+      ),
+    );
+  // A page that failed is not an empty one: the view stays with its retry.
+  vi.mocked(fetchPendingReplies).mockResolvedValue({
+    ok: false,
+    error: { code: "unavailable", message: "failed", httpStatus: 503 },
+  });
+  await act(async () => useUIStore.getState().setChatFilter("a", "pending_user"));
+  await render();
+  expect(chat.chatFilter).toBe("pending_user");
+  expect(chat.pendingPageError).toBe(true);
+
+  // A count that is unknown or may be out of date can still hide a request.
+  pendingPage([]);
+  summaries = { a: { state: "stale", pending: 0 } };
+  await render();
+  await act(async () => useGroupStore.getState().setSelectedGroupId("b"));
+  await act(async () => useGroupStore.getState().setSelectedGroupId("a"));
+  expect(chat.chatFilter).toBe("pending_user");
+  expect(chat.pendingPageError).toBe(false);
+  expect(chat.chatMessages).toEqual([]);
+
+  // Known to be zero with nothing to show: the Group returns to All and remembers it.
+  summaries = { a: { state: "fresh", pending: 0 } };
+  await render();
+  expect(chat.chatFilter).toBe("all");
+  expect(getChatSession("a", useUIStore.getState().chatSessions).chatFilter).toBe("all");
+
+  // A request that arrives later shows its count without switching the view.
+  summaries = { a: { state: "fresh", pending: 1 } };
+  await render();
+  expect(chat.chatFilter).toBe("all");
+});
+
+it("keeps the rows a visit shows, and recounts at once after a send from them", async () => {
+  const refresh = vi.fn();
+  let summaries: Record<string, Summary> = { a: { state: "fresh", pending: 1 } };
+  const render = () =>
+    act(async () =>
+      root.render(
+        <PendingSummaryContext.Provider value={{ summaries, refresh }}>
+          <Harness />
+        </PendingSummaryContext.Provider>,
+      ),
+    );
+  pendingPage([message("4", "leader")]);
+  await act(async () => useUIStore.getState().setChatFilter("a", "pending_user"));
+  await render();
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["4"]);
+
+  vi.mocked(api.sendMessage).mockResolvedValue({
+    ok: true,
+    result: { event: message("5", "user") },
+  });
+  await act(async () => useComposerStore.getState().setComposerText("answer"));
+  await act(async () => {
+    await chat.sendMessage();
+  });
+  expect(refresh).toHaveBeenCalledOnce();
+  const notice = useUIStore.getState().notice;
+  expect(notice?.message).toBe("sentOutsideChatFilter");
+
+  // That was the last request, but the row it answered stays in the visit, with the notice,
+  // also while a sender filter hides it.
+  await act(async () => chat.setChatSenderFilter(["worker"]));
+  expect(chat.chatMessages).toEqual([]);
+  summaries = { a: { state: "fresh", pending: 0 } };
+  await render();
+  expect(chat.chatFilter).toBe("pending_user");
+  await act(async () => chat.setChatSenderFilter([]));
+  expect(chat.chatMessages.map((event) => event.id)).toEqual(["4"]);
+  expect(useUIStore.getState().notice).toBe(notice);
+
+  // Elsewhere the notice still leads back; once All shows the message, it no longer holds.
+  await act(async () => useGroupStore.getState().setSelectedGroupId("b"));
+  expect(useUIStore.getState().notice).toBe(notice);
+  await act(async () => useGroupStore.getState().setSelectedGroupId("a"));
+  await act(async () => chat.setChatFilter("all"));
+  expect(useUIStore.getState().notice).toBeNull();
+});
