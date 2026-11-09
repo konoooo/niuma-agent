@@ -64,6 +64,29 @@ pub fn daemon_call(
             normalize_message_author(&mut args);
             "actor_leave"
         }
+        "niuma_task_control" => {
+            normalize_message_author(&mut args);
+            "task_control"
+        }
+        "niuma_requirement" => {
+            let action = args.get("action").and_then(Value::as_str).unwrap_or("list");
+            if !matches!(
+                action,
+                "list"
+                    | "get"
+                    | "capture"
+                    | "plan"
+                    | "read_source"
+                    | "refresh_source"
+                    | "breakdown"
+                    | "link_task"
+                    | "accept"
+            ) {
+                return Err("请在本机页面指定 Obsidian 来源或下达需求".into());
+            }
+            normalize_message_author(&mut args);
+            "requirement"
+        }
         "niuma_capability_search" => "capability_search",
         "niuma_capability_state" => "capability_state",
         "niuma_capability_enable" => {

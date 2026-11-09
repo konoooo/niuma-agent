@@ -432,6 +432,8 @@ export function normalizeTask(value: unknown): Task | null {
 
   const title = asString(record.title).trim() || id;
   const outcome = asString(record.outcome);
+  const executionControl = asRecord(record.execution_control);
+  const controlState = asString(executionControl?.state);
   const rawChecklist = Array.isArray(record.checklist) ? record.checklist : [];
   const checklistIds = new Set(
     rawChecklist.map((item) => asString(asRecord(item)?.id)).filter(Boolean),
@@ -456,6 +458,21 @@ export function normalizeTask(value: unknown): Task | null {
     rev: isTaskRevision(record.rev) ? record.rev : undefined,
     title,
     outcome,
+    requirement_id: asOptionalString(record.requirement_id),
+    suggested_assignee: asOptionalString(record.suggested_assignee),
+    execution_control:
+      executionControl && (controlState === "stopping" || controlState === "stopped")
+        ? {
+            state: controlState,
+            request_id: asOptionalString(executionControl.request_id) ?? undefined,
+            owner_id: asOptionalString(executionControl.owner_id) ?? undefined,
+            owner_generation: asOptionalString(executionControl.owner_generation) ?? undefined,
+            acknowledged_at: asOptionalString(executionControl.acknowledged_at),
+            confirmed_by: asOptionalString(executionControl.confirmed_by) ?? undefined,
+            confirmed_at: asOptionalString(executionControl.confirmed_at),
+            note: asOptionalString(executionControl.note) ?? undefined,
+          }
+        : undefined,
     status: asString(record.status).trim() || undefined,
     assignee: asOptionalString(record.assignee),
     priority: asOptionalString(record.priority),

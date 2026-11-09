@@ -717,6 +717,17 @@ export type TaskWaitingOn = "none" | "user" | "actor" | "external" | string;
 
 export type TaskChecklistItem = { id: string; text: string; status?: ChecklistStatus | null };
 
+export type TaskExecutionControl = {
+  state: "stopping" | "stopped";
+  request_id?: string;
+  owner_id?: string;
+  owner_generation?: string;
+  acknowledged_at?: string | null;
+  confirmed_by?: string;
+  confirmed_at?: string | null;
+  note?: string;
+};
+
 export type Task = {
   id: string;
   /** Daemon-owned revision used to protect edits against concurrent changes. */
@@ -740,6 +751,9 @@ export type Task = {
   current_step?: string | null;
   progress?: number | null;
   children?: Task[];
+  execution_control?: TaskExecutionControl;
+  requirement_id?: string | null;
+  suggested_assignee?: string | null;
 };
 
 export type CoordinationBrief = {

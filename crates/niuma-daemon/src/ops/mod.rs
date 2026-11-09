@@ -83,6 +83,9 @@ mod profile_access;
 mod profiles;
 mod remote_access;
 mod reply_requests;
+mod requirements;
+#[cfg(test)]
+mod requirements_tests;
 mod runtime_completion;
 pub(crate) mod runtime_delivery;
 mod runtime_mcp;
@@ -90,6 +93,9 @@ pub(crate) mod runtime_restore;
 mod runtime_session;
 mod runtime_state;
 mod settings;
+mod task_control;
+#[cfg(test)]
+mod task_control_tests;
 mod task_list;
 mod terminal;
 mod terminal_history_source;
@@ -108,6 +114,8 @@ use operation::Operation;
 
 pub(crate) fn resolve_operation(request: &DaemonRequest) -> Option<Operation> {
     for resolver in [
+        task_control::resolve_operation,
+        requirements::resolve_operation,
         group_creation::resolve_operation,
         groups::resolve_operation,
         hermes_runtime::resolve_operation,

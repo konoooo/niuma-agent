@@ -131,6 +131,7 @@ fn assemble_payload(
             "help": "niuma_help()  # when a 牛马Agent route or state boundary is unclear",
             "context_get": "niuma_context_get(detail=\"overview\")  # brief, recent decisions and handoffs, agent states",
             "tasks": "niuma_task()  # open tasks, one row each; pass task_id to read one in full",
+            "requirements": "niuma_requirement(action=\"list\")  # 团队需求与关联任务",
             "connect": "niuma_connect()  # discover accessible remote Groups/Actors; use both instance_id and target_group_id for an external_groups entry",
             "inbox_read": "niuma_inbox_read()",
             "memory_search": "niuma_capability_use(tool_name=\"niuma_memory\", tool_arguments={\"action\":\"search\",\"query\":\"...\"})",
@@ -464,7 +465,18 @@ fn slim_task(task: &Map<String, Value>) -> Value {
         ("outcome".into(), trimmed_value(task.get("outcome"), 160)),
         ("parent_id".into(), trimmed_value(task.get("parent_id"), 64)),
         ("status".into(), trimmed_value(task.get("status"), 32)),
+        (
+            "execution_control".into(),
+            crate::task_summary::summary_row(task)
+                .get("execution_control")
+                .cloned()
+                .unwrap_or(Value::Null),
+        ),
         ("assignee".into(), trimmed_value(task.get("assignee"), 64)),
+        (
+            "requirement_id".into(),
+            trimmed_value(task.get("requirement_id"), 64),
+        ),
         ("priority".into(), trimmed_value(task.get("priority"), 32)),
         (
             "waiting_on".into(),

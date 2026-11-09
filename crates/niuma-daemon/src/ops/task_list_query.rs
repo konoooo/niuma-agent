@@ -146,17 +146,17 @@ fn matches_attention(task: &Map<String, Value>, wanted: &str) -> bool {
     }
 }
 
-fn blocked(task: &Map<String, Value>) -> bool {
-    task.get("blocked_by")
-        .and_then(Value::as_array)
-        .is_some_and(|items| !items.is_empty())
+pub(crate) fn blocked(task: &Map<String, Value>) -> bool {
+    niuma_core::task_control::held(task)
+        || task
+            .get("blocked_by")
+            .and_then(Value::as_array)
+            .is_some_and(|items| !items.is_empty())
         || matches!(text(task, "waiting_on"), "actor" | "external")
 }
 
 fn unexecuted(task: &Map<String, Value>) -> bool {
-    task_status(task) == "planned"
-        || (task_status(task) == "archived"
-            && matches!(text(task, "archived_from"), "" | "planned"))
+    niuma_core::task_control::deletable(task)
 }
 
 pub(super) fn task_status(task: &Map<String, Value>) -> &str {

@@ -130,6 +130,7 @@ fn sync(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
         })?)
     };
     let mut denied = None;
+    let mut requirements_before = None;
     let result = contexts
         .sync_checked(
             &group_id,
@@ -138,6 +139,17 @@ fn sync(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
             &by,
             bool_arg(request, "dry_run", false),
             |document, operation| {
+                let name = operation.get("op").and_then(Value::as_str).unwrap_or_default();
+                let reserved_request_id = name == "task.create" && operation.get("client_request_id")
+                    .and_then(Value::as_str).is_some_and(|id| id.starts_with("requirement:"));
+                if name.starts_with("requirement.") || operation.contains_key("requirement_id") || reserved_request_id {
+                    denied = Some(OpError::new("permission_denied", "请通过需求接口维护需求及任务归属"));
+                    return Err(std::io::Error::other("需求归属由专用接口维护"));
+                }
+                if name.starts_with("task.") && requirements_before.is_none()
+                    && document.coordination.contains_key(niuma_core::requirements::RECORDS) {
+                    requirements_before = Some(document.clone());
+                }
                 guard_member_availability(&group,document,operation,&by).and_then(|_|authorize(role, document, operation, &by)).map_err(|error| {
                     denied = Some(error);
                     std::io::Error::other("context authorization rejected")
@@ -159,18 +171,11 @@ fn sync(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
                 OpError::io(error)
             }
         })?;
-    if !result.dry_run && !result.changes.is_empty() {
-        let mut event = Event::new("context.sync", &group_id);
-        event.by = by;
-        event.data = json!({"version": &result.version, "changes": &result.changes})
-            .as_object()
-            .cloned()
-            .unwrap_or_default();
-        ledger::append(
-            &store(home)?.ledger_path(&group_id).map_err(OpError::io)?,
-            &event,
-        )
-        .map_err(OpError::io)?;
+    publish_sync(home, &group_id, &by, &result)?;
+    if !result.dry_run
+        && let Some(before) = requirements_before
+    {
+        super::requirements::announce_task_changes(home, &group, &before, &result.context, &by);
     }
     object(json!({
         "success": true,
@@ -178,6 +183,28 @@ fn sync(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
         "changes": result.changes,
         "version": result.version,
     }))
+}
+
+pub(super) fn publish_sync(
+    home: &HomeLayout,
+    group_id: &str,
+    by: &str,
+    result: &niuma_core::context::ContextSyncResult,
+) -> Result<(), OpError> {
+    if result.dry_run || result.changes.is_empty() {
+        return Ok(());
+    }
+    let mut event = Event::new("context.sync", group_id);
+    event.by = by.to_owned();
+    event.data = json!({"version": &result.version, "changes": &result.changes})
+        .as_object()
+        .cloned()
+        .unwrap_or_default();
+    ledger::append(
+        &store(home)?.ledger_path(group_id).map_err(OpError::io)?,
+        &event,
+    )
+    .map_err(OpError::io)
 }
 
 pub(super) fn load_group(home: &HomeLayout, group_id: &str) -> Result<GroupDoc, OpError> {

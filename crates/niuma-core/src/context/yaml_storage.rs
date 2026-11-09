@@ -148,6 +148,9 @@ pub(super) fn persist_diff(
     let context_changed = before.coordination != after.coordination || before.meta != after.meta;
     let tasks_changed =
         before.tasks != after.tasks || before.task_id_high_water != after.task_id_high_water;
+    let defer_requirements = tasks_changed
+        && before.coordination.get(crate::requirements::RECORDS)
+            != after.coordination.get(crate::requirements::RECORDS);
     let agents_changed = before.agent_states != after.agent_states;
     let mut version = VersionState::load(paths)?;
     version.task_id_high_water = version
@@ -164,11 +167,15 @@ pub(super) fn persist_diff(
         write_json(&paths.version_file, &version)?;
     }
 
-    if context_changed {
+    if context_changed && !defer_requirements {
         write_context(paths, after)?;
     }
     if tasks_changed {
         yaml_files::write_task_diff(paths, &before.tasks, &after.tasks)?;
+    }
+    // 拆解回执在关联任务全部保存后发布，写盘失败时可用原请求重试。
+    if defer_requirements {
+        write_context(paths, after)?;
     }
     if agents_changed {
         yaml_files::write_agents(paths, &after.agent_states)?;
@@ -192,6 +199,42 @@ mod tests {
     use super::*;
     use crate::context::{ContextStore, apply::apply_all};
     use crate::{GroupStore, HomeLayout};
+
+    #[test]
+    fn requirement_receipt_waits_for_its_task_files() {
+        let fixture = tempfile::tempdir().expect("fixture");
+        let paths = ContextPaths::new(fixture.path());
+        let before = ContextDoc::default();
+        let mut after = before.clone();
+        after.coordination.insert(
+            crate::requirements::RECORDS.into(),
+            json!([{"id":"R001","breakdown_requests":{"split":"receipt"}}]),
+        );
+        after.tasks.push(
+            json!({"id":"T001","status":"planned","requirement_id":"R001"})
+                .as_object()
+                .unwrap()
+                .clone(),
+        );
+        let blocked = paths.tasks_dir.join("T001.yaml");
+        fs::create_dir_all(&blocked).expect("block task write");
+        assert!(persist_diff(&paths, &before, &after).is_err());
+        fs::remove_dir(blocked).expect("unblock task write");
+        let partial = load(&paths).expect("partial state");
+        assert!(
+            !partial
+                .coordination
+                .contains_key(crate::requirements::RECORDS)
+        );
+        persist_diff(&paths, &partial, &after).expect("retry split");
+        let saved = load(&paths).expect("saved split");
+        assert_eq!(saved.tasks.len(), 1);
+        assert!(
+            saved
+                .coordination
+                .contains_key(crate::requirements::RECORDS)
+        );
+    }
 
     #[test]
     fn failed_create_batches_retry_without_dangling_refs_across_id_widths() {

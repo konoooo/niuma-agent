@@ -215,6 +215,7 @@ mod tests;
 
 #[path = "task_list_query.rs"]
 mod task_list_query;
+pub(super) use task_list_query::blocked;
 
 #[path = "task_list_pages.rs"]
 mod task_list_pages;

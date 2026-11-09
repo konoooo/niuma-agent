@@ -25,6 +25,19 @@ pub(super) fn send_local_session(home: &HomeLayout, request: &DaemonRequest) -> 
     send(home, request, "chat.message")
 }
 
+/// 登记需求或提问时沿用当前上下班状态，消息按原投递规则处理。
+pub(super) fn send_preserving_group_state(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    send_with_audience_policy(
+        home,
+        request,
+        "chat.message",
+        false,
+        None,
+        false,
+        WakeTargets::Preserve,
+    )
+}
+
 pub(super) fn resolve_operation(request: &DaemonRequest) -> Option<Operation> {
     Some(match request.op.as_str() {
         "send" | "message_send" => {
@@ -287,7 +300,15 @@ fn send_cross_group_with_reply(
 }
 
 pub(super) fn send(home: &HomeLayout, request: &DaemonRequest, kind: &str) -> OpResult {
-    send_with_audience_policy(home, request, kind, false, None, false)
+    send_with_audience_policy(
+        home,
+        request,
+        kind,
+        false,
+        None,
+        false,
+        WakeTargets::Activate,
+    )
 }
 
 /// Derive the on-ledger author before idempotency checks or wake-up. The
@@ -430,7 +451,13 @@ pub(super) fn send_answer(
         false,
         Some(answer),
         service_reply,
+        WakeTargets::Preserve,
     )
+}
+
+enum WakeTargets {
+    Activate,
+    Preserve,
 }
 
 fn send_with_audience_policy(
@@ -440,6 +467,7 @@ fn send_with_audience_policy(
     allow_sender_only_audience: bool,
     in_place: Option<InPlace>,
     service_reply: bool,
+    wake_targets: WakeTargets,
 ) -> OpResult {
     reject_chet_provenance(&request.args)?;
     let mut group = load(home, request)?;
@@ -502,7 +530,9 @@ fn send_with_audience_policy(
         if by == niuma_core::actors::CHET_SERVICE_PRINCIPAL {
             verify_chet_reply_recipient(home, &group, &data)?;
         }
-        if in_place.is_none() && data.get("message_mode").and_then(Value::as_str) != Some("mail") {
+        if matches!(wake_targets, WakeTargets::Activate)
+            && data.get("message_mode").and_then(Value::as_str) != Some("mail")
+        {
             group = message_wake::wake_message_targets(home, group, &authority_by, &data)?;
         }
     } else if data.get("question").is_some_and(|value| !value.is_null()) {
@@ -848,7 +878,15 @@ fn reply(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
     if !routed.is_empty() {
         return reply_cross_group(home, &forwarded, &group, &target, &routed);
     }
-    send_with_audience_policy(home, &forwarded, "chat.message", false, None, service_reply)
+    send_with_audience_policy(
+        home,
+        &forwarded,
+        "chat.message",
+        false,
+        None,
+        service_reply,
+        WakeTargets::Activate,
+    )
 }
 
 fn is_default_service_reply(

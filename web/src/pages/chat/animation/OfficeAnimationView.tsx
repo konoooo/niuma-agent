@@ -148,7 +148,9 @@ export function OfficeAnimationView({ groupId, actors, onInspectActor, onOpenPen
         actor,
         bucket?.rawHeadlessEventsByActorId[actor.id] || [],
       );
-      const task = tasks?.find((item) => item.assignee === actor.id && item.status === "active");
+      const task = tasks?.find(
+        (item) => item.assignee === actor.id && item.status === "active" && !item.execution_control,
+      );
       const activityKind = activity && ACTIVITY_KINDS.has(activity.kind) ? activity.kind : "tool";
       const activityLabel = activity ? t(`animationOffice.activities.${activityKind}`) : "";
       const coordinating = actor.availability === "handoff" || actor.availability === "returning";

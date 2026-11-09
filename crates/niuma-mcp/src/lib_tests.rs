@@ -449,6 +449,8 @@ fn unscoped_fallback_includes_the_connect_directory() {
         "niuma_message_send",
         "niuma_reply_request_cancel",
         "niuma_task",
+        "niuma_task_control",
+        "niuma_requirement",
     ]
     .into_iter()
     .map(str::to_owned)

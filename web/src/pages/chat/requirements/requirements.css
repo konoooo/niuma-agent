@@ -1,0 +1,122 @@
+.office-requirements__views button[aria-pressed="true"] {
+  border-bottom-color: var(--color-text-primary);
+  background: var(--glass-tab-bg);
+  color: var(--color-text-primary);
+}
+
+.office-requirements__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.office-requirements__source {
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.office-requirements__source a,
+.office-requirements__source button,
+.office-requirements__task .office-tasks__task-heading button {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.office-requirements__detail p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.office-requirements__text {
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.office-requirements__editor,
+.office-requirements__task,
+.office-requirements__preview {
+  padding: 12px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 4px;
+  background: var(--glass-tab-bg);
+}
+
+.office-requirements__linked {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.office-requirements__assign {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.office-requirements__assign select {
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 8px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 4px;
+}
+
+.requirements-dialog {
+  overflow-y: auto;
+  gap: 16px;
+  padding: 24px;
+}
+
+.requirements-form,
+.requirements-form label {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.requirements-form {
+  gap: 14px;
+}
+
+.requirements-form label {
+  font-size: 12px;
+}
+
+.requirements-form :is(input, textarea, select) {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.requirements-form textarea {
+  resize: vertical;
+}
+
+.office-requirements__preview pre {
+  max-height: 16rem;
+  overflow: auto;
+  margin-top: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.requirement-issue--composer {
+  flex: none;
+  min-height: 36px;
+  padding-inline: 8px;
+}
+
+@container composer (max-width: 559px) {
+  .requirement-issue--composer span {
+    display: none;
+  }
+}

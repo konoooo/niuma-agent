@@ -32,6 +32,30 @@ pub fn apply_all(
         }
         if let Some(tasks) = tasks {
             super::task_revision::advance(&tasks, &mut document.tasks)?;
+            if name == "task.delete" {
+                let remaining = document
+                    .tasks
+                    .iter()
+                    .filter_map(|task| task.get("id").and_then(Value::as_str))
+                    .collect::<std::collections::BTreeSet<_>>();
+                change["removed_tasks"] = json!(
+                    tasks
+                        .iter()
+                        .filter(|task| task
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .is_some_and(|id| !remaining.contains(id)))
+                        .collect::<Vec<_>>()
+                );
+            } else if name == "task.control" {
+                change["task_id"] = operation.get("task_id").cloned().unwrap_or(Value::Null);
+                change["task_snapshot"] = document
+                    .tasks
+                    .iter()
+                    .find(|task| task.get("id") == operation.get("task_id"))
+                    .map(|task| json!(task))
+                    .unwrap_or(Value::Null);
+            }
         }
         changes.push(change);
     }
@@ -51,6 +75,8 @@ fn apply_one(
         "task.move" => super::task_apply::move_task(document, operation),
         "task.restore" => super::task_apply::restore(document, operation),
         "task.delete" => super::task_apply::delete(document, operation),
+        "task.control" => crate::task_control::apply(document, operation, by),
+        "requirement.save" => crate::requirements::save(document, operation),
         "agent_state.update" => super::agent_state_apply::update(document, operation),
         "agent_state.clear" => super::agent_state_apply::clear(document, operation),
         "meta.merge" => merge_meta(document, operation),

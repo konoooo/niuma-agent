@@ -6,6 +6,8 @@ export * from "./actors";
 export * from "./actorLeave";
 export * from "./context";
 export * from "./tasks";
+export * from "./taskControl";
+export * from "./requirements";
 export * from "./system";
 export * from "./messaging";
 export * from "./pendingReplies";

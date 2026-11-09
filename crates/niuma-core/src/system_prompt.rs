@@ -11,6 +11,8 @@ pub const EXISTING_MESSAGE_REPLY_GUIDANCE: &str =
     "For an existing event, use niuma_message_reply instead of niuma_message_send.";
 /// A reply cannot carry a question, so this follows the reply rule.
 pub const USER_QUESTION_GUIDANCE: &str = "When the user's decision or information is needed, send a new request_reply message to user with a question (options for a choice, free text otherwise) unless the user asked for another channel. Do not ask what you can responsibly decide yourself.";
+const TASK_CONTROL_GUIDANCE: &str = "[任务人工停止] 任务 execution_control.state 为 stopping 或 stopped 时，不得继续执行或自动重新启用；上班、会话恢复和任务交接均不解除该限制。负责人停止当前任务后用 niuma_task_control(action=ack_stop, task_id, request_id, note) 回执，由当前项目经理核实后 confirm_stop。仅用户明确继续后再恢复。用户针对任务提问由当前项目经理统一解答；信息不足先向负责成员或团队核实，再引用原问题回复用户，不编造结论。";
+const REQUIREMENT_GUIDANCE: &str = "[需求与任务] 上班或恢复时用 niuma_task 查看最新待办和自己的任务，按原任务编号回写进度、阻塞与成果。用 niuma_requirement 查询团队需求和关联任务。项目经理用 capture 收录用户明确下达需求的消息，用 plan 确认目标、验收条件和技术负责人，再统筹分派。指定技术负责人用 breakdown 拆解待办和依赖。全部关联任务完成后，项目经理核实交付并用 accept 登记验收结论。已登记的 Obsidian 来源可用 read_source 读取指定小节，项目经理核对内容变化后才应用。";
 
 #[must_use]
 pub fn render(group: &GroupDoc, actor: &Actor) -> String {
@@ -155,6 +157,8 @@ fn render_with_body(
         format!("- {}", if actor.external_session_id.is_empty() { NEW_MESSAGE_MODE_GUIDANCE } else { NATIVE_MESSAGE_MODE_GUIDANCE }),
         format!("- {EXISTING_MESSAGE_REPLY_GUIDANCE}"),
         format!("- {USER_QUESTION_GUIDANCE}"),
+        format!("- {TASK_CONTROL_GUIDANCE}"),
+        format!("- {REQUIREMENT_GUIDANCE}"),
         "- Before replying, verify `event_id`; before any message, verify `to` and make the audience explicit when it differs."
             .into(),
         "- Terminal output is not delivered.".into(),
@@ -305,6 +309,7 @@ mod tests {
 
         let prompt = render_session(&home, &group, &actor);
         assert!(prompt.ends_with("custom startup\n"));
+        assert_eq!(prompt.matches(super::TASK_CONTROL_GUIDANCE).count(), 1);
         assert!(!prompt.contains("niuma_bootstrap"));
         assert!(!prompt.contains("Current Context Snapshot"));
     }

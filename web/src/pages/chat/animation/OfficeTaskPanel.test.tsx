@@ -11,6 +11,8 @@ vi.mock("../../../services/api", () => ({
   fetchTaskPages: vi.fn(),
   fetchTaskPage: vi.fn(),
   fetchTaskById: vi.fn(),
+  fetchRequirements: vi.fn(),
+  fetchRequirement: vi.fn(),
 }));
 vi.mock("../../../components/SelectCombobox", () => ({
   SelectCombobox: ({
@@ -128,7 +130,71 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+});
+
+it("需求详情展示关联任务并在通知漏达时刷新验收状态", async () => {
+  vi.useFakeTimers();
+  const requirement: api.RequirementDetail["requirement"] = {
+    id: "R001",
+    rev: 1,
+    title: "订单导出",
+    status: "active",
+    priority: "normal",
+    technical_owner: "dev",
+    source: {
+      kind: "obsidian",
+      note: "订单.md",
+      heading: "导出",
+      url: "obsidian://open?vault=test&file=orders",
+    },
+    task_counts: { total: 1, done: 0, blocked: 0 },
+    description: "导出已筛选的订单",
+    acceptance_criteria: "核对导出的记录数",
+  };
+  vi.mocked(api.fetchRequirements).mockResolvedValue({
+    ok: true,
+    result: { requirements: [requirement], total: 1, has_more: false },
+  });
+  vi.mocked(api.fetchRequirement).mockResolvedValue({
+    ok: true,
+    result: { requirement, tasks: [current], tasks_version: "tasksv:1" },
+  });
+  await render();
+  const view = host.querySelector<HTMLButtonElement>('[data-office-view="requirements"]');
+  expect(view).not.toBeNull();
+  await act(async () => view!.click());
+  expect(host.textContent).toContain("订单导出");
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-requirement-id="R001"]')!.click(),
+  );
+  expect(host.textContent).toContain("核对导出的记录数");
+  expect(host.textContent).toContain("订单.md");
+  expect(host.querySelector('[data-requirement-task-id="T001"]')?.textContent).toContain(
+    "真实任务第一项",
+  );
+  expect(host.textContent).not.toContain("其他成员负责的任务");
+  const completed = {
+    ...requirement,
+    status: "awaiting_acceptance" as const,
+    task_counts: { total: 1, done: 1, blocked: 0 },
+  };
+  vi.mocked(api.fetchRequirements).mockResolvedValue({
+    ok: true,
+    result: { requirements: [completed], total: 1, has_more: false },
+  });
+  vi.mocked(api.fetchRequirement).mockResolvedValue({
+    ok: true,
+    result: {
+      requirement: completed,
+      tasks: [{ ...current, status: "done" }],
+      tasks_version: "tasksv:2",
+    },
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(5000));
+  expect(host.querySelector('[data-requirement-status="awaiting_acceptance"]')).not.toBeNull();
+  expect(host.querySelector("[data-requirement-accept]")).not.toBeNull();
 });
 
 it("完整列表可加载摘要之外的任务，计划页签展示已登记的规划", async () => {
@@ -153,6 +219,14 @@ it("完整列表可加载摘要之外的任务，计划页签展示已登记的�
   await act(async () => planned.click());
   expect(host.textContent).toContain("领班登记的下一步计划");
   expect(host.textContent).not.toContain("第三十一项真实任务");
+});
+
+it("进行中任务提供停止和提问，未确认停止前不允许删除", async () => {
+  await render();
+  const task = host.querySelector('[data-office-task-id="T001"]')!.closest("article")!;
+  expect(task.querySelector('[data-task-action="stop"]')).not.toBeNull();
+  expect(task.querySelector('[data-task-action="ask"]')).not.toBeNull();
+  expect(task.querySelector<HTMLButtonElement>('[data-task-action="delete"]')?.disabled).toBe(true);
 });
 
 it("服务端省略零项状态统计时，成功读取后仍明确显示计划为零", async () => {

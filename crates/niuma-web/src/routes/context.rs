@@ -1,4 +1,4 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{FromRequest, Path, Query, Request, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{Value, json};
@@ -14,6 +14,18 @@ pub fn routes() -> Router<AppState> {
             get(context_get).post(context_sync),
         )
         .route("/api/v1/groups/{group_id}/tasks", get(tasks))
+        .route(
+            "/api/v1/groups/{group_id}/requirements",
+            get(requirements).post(requirement_action),
+        )
+        .route(
+            "/api/v1/groups/{group_id}/requirements/{requirement_id}",
+            get(requirement_detail),
+        )
+        .route(
+            "/api/v1/groups/{group_id}/tasks/{task_id}/control",
+            get(task_control_get).post(task_control_write),
+        )
         .route("/api/v1/groups/{group_id}/ledger/tail", get(ledger_tail))
         .route(
             "/api/v1/groups/{group_id}/ledger/search",
@@ -31,6 +43,93 @@ pub fn routes() -> Router<AppState> {
             "/api/v1/groups/{group_id}/events/{event_id}/read_status",
             get(read_status),
         )
+}
+
+#[derive(serde::Deserialize)]
+struct RequirementPage {
+    limit: Option<u64>,
+    offset: Option<u64>,
+}
+
+async fn requirements(
+    State(state): State<AppState>,
+    Path(group_id): Path<String>,
+    Query(page): Query<RequirementPage>,
+) -> ApiResult {
+    call(&state, "requirement", object(json!({"group_id":group_id,"by":"user","action":"list","limit":page.limit,"offset":page.offset}))).await
+}
+
+async fn requirement_detail(
+    State(state): State<AppState>,
+    Path((group_id, requirement_id)): Path<(String, String)>,
+) -> ApiResult {
+    call(
+        &state,
+        "requirement",
+        object(
+            json!({"group_id":group_id,"by":"user","action":"get","requirement_id":requirement_id}),
+        ),
+    )
+    .await
+}
+
+async fn requirement_action(
+    State(state): State<AppState>,
+    Path(group_id): Path<String>,
+    request: Request,
+) -> ApiResult {
+    let local_admin = request
+        .extensions()
+        .get::<crate::auth::Principal>()
+        .is_some_and(|principal| principal.is_admin)
+        && crate::local_browser_auth::allowed(&state, &request);
+    let Json(body) = Json::<Value>::from_request(request, &state)
+        .await
+        .map_err(|_| crate::api::ApiError::bad("需求请求格式有误"))?;
+    let mut args = body_object(body)?;
+    match args.get("action").and_then(Value::as_str) {
+        Some("preview_source" | "import_source" | "read_source" | "refresh_source") => {
+            if !local_admin {
+                return Err(crate::api::ApiError::forbidden(
+                    "请在本机管理员页面读取 Obsidian 笔记",
+                ));
+            }
+        }
+        Some("issue" | "capture" | "plan" | "breakdown" | "link_task" | "accept") => {}
+        _ => return Err(crate::api::ApiError::bad("不支持的需求操作")),
+    }
+    args.insert("group_id".into(), json!(group_id));
+    args.insert("by".into(), json!("user"));
+    call(&state, "requirement", args).await
+}
+
+async fn task_control_get(
+    State(state): State<AppState>,
+    Path((group_id, task_id)): Path<(String, String)>,
+) -> ApiResult {
+    call(
+        &state,
+        "task_control",
+        object(json!({"group_id":group_id,"task_id":task_id,"action":"get","by":"user"})),
+    )
+    .await
+}
+async fn task_control_write(
+    State(state): State<AppState>,
+    Path((group_id, task_id)): Path<(String, String)>,
+    Json(body): Json<Value>,
+) -> ApiResult {
+    let mut args = body_object(body)?;
+    if !matches!(
+        args.get("action").and_then(Value::as_str),
+        Some("request_stop" | "resume" | "delete" | "ask")
+    ) {
+        return Err(crate::api::ApiError::bad("不支持此任务操作"));
+    }
+    args.insert("group_id".into(), json!(group_id));
+    args.insert("task_id".into(), json!(task_id));
+    args.insert("by".into(), json!("user"));
+    call(&state, "task_control", args).await
 }
 
 async fn context_get(

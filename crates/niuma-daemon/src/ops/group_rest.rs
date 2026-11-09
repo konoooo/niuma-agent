@@ -201,7 +201,7 @@ pub(super) fn continue_work(home: &HomeLayout, group: &GroupDoc) -> io::Result<u
         event.data = json!({
             "kind":"group_resume", "target_actor_id":actor.id, "client_id":client_id,
             "title":"接着工作",
-            "message":"用户要求工作组接着工作。请沿用本会话和此前任务约束，先核对最近群消息、任务记录、文件与工具执行结果，从上次休息时尚未完成的位置继续。已完成的步骤不要重复执行，不要因为服务重新启动就重做任务或新建无关任务。若原任务已经完成或正在等待他人、用户输入，请报告真实状态并待命；需要确认的操作继续按原权限规则处理。",
+            "message":"用户要求工作组接着工作。请沿用本会话和此前任务约束，先核对最近群消息、任务记录、文件与工具执行结果，从上次休息时尚未完成的位置继续。任务 execution_control.state 为 stopping 或 stopped 时保持人工停止，不因上班或会话恢复而执行。已完成的步骤不要重复执行，不要因为服务重新启动就重做任务或新建无关任务。若原任务已经完成或正在等待他人、用户输入，请报告真实状态并待命；需要确认的操作继续按原权限规则处理。",
             "context":{"kind":"group_resume","rest_id":point.id,"actor_created_at":actor.created_at},
             "im_visibility":"internal",
         }).as_object().expect("固定通知对象").clone();

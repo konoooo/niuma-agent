@@ -56,7 +56,14 @@ pub(super) fn create(
     });
     let waiting_on = enum_value(op, "waiting_on", WAITING_ON)?;
     let mut task = op.clone();
-    for key in ["op", "if_task_rev", "rev", "parent_ref", "blocked_by_refs"] {
+    for key in [
+        "op",
+        "if_task_rev",
+        "rev",
+        "parent_ref",
+        "blocked_by_refs",
+        "execution_control",
+    ] {
         task.remove(key);
     }
     let number = doc
@@ -153,6 +160,17 @@ fn blocked_by_with_refs(
 pub(super) fn update(doc: &mut ContextDoc, op: &Map<String, Value>) -> io::Result<()> {
     let task_id = required(op, "task_id")?.trim().to_owned();
     find(doc, &task_id)?;
+    if crate::task_control::get(find(doc, &task_id)?)
+        .is_some_and(|control| control.state == "stopping")
+        && op.get("assignee").is_some_and(|assignee| {
+            find(doc, &task_id)
+                .ok()
+                .and_then(|task| task.get("assignee"))
+                != Some(assignee)
+        })
+    {
+        return Err(io::Error::other("停止确认中不能改派负责人，请先完成协调"));
+    }
     let title = op
         .get("title")
         .map(|_| required(op, "title").map(|value| value.trim().to_owned()))
@@ -173,6 +191,7 @@ pub(super) fn update(doc: &mut ContextDoc, op: &Map<String, Value>) -> io::Resul
     let allowed = [
         "title",
         "outcome",
+        "requirement_id",
         "parent_id",
         "assignee",
         "priority",
@@ -223,6 +242,11 @@ pub(super) fn move_task(doc: &mut ContextDoc, op: &Map<String, Value>) -> io::Re
     let status = enum_value(op, "status", TASK_STATUSES)?
         .ok_or_else(|| io::Error::other("status is required"))?;
     let task = find_mut(doc, task_id)?;
+    if matches!(status, "planned" | "active") && crate::task_control::held(task) {
+        return Err(io::Error::other(
+            "任务已被手动停止，请由用户点击继续后再启用",
+        ));
+    }
     let previous = task
         .get("status")
         .and_then(Value::as_str)
@@ -290,18 +314,7 @@ pub(super) fn maximum_task_number(tasks: &[Map<String, Value>]) -> u64 {
 }
 
 fn is_unexecuted(task: &Map<String, Value>) -> bool {
-    match task
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("planned")
-    {
-        "planned" => true,
-        "archived" => task
-            .get("archived_from")
-            .and_then(Value::as_str)
-            .is_none_or(|status| status.is_empty() || status == "planned"),
-        _ => false,
-    }
+    crate::task_control::deletable(task)
 }
 
 fn creates_parent_cycle(doc: &ContextDoc, task_id: &str, parent_id: &str) -> bool {

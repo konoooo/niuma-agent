@@ -65,6 +65,7 @@ import { mergeVoiceComposerDraftText } from "./voice-secretary/voiceComposerDraf
 import { useShortTouchViewport } from "../../hooks/useShortTouchViewport";
 import { CHET_SELECTOR } from "../../utils/chetIdentity";
 import { messageModeForRecipients } from "../../stores/composerMessageMode";
+import { RequirementIssueButton } from "./requirements/RequirementIssueButton";
 import {
   buildComposerHistoryEntries,
   canStartComposerHistory,
@@ -1316,6 +1317,12 @@ export function ChatComposer({
                   <AttachmentIcon size={18} />
                 </button>
 
+                <RequirementIssueButton
+                  key={selectedGroupId}
+                  groupId={selectedGroupId}
+                  compact
+                  disabled={busy === "send" || sendInFlight || !composerGroupSettled}
+                />
                 <div data-composer-voice className="min-w-0 shrink-0 @min-[600px]/composer:shrink">
                   <LazyVoiceSecretaryComposerControl
                     isDark={isDark}

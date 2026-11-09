@@ -76,7 +76,7 @@ mod tests {
             .filter_map(|tool| tool["name"].as_str())
             .collect::<BTreeSet<_>>();
 
-        assert_eq!(catalog.len(), 53);
+        assert_eq!(catalog.len(), 55);
         assert!(names.contains("niuma_voice_secretary_task"));
         for retired in [
             "niuma_voice_secretary_document",

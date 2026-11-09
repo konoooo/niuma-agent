@@ -3461,5 +3461,176 @@
         "leave_id"
       ]
     }
+  },
+  {
+    "name": "niuma_task_control",
+    "description": "查询或协调用户发起的任务停止。get 读取任务和停止请求。ack_stop 仅当前负责人在安全停止该任务后携带 request_id 回执，不影响其他任务。confirm_stop 仅当前项目经理核实负责人回执后确认；若无负责人，需先向团队核实并给出 note 依据。普通聊天承诺不算系统回执。用户通过页面发起停止、继续、删除和针对任务的提问。stopping/stopped 的任务不得因上班、恢复会话或交接自动继续。",
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "actor_id": {
+          "type": "string",
+          "description": "当前调用者，绑定会话通常自动注入，不是目标负责人。"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "get",
+            "ack_stop",
+            "confirm_stop"
+          ],
+          "default": "get"
+        },
+        "request_id": {
+          "type": "string",
+          "description": "ack_stop/confirm_stop 必填，本次停止的服务端请求 ID。"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "description": "停止结果或经理核实依据，不包含凭据。"
+        }
+      },
+      "required": [
+        "task_id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "niuma_requirement",
+    "description": "读取团队需求及关联任务。list 列出需求，get 用 requirement_id 查看目标、验收条件、任务和版本。项目经理用 capture(event_id) 收录用户明确下达需求的消息，plan 确认验收条件、优先级和 technical_owner。技术负责人用 breakdown(requirement_id,client_id,tasks) 登记待办和建议负责人，重试保留同一 client_id。项目经理用 niuma_task 分派，用 link_task 关联已有顶层任务，全部关联任务完成后用 accept 提交验收结论 note。read_source 仅读取这条需求已登记的 Obsidian 笔记范围，经理核对变更后用 refresh_source 和 source_version 应用新来源。成员用 niuma_task 回写自己负责或接手的任务。",
+    "annotations": {
+      "readOnlyHint": false,
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false
+    },
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string"
+        },
+        "actor_id": {
+          "type": "string"
+        },
+        "requirement_id": {
+          "type": "string"
+        },
+        "event_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "acceptance_criteria": {
+          "type": "string"
+        },
+        "technical_owner": {
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "source_version": {
+          "type": "string"
+        },
+        "client_id": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "tasks_version": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "list",
+            "get",
+            "capture",
+            "plan",
+            "read_source",
+            "refresh_source",
+            "breakdown",
+            "link_task",
+            "accept"
+          ],
+          "default": "list"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "urgent"
+          ]
+        },
+        "if_rev": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "需求详情返回的 rev，用于并发变更校验。"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "tasks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": [
+              "title"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "outcome": {
+                "type": "string"
+              },
+              "suggested_assignee": {
+                "type": "string"
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "description": "依赖本批次排在前面的任务，序号从 1 开始。"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    }
   }
 ]

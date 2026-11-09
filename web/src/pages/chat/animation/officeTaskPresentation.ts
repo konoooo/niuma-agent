@@ -7,6 +7,9 @@ export const officeTaskMember = (actors: Actor[], id?: string | null) =>
 
 export function officeTaskStateKey(task: Task): string {
   if (task.status === "done" || task.status === "archived") return "done";
+  if (task.execution_control?.state === "stopped") return "stopped";
+  if (task.execution_control?.state === "stopping")
+    return task.execution_control.acknowledged_at ? "awaitingStopConfirmation" : "stopping";
   if (task.waiting_on === "user") return "waitingUser";
   if (task.waiting_on === "actor") return "waitingActor";
   if (task.waiting_on === "external") return "waitingExternal";

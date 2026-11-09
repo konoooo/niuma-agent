@@ -25,6 +25,8 @@ pub const CORE_TOOL_NAMES: &[&str] = &[
     "niuma_context_get",
     "niuma_coordination",
     "niuma_task",
+    "niuma_task_control",
+    "niuma_requirement",
     "niuma_actor_leave",
     "niuma_agent_state",
 ];

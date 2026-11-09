@@ -18,6 +18,9 @@ const NOTE: &str = "Rows are summaries; read the full task by task_id before upd
 /// One row: what the task is, its state, who has it and how far its checklist got.
 pub(crate) fn summary_row(task: &Map<String, Value>) -> Value {
     let mut row = Map::new();
+    if let Some(control) = niuma_core::task_control::get(task) {
+        row.insert("execution_control".into(), json!({"state":control.state,"request_id":control.request_id,"owner_id":control.owner_id,"acknowledged_at":control.acknowledged_at,"confirmed_at":control.confirmed_at}));
+    }
     for key in ["id", "status"] {
         if let Some(value) = text(task, key) {
             row.insert(key.into(), Value::String(value));
@@ -32,6 +35,7 @@ pub(crate) fn summary_row(task: &Map<String, Value>) -> Value {
         "task_type",
         "parent_id",
         "handoff_to",
+        "requirement_id",
     ] {
         if let Some(value) = text(task, key) {
             row.insert(key.into(), Value::String(value));

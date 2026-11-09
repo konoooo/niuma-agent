@@ -161,6 +161,67 @@
   border-bottom: 1px solid var(--glass-border-subtle);
 }
 
+.office-tasks__actions-area {
+  padding: 0 16px 12px;
+}
+
+.office-tasks__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.office-tasks__actions button {
+  min-height: 30px;
+  padding: 4px 9px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.office-tasks__question {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 4px;
+  background: var(--glass-tab-bg);
+}
+
+.office-tasks__question label {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.office-tasks__question textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 8px;
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.office-tasks__question .office-tasks__actions {
+  justify-content: flex-end;
+}
+
+.office-tasks__delete-dialog {
+  gap: 16px;
+  padding: 24px;
+}
+
+.office-tasks__state[data-state="stopped"],
+.office-tasks__state[data-state="stopping"],
+.office-tasks__state[data-state="awaitingStopConfirmation"] {
+  border: 1px solid var(--glass-border-subtle);
+  background: var(--glass-tab-bg);
+  color: var(--color-text-primary);
+}
+
 .office-tasks__task {
   display: block;
   width: 100%;
