@@ -1,0 +1,22 @@
+[package]
+name = "niuma-agent-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "IPC client for the 牛马Agent collaborative agent control plane"
+publish = false
+
+[dependencies]
+niuma-contracts = { package = "niuma-agent-contracts", version = "=0.4.49", path = "../niuma-contracts" }
+niuma-core = { package = "niuma-agent-core", version = "=0.4.49", path = "../niuma-core" }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "niuma_client"

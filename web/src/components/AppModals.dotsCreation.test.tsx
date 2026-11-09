@@ -156,7 +156,7 @@ function AppLifecycleHost() {
       isDark={false}
       theme="light"
       textScale={100}
-      ccccHome="/fixture-only"
+      niumaHome="/fixture-only"
       composerRef={createRef()}
       onStartReply={vi.fn()}
       onNativeActorCreated={onNativeActorCreated}

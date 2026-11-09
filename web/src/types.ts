@@ -1,4 +1,4 @@
-// Shared type definitions for CCCC Web UI
+// Shared type definitions for 牛马Agent Web UI
 
 // Theme types
 export type Theme = "light" | "dark" | "system";
@@ -387,7 +387,7 @@ export type Actor = {
   work_after?: string;
   model_config?: ActorModelConfig | null;
   effective_model_config?: ActorModelConfig | null;
-  /** User-owned native runtime; CCCC manages collaboration access only. */
+  /** User-owned native runtime; 牛马Agent manages collaboration access only. */
   external_session_id?: string;
   id: string;
   generation?: string;
@@ -1077,7 +1077,7 @@ export type AssistantVoiceDocument = {
   assistant_id?: string;
   title: string;
   status: "active" | "archived" | "deleted" | string;
-  storage_kind?: "workspace" | "cccc_home" | string;
+  storage_kind?: "workspace" | "niuma_home" | string;
   workspace_path?: string;
   content?: string;
   content_sha256?: string;
@@ -1700,27 +1700,27 @@ export const RUNTIME_INFO: Record<string, { label: string; desc: string }> = {
   amp: { label: "Amp", desc: "" },
   auggie: { label: "Auggie (Augment)", desc: "" },
   claude: { label: "Claude Code", desc: "" },
-  cline: { label: "Cline CLI", desc: "Uses Cline's native terminal with CCCC MCP" },
+  cline: { label: "Cline CLI", desc: "Uses Cline's native terminal with 牛马Agent MCP" },
   codex: { label: "Codex CLI", desc: "" },
   deepseek: {
     label: "DeepSeek Harness",
-    desc: "Experimental ACP runtime; CCCC installs its pinned composition on first start",
+    desc: "Experimental ACP runtime; 牛马Agent installs its pinned composition on first start",
   },
-  copilot: { label: "GitHub Copilot CLI", desc: "Uses Copilot's native terminal with CCCC MCP" },
+  copilot: { label: "GitHub Copilot CLI", desc: "Uses Copilot's native terminal with 牛马Agent MCP" },
   cursor: {
     label: "Cursor CLI",
     desc: "Uses an idempotent MCP setup prompt in Cursor's native terminal",
   },
-  devin: { label: "Devin CLI", desc: "Uses Devin's native terminal with CCCC MCP" },
-  kiro: { label: "Kiro CLI", desc: "Uses Kiro's native terminal with CCCC MCP" },
+  devin: { label: "Devin CLI", desc: "Uses Devin's native terminal with 牛马Agent MCP" },
+  kiro: { label: "Kiro CLI", desc: "Uses Kiro's native terminal with 牛马Agent MCP" },
   kilo: { label: "Kilo Code CLI", desc: "Managed delivery in the same native Kilo TUI" },
   antigravity: {
     label: "Antigravity CLI",
-    desc: "Configures CCCC MCP before opening Antigravity's native terminal",
+    desc: "Configures 牛马Agent MCP before opening Antigravity's native terminal",
   },
   droid: { label: "Droid", desc: "" },
   grok: { label: "Grok Build", desc: "Managed delivery in the same native Grok TUI" },
-  hermes: { label: "Hermes Agent", desc: "Uses your Hermes profile with CCCC MCP" },
+  hermes: { label: "Hermes Agent", desc: "Uses your Hermes profile with 牛马Agent MCP" },
   kimi: { label: "Kimi Code", desc: "" },
   opencode: { label: "OpenCode", desc: "Managed delivery in the same native OpenCode TUI" },
   pi: { label: "Pi", desc: "" },

@@ -34,9 +34,9 @@ export type DirectInvitationPreview = {
 /** Display untrusted invitation metadata only. The daemon validates all authority. */
 export function readDirectInvitation(text: string): DirectInvitationPreview | null {
   const value = text.trim();
-  if (value.length > 8192 || !value.startsWith("cccc-direct:")) return null;
+  if (value.length > 8192 || !value.startsWith("niuma-direct:")) return null;
   try {
-    const raw = value.slice("cccc-direct:".length).replace(/-/g, "+").replace(/_/g, "/");
+    const raw = value.slice("niuma-direct:".length).replace(/-/g, "+").replace(/_/g, "/");
     const data = JSON.parse(
       new TextDecoder("utf-8", { fatal: true }).decode(
         Uint8Array.from(atob(raw), (c) => c.charCodeAt(0)),

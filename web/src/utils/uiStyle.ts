@@ -11,9 +11,9 @@ export type LcdWidth = "column" | "wide" | "full";
 export type LcdMotion = "on" | "off";
 export type UiStylePrefs = { lcdBody: LcdBodyFont; lcdWidth: LcdWidth; lcdMotion: LcdMotion };
 
-export const LCD_BODY_STORAGE_KEY = "cccc-ui-lcd-body";
-export const LCD_WIDTH_STORAGE_KEY = "cccc-ui-lcd-width";
-export const LCD_MOTION_STORAGE_KEY = "cccc-ui-lcd-motion";
+export const LCD_BODY_STORAGE_KEY = "niuma-ui-lcd-body";
+export const LCD_WIDTH_STORAGE_KEY = "niuma-ui-lcd-width";
+export const LCD_MOTION_STORAGE_KEY = "niuma-ui-lcd-motion";
 
 const STORAGE_KEYS: Record<keyof UiStylePrefs, string> = {
   lcdBody: LCD_BODY_STORAGE_KEY,

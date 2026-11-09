@@ -3,13 +3,13 @@
 
 # PR and main CI: every test except the real-Chrome fixtures below (the nightly
 # `chrome` profile runs those) and the process lifecycle tests, which CI runs
-# serially in a later step. CI also sets CCCC_TEST_FORBID_REAL_CHROME, so a new
+# serially in a later step. CI also sets NIUMA_TEST_FORBID_REAL_CHROME, so a new
 # fixture that launches Chrome fails until it is listed in both filters here.
 [profile.ci]
 fail-fast = false
 failure-output = "immediate-final"
 default-filter = '''
-not (package(cccc-pair-web) & (
+not (package(niuma-agent-web) & (
     test(=browser_surface::browser_surface_tests::click_command_preserves_the_requested_mouse_button)
   | test(=browser_surface::browser_surface_tests::composer_readiness_waits_for_login_and_interactive_verification)
   | test(=browser_surface::browser_surface_tests::concurrent_ensure_open_reuses_one_profile_owner)
@@ -67,7 +67,7 @@ fail-fast = false
 failure-output = "immediate-final"
 test-threads = 1
 default-filter = '''
-package(cccc-pair-web) & (
+package(niuma-agent-web) & (
     test(=browser_surface::browser_surface_tests::click_command_preserves_the_requested_mouse_button)
   | test(=browser_surface::browser_surface_tests::composer_readiness_waits_for_login_and_interactive_verification)
   | test(=browser_surface::browser_surface_tests::concurrent_ensure_open_reuses_one_profile_owner)

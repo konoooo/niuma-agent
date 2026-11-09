@@ -71,7 +71,7 @@ def test_macos_standalone_accepts_11_0_and_system_dependencies() -> None:
       version 1053.12
     """
     libraries = """
-    cccc:
+    niuma-agent:
         /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.120.2)
         /System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61439.120.27)
     """
@@ -106,7 +106,7 @@ def test_macos_standalone_rejects_newer_baseline_and_non_system_dylib() -> None:
           sdk 15.4
     """
     libraries = """
-    cccc:
+    niuma-agent:
         @rpath/libssl.3.dylib (compatibility version 3.0.0, current version 3.5.0)
         /usr/local/lib/libcustom.dylib (compatibility version 1.0.0, current version 1.0.0)
     """

@@ -1,3 +1,4 @@
+import "./utils/brandStorageMigration";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { i18nReady } from "./i18n";

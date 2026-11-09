@@ -19,7 +19,7 @@ python3 scripts/import_pixoffice_assets.py --check
 python3 scripts/import_pixoffice_assets.py --from /path/to/authorized/pixoffice-assets
 python3 scripts/import_pixoffice_assets.py --check
 npm -C web run build
-cargo build --release --locked -p cccc --bin cccc
+cargo build --release --locked -p niuma-agent --bin niuma-agent
 ```
 
 输入目录应直接包含 `assets/` 与 `characters/`，相对路径与校验清单相同。脚本先验证完整清单与 SHA-256，再复制资源；失败时不复制文件。脚本不从网络下载图片，也不会额外授予素材许可。

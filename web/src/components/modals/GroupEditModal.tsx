@@ -14,7 +14,7 @@ export interface GroupEditModalProps {
   isDark: boolean;
   busy: string;
   groupId: string;
-  ccccHome: string;
+  niumaHome: string;
   projectRoot: string;
   title: string;
   topic: string;
@@ -31,7 +31,7 @@ export function GroupEditModal({
   isDark,
   busy,
   groupId,
-  ccccHome,
+  niumaHome,
   projectRoot,
   title,
   topic,
@@ -49,7 +49,7 @@ export function GroupEditModal({
   const imeTopic = useIMEComposition({ value: topic, onChange: onChangeTopic });
   if (!isOpen) return null;
 
-  const homeRoot = String(ccccHome || "").trim();
+  const homeRoot = String(niumaHome || "").trim();
   const gid = String(groupId || "").trim();
   const groupDataDir = homeRoot && gid ? `${homeRoot}/groups/${gid}` : "";
   const groupConfigFile = groupDataDir ? `${groupDataDir}/group.yaml` : "";

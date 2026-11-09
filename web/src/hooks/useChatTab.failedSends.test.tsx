@@ -22,7 +22,7 @@ vi.mock("./useSlashCommandState", () => ({
       {
         name: "install",
         command: "/install",
-        capabilityId: "skill:cccc:install",
+        capabilityId: "skill:niuma-agent:install",
         sourceType: "builtin_command",
       },
       {

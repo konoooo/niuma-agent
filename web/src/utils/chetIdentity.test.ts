@@ -8,7 +8,7 @@ const event = (marker: unknown, by = "svc:chet"): LedgerEvent => ({
   id: "e1",
   kind: "chat.message",
   by,
-  data: { text: "Please check the build.", to: ["user"], _cccc_chet_group_generation: marker },
+  data: { text: "Please check the build.", to: ["user"], _niuma_chet_group_generation: marker },
 });
 
 it("proves Chet only by the Group generation its message was written in", () => {

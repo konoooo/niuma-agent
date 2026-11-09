@@ -20,7 +20,7 @@ describe("slashCommands", () => {
 
     expect(commands[0]).toMatchObject({
       command: "/install",
-      capabilityId: "skill:cccc:install",
+      capabilityId: "skill:niuma-agent:install",
       sourceType: "builtin_command",
     });
     expect(
@@ -108,7 +108,7 @@ describe("slashCommands", () => {
         enabled: [],
         active_capsule_skills: [
           {
-            capability_id: "skill:cccc:install",
+            capability_id: "skill:niuma-agent:install",
             name: "install",
             description_short: "Install capability",
           },
@@ -120,7 +120,7 @@ describe("slashCommands", () => {
     expect(commands.map((item) => item.command)).toEqual(["/install"]);
     expect(commands[0]).toMatchObject({
       command: "/install",
-      capabilityId: "skill:cccc:install",
+      capabilityId: "skill:niuma-agent:install",
       sourceType: "builtin_command",
     });
   });

@@ -1,7 +1,7 @@
 // Preferences use pixels at 100% text scale; the view converts to rendered pixels.
 export const COMPOSER_DEFAULT_HEIGHT = 64;
 export const COMPOSER_AUTO_MAX_HEIGHT = 128;
-export const COMPOSER_HEIGHT_KEY = "cccc-composer-height";
+export const COMPOSER_HEIGHT_KEY = "niuma-composer-height";
 
 export function clampComposerHeight(value: number, maximum = Number.MAX_SAFE_INTEGER): number {
   const upper = Number.isFinite(maximum)

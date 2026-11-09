@@ -1,5 +1,5 @@
 /** The worker asks an already-open workbench to show a notification target. */
-export const PUSH_OPEN_MESSAGE = "cccc:push:open";
+export const PUSH_OPEN_MESSAGE = "niuma-agent:push:open";
 
 /** The dedicated push worker's script, under its own narrow scope. */
 export const PUSH_WORKER_PATH = "/ui/push/sw.js";

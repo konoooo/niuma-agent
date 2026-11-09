@@ -45,7 +45,7 @@ const empty = {
   ok: true,
   result: {
     connectors: [] as WebModelConnector[],
-    connector_base_url: "https://cccc.example.test",
+    connector_base_url: "https://niuma-agent.example.test",
   },
 };
 const existing = { connector_id: "shared", bound_actor_count: 2 };
@@ -136,7 +136,7 @@ describe("shared Web Model login and connector", () => {
       ok: true,
       result: {
         connectors: [{ connector_id: "shared", bound_actor_count: 2 }],
-        connector_base_url: "https://cccc.example.test",
+        connector_base_url: "https://niuma-agent.example.test",
       },
     });
     mocks.create.mockResolvedValue({ ok: false, error: { message: "Save failed" } });
@@ -180,7 +180,7 @@ describe("shared Web Model login and connector", () => {
     await act(async () =>
       read.resolve({
         ok: true,
-        result: { connectors: [existing], connector_base_url: "https://cccc.example.test" },
+        result: { connectors: [existing], connector_base_url: "https://niuma-agent.example.test" },
       }),
     );
     expect(button("create")).toBeUndefined();
@@ -336,9 +336,9 @@ describe("shared Web Model login and connector", () => {
     expect(page.querySelector('[role="alert"]')).toBeNull();
   });
   it.each([
-    ["https://cccc.example.test", false],
+    ["https://niuma-agent.example.test", false],
     ["", true],
-    ["http://cccc.example.test", true],
+    ["http://niuma-agent.example.test", true],
     ["https://localhost:8848", true],
   ])(
     "asks for public HTTPS Web access from the configured address %j, before any connector exists",
@@ -379,10 +379,10 @@ describe("shared Web Model login and connector", () => {
     [
       "an older server reporting no base",
       undefined,
-      "https://cccc.example.test/mcp/web-model/shared",
+      "https://niuma-agent.example.test/mcp/web-model/shared",
       false,
     ],
-    ["an emptied Web access address", "", "https://cccc.example.test/mcp/web-model/shared", true],
+    ["an emptied Web access address", "", "https://niuma-agent.example.test/mcp/web-model/shared", true],
     ["an older server with a relative URL", undefined, "/mcp/web-model/shared", true],
   ])(
     "judges an existing connector's URL only for %s",
@@ -404,9 +404,9 @@ describe("shared Web Model login and connector", () => {
     ["chatgpt_web", { connector_base_url: "" }, null, "webModelShared.publicUrlMissing"],
     [
       "chatgpt_web",
-      { connector_base_url: "http://cccc.example.test/" },
+      { connector_base_url: "http://niuma-agent.example.test/" },
       null,
-      "webModelShared.publicUrlInvalid<http://cccc.example.test>",
+      "webModelShared.publicUrlInvalid<http://niuma-agent.example.test>",
     ],
     [
       "chatgpt_web",
@@ -418,14 +418,14 @@ describe("shared Web Model login and connector", () => {
     [
       "chatgpt_web",
       {},
-      "http://cccc.example.test/mcp/web-model/shared",
-      "webModelShared.publicUrlInvalid<http://cccc.example.test>",
+      "http://niuma-agent.example.test/mcp/web-model/shared",
+      "webModelShared.publicUrlInvalid<http://niuma-agent.example.test>",
     ],
     ["chatgpt_web", {}, "/mcp/web-model/shared", "webModelShared.publicUrlMissing"],
     // Addresses without an http(s) origin are no Web address; the connector path never shows.
     [
       "chatgpt_web",
-      { connector_base_url: "data:text/plain,cccc" },
+      { connector_base_url: "data:text/plain,niuma-agent" },
       null,
       "webModelShared.publicUrlMissing",
     ],
@@ -433,15 +433,15 @@ describe("shared Web Model login and connector", () => {
     [
       "chatgpt_web",
       {},
-      "mailto:ops@cccc.example.test/mcp/web-model/shared",
+      "mailto:ops@niuma-agent.example.test/mcp/web-model/shared",
       "webModelShared.publicUrlMissing",
     ],
     ["grok_web", { connector_base_url: "" }, null, "grokShared.publicUrlMissing"],
     [
       "grok_web",
-      { connector_base_url: "http://cccc.example.test" },
+      { connector_base_url: "http://niuma-agent.example.test" },
       null,
-      "grokShared.publicUrlInvalid<http://cccc.example.test>",
+      "grokShared.publicUrlInvalid<http://niuma-agent.example.test>",
     ],
   ] as const)(
     "%s: %j with connector URL %j says %s",
@@ -476,7 +476,7 @@ describe("shared Web Model login and connector", () => {
     expect(mocks.create).toHaveBeenLastCalledWith("chatgpt_web");
     mocks.connectors.mockResolvedValue({
       ok: true,
-      result: { connectors: [existing], connector_base_url: "https://cccc.example.test" },
+      result: { connectors: [existing], connector_base_url: "https://niuma-agent.example.test" },
     });
     const select = (name: string) =>
       Array.from(host.querySelectorAll("button")).find((b) => b.textContent === name)!;
@@ -509,7 +509,7 @@ describe("shared Web Model login and connector", () => {
     // The private URL is only ever copied, never rendered.
     expect(host.textContent).not.toContain("test-only");
     await act(async () => button("pluginSetup.copyName").click());
-    expect(mocks.copy).toHaveBeenLastCalledWith("CCCC");
+    expect(mocks.copy).toHaveBeenLastCalledWith("牛马Agent");
     await act(async () => button("copy").click());
     expect(mocks.copy).toHaveBeenLastCalledWith("https://fixture.test/token/test-only");
   });
@@ -519,7 +519,7 @@ describe("shared Web Model login and connector", () => {
       mocks.connectors.mockResolvedValue({
         ok: true,
         result: {
-          connector_base_url: "https://cccc.example.test",
+          connector_base_url: "https://niuma-agent.example.test",
           connectors: [
             {
               ...existing,
@@ -529,7 +529,7 @@ describe("shared Web Model login and connector", () => {
                 {
                   at: "2026-10-23T00:00:00Z",
                   method: "tools/call",
-                  tool_name: "cccc_pair",
+                  tool_name: "niuma_pair",
                   ok: false,
                   reason: "pairing_expired",
                 },
@@ -548,7 +548,7 @@ describe("shared Web Model login and connector", () => {
         ),
       ).toEqual(["failed", "ok"]);
       expect(page.querySelector('[data-web-model-call="failed"]')?.textContent).toContain(
-        "cccc_pair",
+        "niuma_pair",
       );
       expect(page.textContent).toContain("webModelDiagnostics.reasons.pairingExpired");
       expect(mocks.create).not.toHaveBeenCalled();
@@ -561,7 +561,7 @@ describe("shared Web Model login and connector", () => {
     mocks.connectors.mockResolvedValue({
       ok: true,
       result: {
-        connector_base_url: "https://cccc.example.test",
+        connector_base_url: "https://niuma-agent.example.test",
         connectors: [
           {
             ...existing,
@@ -569,7 +569,7 @@ describe("shared Web Model login and connector", () => {
               {
                 at: "2026-10-23T00:00:00Z",
                 method: "tools/call",
-                tool_name: "cccc_pair",
+                tool_name: "niuma_pair",
                 ok: false,
                 reason: "pairing_expired",
               },
@@ -583,7 +583,7 @@ describe("shared Web Model login and connector", () => {
     )!;
     await act(async () => refresh.click());
     expect(host.querySelector('[data-web-model-call="failed"]')?.textContent).toContain(
-      "cccc_pair",
+      "niuma_pair",
     );
     await act(async () => button("copy").click());
     expect(mocks.copy).toHaveBeenLastCalledWith(created.result.connector.connector_url_path_token);

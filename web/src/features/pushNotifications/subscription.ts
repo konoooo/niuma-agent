@@ -108,7 +108,7 @@ export async function isBoundSubscription(
 }
 
 /** Settings announce each confirmed reading so other views can follow it. */
-export const PUSH_STATUS_EVENT = "cccc:push-status";
+export const PUSH_STATUS_EVENT = "niuma-agent:push-status";
 
 export type PushSetupStatus =
   | "enabled"

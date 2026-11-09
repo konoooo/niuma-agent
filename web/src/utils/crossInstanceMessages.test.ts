@@ -31,5 +31,5 @@ it("identifies Connect transport authors without classifying local replies as in
   expect(
     isCrossInstanceInboundMessage("connect:instance-b", { src_instance_id: "instance-b" }),
   ).toBe(true);
-  expect(isCrossInstanceInboundMessage("worker", { source_platform: "cccc_connect" })).toBe(false);
+  expect(isCrossInstanceInboundMessage("worker", { source_platform: "niuma_connect" })).toBe(false);
 });

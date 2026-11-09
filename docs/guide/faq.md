@@ -1,13 +1,13 @@
 # FAQ
 
-Frequently asked questions about CCCC.
+Frequently asked questions about 牛马Agent.
 
 ## Positioning
 
-### How does CCCC compare to native agent teams and other tools?
+### How does 牛马Agent compare to native agent teams and other tools?
 
 **vs. native agent teams (Claude Code subagents/agent teams and similar single-vendor features).**
-Native teams give you the smoothest experience inside one vendor and one session — if you only run Claude Code and your work fits in a session, they are a great default. CCCC adds what a single vendor structurally cannot:
+Native teams give you the smoothest experience inside one vendor and one session — if you only run Claude Code and your work fits in a session, they are a great default. 牛马Agent adds what a single vendor structurally cannot:
 
 - **Cross-vendor groups** — Claude Code, Codex CLI, Grok Build, Kimi Code, ChatGPT Web, and more in one group, so you can route work to whichever model or subscription fits each role.
 - **Durable state** — groups, messages, delivery/read/reply facts, and tasks live in an append-only ledger owned by a daemon. Restarting a terminal (or your machine) does not dissolve the team.
@@ -15,109 +15,26 @@ Native teams give you the smoothest experience inside one vendor and one session
 - **An audit trail** — every message and its delivery state is replayable for review and debugging.
 
 **vs. parallel task runners (worktree/task-board tools).**
-These tools excel at fanning out isolated tasks in parallel. CCCC's focus is the coordination layer they intentionally skip: agents that talk to each other, choose whether a message should interrupt or wait in Mail, hand off tracked work, and expose delivery/read/reply state — plus daemon-owned lifecycle and IM-side operations. The two approaches compose well: keep a task runner for fan-out and use CCCC as the durable coordination plane.
+These tools excel at fanning out isolated tasks in parallel. 牛马Agent's focus is the coordination layer they intentionally skip: agents that talk to each other, choose whether a message should interrupt or wait in Mail, hand off tracked work, and expose delivery/read/reply state — plus daemon-owned lifecycle and IM-side operations. The two approaches compose well: keep a task runner for fan-out and use 牛马Agent as the durable coordination plane.
 
 **vs. IM assistant gateways (personal-assistant products that live in your chat app).**
-Those products put a general assistant in your messenger. CCCC is built for delivery-grade collaboration on real work: tracked tasks with owners and outcomes, explicit delivery/read/reply semantics, multi-agent groups bound to a repository scope, and a tiered token and capability-allowlist security model.
+Those products put a general assistant in your messenger. 牛马Agent is built for delivery-grade collaboration on real work: tracked tasks with owners and outcomes, explicit delivery/read/reply semantics, multi-agent groups bound to a repository scope, and a tiered token and capability-allowlist security model.
 
-In short: CCCC does not replace your agents — it is the coordination layer that turns them into a durable, observable team. See also [Positioning](/reference/positioning) for what CCCC deliberately is and is not.
+In short: 牛马Agent does not replace your agents — it is the coordination layer that turns them into a durable, observable team. See also [Positioning](/reference/positioning) for what 牛马Agent deliberately is and is not.
 
 ## Installation & Setup
 
-### How do I install CCCC?
+### 如何安装和更新牛马Agent？
 
-```bash
-# Recommended native installer (macOS / Linux)
-curl -fsSL https://chesterra.github.io/cccc/install.sh | sh
+按[源码安装说明](./getting-started/index.md#从源码安装)构建。更新时先备份 `NIUMA_HOME`，然后更新源码并重新构建同一个命令。
 
-# Package-manager-compatible native wheel
-python -m pip install -U "cccc-pair>=0.4.36"
+### How do I uninstall 牛马Agent without losing my groups?
 
-# From source
-git clone https://github.com/ChesterRa/cccc
-cd cccc
-./scripts/build_package.sh
-./target/release/cccc --version
-```
-
-The source package helper requires Rust 1.88+, Node.js 24 with npm, and Python
-3.11+ for archive assembly only; the resulting CCCC executable has no Python
-runtime dependency.
-
-Keep the v0.4.36 lower bound so an unsupported platform fails clearly instead
-of selecting the historical Python product.
-
-Windows CMD or PowerShell uses the native installer:
-
-```bash
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-RestMethod 'https://chesterra.github.io/cccc/install.ps1' | Invoke-Expression"
-```
-
-Both installation channels provide the same Rust executable. The pip wheel has
-no importable CCCC Python package or fallback implementation.
-
-### Why does an older `cccc update` stay on 0.4.35?
-
-CCCC 0.4.35 was the last release with a portable Python wheel and source
-distribution. Starting with 0.4.36, pip distributes only native platform wheels.
-An older Python updater runs an unconstrained `pip install -U cccc-pair`; pip
-can successfully select 0.4.35 again when newer wheels do not match the current
-platform. A successful pip exit alone does not mean the latest CCCC was installed.
-
-Current native packages support Linux x86-64 with glibc 2.28+, Apple Silicon
-macOS 11+, and Windows x86-64. Intel Mac support ended with 0.4.37. Linux ARM64,
-Alpine/musl, older glibc systems, and native Windows ARM64 Python environments
-do not match the current wheels. Updating pip cannot add a missing CCCC platform
-package.
-
-For a pip-owned installation, stop CCCC and use the **same Python environment
-that owns its command**:
-
-```bash
-python -m pip install -U "cccc-pair>=0.4.36"
-```
-
-The lower bound requires a native release and makes unsupported environments
-fail explicitly. To require a particular newer release, use that version as the
-lower bound or an exact pin. The native updater's online `--check` prints an
-exact pip target when a newer release is available. It does not run pip itself.
-
-If the platform is supported but the version still does not advance, check the
-pip index or mirror and its available versions, then verify which `cccc` command
-your shell runs. A different Python environment or an earlier PATH entry can
-leave the old command active. Do not share pip configuration containing private
-index credentials. See the installation diagnostics below.
-
-Newer `cccc update --check` queries the release index and reports current and
-latest versions. Older clients only display local installation information;
-upgrading server-side metadata cannot change that already installed code.
-
-### Why does `cccc` still start an older installation after an upgrade?
-
-CCCC does not delete commands owned by another Python environment or installer.
-Run `cccc doctor` and inspect the `Installation` section. It shows the current
-launcher, the first command selected by PATH, and every duplicate. The standalone
-installer never infers ownership from version output. Rust self-update identifies
-its exact current executable only when the containing directory has the complete
-`.cccc-standalone` ownership marker. Markerless commands and foreign ownership
-markers remain untouched unless `CCCC_ALLOW_REPLACE_EXISTING=1` explicitly
-authorizes migration through the installer. It puts its default directory first for new terminals; an
-existing terminal must be reopened (or its PATH refreshed). Custom install directories and
-`CCCC_NO_MODIFY_PATH=1` require you to move that directory to the front manually.
-When PATH still selects the old command, run the newly installed executable by
-the absolute path printed by the installer to get the current diagnostic report.
-The native pip wheel uses the same marker path with value `pip-v1`, so a pip
-install cannot inherit stale standalone self-update authority. To move that
-command directory to the website installer, uninstall `cccc-pair` with pip
-first; the explicit replacement flag does not override pip ownership.
-
-### How do I uninstall CCCC without losing my groups?
-
-Run `cccc home` first and stop the running product. Pip installations should be
-removed with `python -m pip uninstall cccc-pair`. For a website-script install,
-verify the complete `.cccc-standalone` ownership marker and remove only the
-owned executable and marker; do not delete a shared command directory. CCCC
-intentionally retains `CCCC_HOME`, so groups, ledgers, settings, credentials,
+Run `niuma-agent home` first and stop the running product. Pip installations should be
+removed with `python -m pip uninstall niuma-agent`. For a website-script install,
+verify the complete `.niuma-agent-standalone` ownership marker and remove only the
+owned executable and marker; do not delete a shared command directory. 牛马Agent
+intentionally retains `NIUMA_HOME`, so groups, ledgers, settings, credentials,
 and browser profiles remain available after reinstall. Exact macOS/Linux and
 Windows standalone steps are in the
 [distribution and migration guide](../rust-migration.md#uninstall-without-removing-user-data).
@@ -128,13 +45,13 @@ You must uninstall the old version first:
 
 ```bash
 # For pipx users
-pipx uninstall cccc-pair
+pipx uninstall niuma-agent
 
 # For pip users
-pip uninstall cccc-pair
+pip uninstall niuma-agent
 
 # Remove any leftover binaries
-rm -f ~/.local/bin/cccc ~/.local/bin/ccccd
+rm -f ~/.local/bin/niuma-agent ~/.local/bin/niumad
 ```
 
 Then install the new version. Note that 0.4.x has a completely different command structure from 0.3.x.
@@ -144,38 +61,37 @@ Then install the new version. Note that 0.4.x has a completely different command
 - Linux x86-64 with glibc 2.28+, Apple Silicon macOS 11+, or Windows x86-64
 - At least one supported agent runtime CLI
 
-Normal installation requires neither Python nor a Rust toolchain. The MCP
-JavaScript code mode additionally requires Node.js on the CCCC host.
+构建需要 Rust 1.88+、Node.js 24 和 npm。使用迁移脚本时需要 Python 3 与 PyYAML。
 
 ### Can I choose a different product implementation?
 
-You do not. CCCC 0.4.36 has one Rust product implementation. The 0.4.35
-`cccc python` / `cccc rust` selectors and persisted implementation preference
+You do not. 牛马Agent 0.4.36 has one Rust product implementation. The 0.4.35
+`niuma-agent python` / `niuma-agent rust` selectors and persisted implementation preference
 are retired.
 
-### How do I check if CCCC is working?
+### How do I check if 牛马Agent is working?
 
 ```bash
-cccc status
-cccc doctor
+niuma-agent status
+niuma-agent doctor
 ```
 
 These show native product and daemon status, agent runtimes, installation
 ownership, and environment diagnostics.
 
-### Does a leftover `cccc-web.lock` mean CCCC is still running?
+### Does a leftover `niuma-web.lock` mean 牛马Agent is still running?
 
 No. The operating-system file lock is authoritative; the file may retain the
-last owner's PID after a crash. `cccc` automatically reclaims an unlocked file,
+last owner's PID after a crash. `niuma-agent` automatically reclaims an unlocked file,
 replaces the PID, and starts its embedded daemon when the Web process starts.
-Manual lock deletion or a separate `cccc daemon start` is not required. If CCCC
+Manual lock deletion or a separate `niuma-agent daemon start` is not required. If 牛马Agent
 reports that another instance is running, that process still holds the real file
 lock and should be stopped normally.
 
 ### Why does an embedded browser open a physical Chrome window on Linux?
 
 Projected browsers require `Xvfb` to stay off the host desktop. Install `xvfb` (and optionally
-`x11vnc` for the VNC viewer), run `cccc doctor`, then use **Restart ChatGPT browser**. Current CCCC
+`x11vnc` for the VNC viewer), run `niuma-agent doctor`, then use **Restart ChatGPT browser**. Current 牛马Agent
 fails browser startup when Xvfb is missing instead of silently falling back to the host `DISPLAY`.
 
 ## Agents
@@ -208,22 +124,22 @@ fails browser startup when Xvfb is missing instead of silently falling back to t
 ### How do I add a custom agent?
 
 ```bash
-cccc actor add my-agent --runtime custom --command "my-custom-cli"
+niuma-agent actor add my-agent --runtime custom --command "my-custom-cli"
 ```
 
 ### Agent won't start?
 
 1. Check the terminal tab for error messages
-2. Verify MCP is configured: `cccc setup --runtime <name>`
+2. Verify MCP is configured: `niuma-agent setup --runtime <name>`
 3. Ensure the CLI is installed and in PATH
-4. Try: `cccc actor restart <actor_id>`
+4. Try: `niuma-agent actor restart <actor_id>`
 
 ## Messaging
 
 ### How do I send a message to a specific agent?
 
 ```bash
-cccc send "Please do X" --to agent-name
+niuma-agent send "Please do X" --to agent-name
 ```
 
 Or in the Web UI, type `@agent-name` in your message.
@@ -231,19 +147,19 @@ Or in the Web UI, type `@agent-name` in your message.
 ### Agent isn't responding to my messages?
 
 1. Check if the agent is running (green indicator in Web UI)
-2. Check the inbox: `cccc inbox --actor-id <agent-id>`
+2. Check the inbox: `niuma-agent inbox --actor-id <agent-id>`
 3. Look at the terminal tab for errors
 4. Try restarting the agent
 
 ### How do read receipts work?
 
-Agents call `cccc_inbox_read` to receive and consume the next ordered batch.
+Agents call `niuma_inbox_read` to receive and consume the next ordered batch.
 The returned batch boundary is committed cumulatively; bootstrap previews and
 Web polling do not consume messages.
 
 ## Remote Access
 
-### How do I access CCCC from my phone?
+### How do I access 牛马Agent from my phone?
 
 **Option 1: Cloudflare Tunnel**
 ```bash
@@ -252,13 +168,13 @@ cloudflared tunnel --url http://127.0.0.1:8848
 
 **Option 2: IM Bridge**
 ```bash
-cccc im set telegram --token-env TELEGRAM_BOT_TOKEN
-cccc im start
+niuma-agent im set telegram --token-env TELEGRAM_BOT_TOKEN
+niuma-agent im start
 ```
 
 **Option 3: Tailscale**
 ```bash
-CCCC_WEB_HOST=$(tailscale ip -4) cccc
+NIUMA_WEB_HOST=$(tailscale ip -4) niuma-agent
 ```
 
 ### Is it safe to expose the Web UI?
@@ -269,7 +185,7 @@ Use Cloudflare Access or Tailscale for additional security.
 
 ## Performance
 
-### How much resources does CCCC use?
+### How much resources does 牛马Agent use?
 
 - Daemon: Minimal native background service
 - Web UI: Standard React app
@@ -277,7 +193,7 @@ Use Cloudflare Access or Tailscale for additional security.
 
 ### The ledger file is getting large
 
-CCCC supports snapshot/compaction. Large blobs are stored separately in the `blobs/` directory.
+牛马Agent supports snapshot/compaction. Large blobs are stored separately in the `blobs/` directory.
 
 ### How do I reduce message latency?
 
@@ -289,20 +205,20 @@ CCCC supports snapshot/compaction. Large blobs are stored separately in the `blo
 
 ### Why do git worktrees remain after an agent stops? {#why-do-git-worktrees-remain-after-an-actor-stops}
 
-CCCC does not manage worktree cleanup. Agents or custom native launch commands can create worktrees, and stopping an agent does not guarantee the runtime's cleanup flow. See [Git worktrees and long-lived agents](runtimes.md#git-worktrees-and-long-lived-actors) for ownership and manual cleanup steps.
+牛马Agent does not manage worktree cleanup. Agents or custom native launch commands can create worktrees, and stopping an agent does not guarantee the runtime's cleanup flow. See [Git worktrees and long-lived agents](runtimes.md#git-worktrees-and-long-lived-actors) for ownership and manual cleanup steps.
 
 ### Daemon won't start
 
 ```bash
-cccc daemon status  # Check if already running
-cccc daemon stop    # Stop existing instance
-cccc daemon start   # Start fresh
+niuma-agent daemon status  # Check if already running
+niuma-agent daemon stop    # Stop existing instance
+niuma-agent daemon start   # Start fresh
 ```
 
 ### Port 8848 is unavailable
 
 ```bash
-CCCC_WEB_PORT=9000 cccc
+NIUMA_WEB_PORT=9000 niuma-agent
 ```
 
 On Windows, Hyper-V / WSL / WinNAT / HNS can reserve a TCP port even when no
@@ -313,22 +229,22 @@ owning PID, check the excluded port ranges:
 netsh interface ipv4 show excludedportrange protocol=tcp
 ```
 
-If `8848` falls inside one of those ranges, start CCCC on a different port:
+If `8848` falls inside one of those ranges, start 牛马Agent on a different port:
 
 ```powershell
-cccc web --port 9000
+niuma-agent web --port 9000
 ```
 
 ### MCP not working
 
 ```bash
-cccc setup --runtime <name>  # Re-run setup
-cccc doctor                  # Check configuration
+niuma-agent setup --runtime <name>  # Re-run setup
+niuma-agent doctor                  # Check configuration
 ```
 
 ### Web UI not loading
 
-1. Check daemon is running: `cccc daemon status`
+1. Check daemon is running: `niuma-agent daemon status`
 2. Check the port: http://127.0.0.1:8848/
 3. Check browser console for errors
 4. Try a different browser
@@ -348,7 +264,7 @@ The ledger is an append-only event stream that stores all messages, state change
 
 ### What is MCP?
 
-MCP (Model Context Protocol) is how agents interact with CCCC. It exposes a rich tool surface for messaging, context management, automation, and system control.
+MCP (Model Context Protocol) is how agents interact with 牛马Agent. It exposes a rich tool surface for messaging, context management, automation, and system control.
 
 ### What is a Scope?
 

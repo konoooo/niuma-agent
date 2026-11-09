@@ -151,7 +151,7 @@ function context(text = "Investigation result") {
   };
 }
 function report(text: string, id: string) {
-  return { ...context(text), _cccc_report_id: id };
+  return { ...context(text), _niuma_report_id: id };
 }
 function items(socket: FakeSocket) {
   return socket.frames
@@ -161,7 +161,7 @@ function items(socket: FakeSocket) {
 function functionDone(id = "tool-1") {
   return {
     type: "response.function_call_arguments.done",
-    name: "cccc_investigate",
+    name: "niuma_investigate",
     call_id: id,
     arguments: '{"request":"Inspect this project"}',
   };
@@ -200,16 +200,16 @@ it("returns function acceptance only after host admission and does not re-open d
   const socket = await connect(transport);
   socket.emit(functionDone());
   expect(items(socket)).toHaveLength(0);
-  transport.send({ type: "cccc.delegation.receipt", call_id: "unobserved", accepted: true });
+  transport.send({ type: "niuma-agent.delegation.receipt", call_id: "unobserved", accepted: true });
   expect(items(socket)).toHaveLength(0);
-  transport.send({ type: "cccc.delegation.receipt", call_id: "tool-1", accepted: true });
+  transport.send({ type: "niuma-agent.delegation.receipt", call_id: "tool-1", accepted: true });
   expect(items(socket)[0]).toMatchObject({
     type: "function_call_output",
     call_id: "tool-1",
     output: '{"status":"received"}',
   });
   socket.emit(functionDone());
-  transport.send({ type: "cccc.delegation.receipt", call_id: "tool-1", accepted: true });
+  transport.send({ type: "niuma-agent.delegation.receipt", call_id: "tool-1", accepted: true });
   expect(items(socket)).toHaveLength(1);
   await vi.advanceTimersByTimeAsync(150);
   expect(socket.frames.filter((frame) => frame.type === "response.create")).toHaveLength(1);
@@ -225,7 +225,7 @@ it.each([true, false])(
     socket.emit({ type: "response.created", response: { id: "tool-response" } });
     socket.emit(functionDone());
     socket.emit({ type: "response.done", response: { id: "tool-response", status: "completed" } });
-    transport.send({ type: "cccc.delegation.receipt", call_id: "tool-1", accepted });
+    transport.send({ type: "niuma-agent.delegation.receipt", call_id: "tool-1", accepted });
     await vi.advanceTimersByTimeAsync(450);
     expect(items(socket).at(-1)).toMatchObject({
       type: "function_call_output",
@@ -449,7 +449,7 @@ it("waits for VAD to start before speaking a tool receipt", async () => {
   socket.emit(functionDone());
   socket.emit({ type: "input_audio_buffer.speech_started" });
   socket.emit({ type: "input_audio_buffer.speech_stopped" });
-  transport.send({ type: "cccc.delegation.receipt", call_id: "tool-1", accepted: true });
+  transport.send({ type: "niuma-agent.delegation.receipt", call_id: "tool-1", accepted: true });
   await vi.advanceTimersByTimeAsync(340);
   expect(items(socket)[0]).toMatchObject({ type: "function_call_output", call_id: "tool-1" });
   expect(socket.frames.some((frame) => frame.type === "response.create")).toBe(false);

@@ -18,13 +18,13 @@ const RAW_REQUEST = [
   "",
   "方便的话，请直接回复我这边。",
   "",
-  "<!-- cccc-delegation-protocol",
-  "[cccc-delegation:v1]",
+  "<!-- niuma-delegation-protocol",
+  "[niuma-delegation:v1]",
   "delegation_id: dlg_1",
   "source_group_id: g_src",
   "target_group_id: g_dst",
   "target_actor_id: target",
-  "source_contact: send back with cccc_message_send(dst_group_id=g_src, ...)",
+  "source_contact: send back with niuma_message_send(dst_group_id=g_src, ...)",
   "target_contact: reply in this group first",
   "",
   "Communication protocol:",
@@ -32,7 +32,7 @@ const RAW_REQUEST = [
   "",
   "Original user message (reference only):",
   "总结两个 skill,跟 #self-agent 说一下",
-  "[/cccc-delegation]",
+  "[/niuma-delegation]",
   "-->",
 ].join("\n");
 
@@ -47,15 +47,15 @@ describe("delegation natural body / protocol split", () => {
     expect(shown).not.toContain("自然任务");
     expect(shown).not.toContain("不要把用户原话");
     expect(shown).not.toContain("请先确认是否接收");
-    expect(shown).not.toContain("[cccc-delegation:v1]");
+    expect(shown).not.toContain("[niuma-delegation:v1]");
     expect(shown).not.toContain("delegation_id:");
     expect(shown).not.toContain("source_contact:");
-    expect(shown).not.toContain("cccc-delegation-protocol");
+    expect(shown).not.toContain("niuma-delegation-protocol");
   });
 
   it("protocol text extracts the full machine block", () => {
     const protocol = getDelegationProtocolText(RAW_REQUEST);
-    expect(protocol).toContain("[cccc-delegation:v1]");
+    expect(protocol).toContain("[niuma-delegation:v1]");
     expect(protocol).toContain("delegation_id: dlg_1");
     expect(protocol).toContain("source_contact:");
     expect(protocol).toContain("Original user message (reference only):");
@@ -133,14 +133,14 @@ describe("MessageBubble delegation display wiring", () => {
 describe("messageBubbleDelegation", () => {
   it("classifies a delegation request message", () => {
     const text =
-      "[cccc-delegation:v1]\ndelegation_id: dlg_1\nOriginal request:\ndo x\n[/cccc-delegation]";
+      "[niuma-delegation:v1]\ndelegation_id: dlg_1\nOriginal request:\ndo x\n[/niuma-delegation]";
     expect(isDelegationRequestText(text)).toBe(true);
     expect(destinationChipKey(text)).toBe("relayedTo");
   });
 
   it("classifies a delegation result message", () => {
     const text =
-      "[cccc-delegation-result:v1]\ndelegation_id: dlg_1\nstatus: done\n[/cccc-delegation-result]";
+      "[niuma-delegation-result:v1]\ndelegation_id: dlg_1\nstatus: done\n[/niuma-delegation-result]";
     expect(isDelegationResultText(text)).toBe(true);
     expect(isDelegationRequestText(text)).toBe(false);
   });

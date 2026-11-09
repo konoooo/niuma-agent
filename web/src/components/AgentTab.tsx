@@ -577,7 +577,7 @@ export function AgentTab({
       }
       if (isPaste && canControlRef.current) {
         // xterm.js intentionally doesn't map Ctrl+V to paste by default (to preserve terminal semantics),
-        // but for CCCC agents the high-ROI expectation is "Ctrl/Cmd+V pastes text into the PTY".
+        // but for 牛马Agent agents the high-ROI expectation is "Ctrl/Cmd+V pastes text into the PTY".
         const readText = navigator.clipboard?.readText;
         if (typeof readText === "function") {
           // Prevent the browser's default paste behavior (xterm's textarea may also handle paste),
@@ -858,7 +858,7 @@ export function AgentTab({
             connected={terminalReady && connectionStatus === "connected"}
             connectionFailed={connectionFailed}
             canStartNewSession={canStartNewSession}
-            pauseCcccAccess={accessOnly}
+            pauseNiumaAccess={accessOnly}
             dotsConnected={isNativeSession || Boolean(eventState?.connected)}
             unreadCount={unreadCount}
             onInterrupt={sendInterrupt}

@@ -50,7 +50,7 @@ function buildReleaseSidebarItems(): DefaultTheme.SidebarItem[] {
 
 // Privacy-friendly visit counting (no cookies, no personal data).
 // To enable: create a site at https://www.goatcounter.com (free for open source),
-// then set the site code here, e.g. 'cccc'. Leave empty to ship no analytics at all.
+// then set the site code here, e.g. 'niuma-agent'. Leave empty to ship no analytics at all.
 const GOATCOUNTER_CODE = ''
 
 const analyticsHead: HeadConfig[] = GOATCOUNTER_CODE
@@ -65,11 +65,11 @@ const analyticsHead: HeadConfig[] = GOATCOUNTER_CODE
   : []
 
 export default defineConfig({
-  title: 'CCCC',
+  title: '牛马Agent',
   description: 'Multi-Agent Collaboration Kernel',
 
   // GitHub Pages base path
-  base: '/cccc/',
+  base: '/niuma-agent/',
 
   // Keep local-only planning/archive notes out of the published docs build.
   srcExclude: [
@@ -89,7 +89,7 @@ export default defineConfig({
   ],
 
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/cccc/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/niuma-agent/logo.svg' }],
     ...analyticsHead
   ],
 
@@ -133,7 +133,7 @@ export default defineConfig({
             { text: 'Web UI', link: '/guide/web-ui' },
             { text: 'Supported Runtimes', link: '/guide/runtimes' },
             { text: 'Native sessions', link: '/guide/local-sessions' },
-            { text: 'CCCC Connect', link: '/guide/connect' },
+            { text: '牛马Agent Connect', link: '/guide/connect' },
             { text: 'ChatGPT Web Model Runtime', link: '/guide/web-model-runtime' },
             { text: 'Grok Bot Web Model', link: '/guide/grok-web-model-runtime' },
             { text: 'Group Space + NotebookLM', link: '/guide/group-space-notebooklm' },
@@ -174,9 +174,9 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/standards/' },
             { text: 'CCCS v1', link: '/standards/CCCS_V1' },
-            { text: 'Daemon IPC v1', link: '/standards/CCCC_DAEMON_IPC_V1' },
-            { text: 'Context Ops v1', link: '/standards/CCCC_CONTEXT_OPS_V1' },
-            { text: 'Connect v1', link: '/standards/CCCC_CONNECT_V1' }
+            { text: 'Daemon IPC v1', link: '/standards/NIUMA_DAEMON_IPC_V1' },
+            { text: 'Context Ops v1', link: '/standards/NIUMA_CONTEXT_OPS_V1' },
+            { text: 'Connect v1', link: '/standards/NIUMA_CONNECT_V1' }
           ]
         }
       ],
@@ -198,12 +198,12 @@ export default defineConfig({
     },
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/ChesterRa/cccc' }
+      { icon: 'github', link: 'https://github.com/konoooo/niuma-agent' }
     ],
 
     footer: {
       message: 'Released under the Apache-2.0 License.',
-      copyright: 'Copyright 2024-present CCCC Contributors'
+      copyright: 'Copyright 2024-present 牛马Agent Contributors'
     },
 
     search: {

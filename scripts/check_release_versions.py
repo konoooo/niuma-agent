@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the shared CCCC release identity across package metadata, Rust, and Git tags."""
+"""Validate the shared 牛马Agent release identity across package metadata, Rust, and Git tags."""
 
 from __future__ import annotations
 
@@ -91,13 +91,13 @@ def main() -> int:
     if not package_version:
         package_version, rust_version = _manifest_versions(args.root.resolve())
     if not package_version or not rust_version:
-        raise ValueError("failed to read CCCC versions from pyproject.toml and Cargo.toml")
+        raise ValueError("failed to read 牛马Agent versions from pyproject.toml and Cargo.toml")
 
     package_identity = _package_identity(package_version)
     rust_identity = _rust_identity(rust_version)
     if package_identity != rust_identity:
         raise ValueError(
-            "CCCC release identity mismatch: "
+            "牛马Agent release identity mismatch: "
             f"Package={package_version!r} -> {_canonical(package_identity)!r}, "
             f"Rust={rust_version!r} -> {_canonical(rust_identity)!r}"
         )
@@ -112,12 +112,12 @@ def main() -> int:
         binary_identity = _rust_identity(binary_version)
         if binary_identity != rust_identity:
             raise ValueError(
-                "CCCC Rust binary identity mismatch: "
+                "牛马Agent Rust binary identity mismatch: "
                 f"binary={binary_version!r} -> {_canonical(binary_identity)!r}, "
                 f"manifest={rust_version!r} -> {_canonical(rust_identity)!r}"
             )
 
-    print(f"CCCC release identity: {identity} (Package={package_version}, Rust={rust_version})")
+    print(f"牛马Agent release identity: {identity} (Package={package_version}, Rust={rust_version})")
     return 0
 
 

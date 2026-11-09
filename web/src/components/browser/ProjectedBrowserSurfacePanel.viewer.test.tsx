@@ -82,7 +82,7 @@ const readySurface: PresentationBrowserSurfaceState = {
   last_frame_seq: 0,
   last_frame_at: "",
   controller_attached: false,
-  metadata: { display_owned: true, display_owner: "cccc_xvfb" },
+  metadata: { display_owned: true, display_owner: "niuma_xvfb" },
   viewer: { kind: "vnc", vnc: { available: true } },
 };
 

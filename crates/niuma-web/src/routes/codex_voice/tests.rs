@@ -1,0 +1,480 @@
+use super::payload::{analyst_info_value, info_value};
+use super::terminal::{parsed_terminal_size, valid_terminal_size};
+use crate::codex_voice::{AnalystInfo, SessionInfo};
+use crate::{WebMode, app_with_mode};
+use axum::body::Body;
+use axum::http::{Request, StatusCode, header};
+use niuma_core::HomeLayout;
+use niuma_core::access_tokens::AccessTokenStore;
+use serde_json::json;
+use tower::ServiceExt;
+
+#[tokio::test]
+async fn antigravity_voice_readiness_reports_setup_without_creating_runtime_state() {
+    for linked_profile in [false, true] {
+        let temp = tempfile::tempdir().expect("temp");
+        let home = HomeLayout::from_path(temp.path()).expect("home");
+        home.initialize().expect("initialize");
+        let settings = if linked_profile {
+            niuma_core::profiles::ProfileStore::new(home.clone())
+                .expect("profiles")
+                .upsert(
+                    json!({"id":"agy-acp","runtime":"antigravity","runtime_mode":"acp","command":["agy"]})
+                        .as_object().expect("profile").clone(),
+                    None,
+                )
+                .expect("save profile");
+            niuma_contracts::CodexVoiceAnalystSettings {
+                profile_id: "agy-acp".into(),
+                ..Default::default()
+            }
+        } else {
+            niuma_contracts::CodexVoiceAnalystSettings {
+                runtime: niuma_contracts::ActorRuntime::Antigravity,
+                runtime_mode: niuma_contracts::RuntimeMode::Acp,
+                command: vec!["agy".into()],
+                ..Default::default()
+            }
+        };
+        niuma_core::codex_voice_settings::save(&home, &settings).expect("settings");
+        let token = AccessTokenStore::new(home.clone())
+            .expect("tokens")
+            .create("admin", vec![], true, None)
+            .expect("admin");
+        let router = app_with_mode(home.clone(), WebMode::Normal);
+        for _ in 0..2 {
+            let response = router
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/api/v1/codex_voice/calls/active")
+                        .header(header::AUTHORIZATION, format!("Bearer {}", token.token))
+                        .body(Body::empty())
+                        .expect("request"),
+                )
+                .await
+                .expect("response");
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("body");
+            let body: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON");
+            assert_eq!(
+                body["result"]["readiness"]["analyst_runtime"],
+                "antigravity"
+            );
+            assert_eq!(
+                body["result"]["readiness"]["analyst_runtime_available"],
+                false
+            );
+            assert_eq!(
+                body["result"]["readiness"]["analyst_runtime_setup_required"],
+                true
+            );
+            assert!(body["result"]["analyst"].is_null());
+            assert!(body["result"]["call"].is_null());
+        }
+        assert!(!home.root().join("runtimes/antigravity-acp").exists());
+        assert!(!home.root().join("state/antigravity-acp").exists());
+    }
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn optional_acp_voice_readiness_uses_the_selected_cli_for_empty_commands() {
+    use niuma_contracts::{ActorRuntime, CodexVoiceAnalystSettings, RuntimeMode};
+    use std::{collections::BTreeMap, os::unix::fs::PermissionsExt};
+
+    for (runtime, name, program) in [
+        (ActorRuntime::Kiro, "kiro", "kiro-cli"),
+        (ActorRuntime::Hermes, "hermes", "hermes"),
+        (ActorRuntime::Droid, "droid", "droid"),
+    ] {
+        for selected_cli_available in [true, false] {
+            let temp = tempfile::tempdir().expect("isolated readiness fixture");
+            let home = HomeLayout::from_path(temp.path().join("niuma-agent")).expect("home");
+            home.initialize().expect("initialize");
+            let provider_home = temp.path().join("provider");
+            let bin = provider_home.join("bin");
+            std::fs::create_dir_all(&bin).expect("fixture PATH");
+            let executable = bin.join(if selected_cli_available {
+                program
+            } else {
+                "codex"
+            });
+            std::fs::write(
+                &executable,
+                b"#!/bin/sh\nprintf invoked > \"$0.invoked\"\nexit 99\n",
+            )
+            .expect("owned CLI fixture");
+            std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+                .expect("executable fixture");
+            let settings = CodexVoiceAnalystSettings {
+                runtime,
+                runtime_mode: RuntimeMode::Acp,
+                command: vec![],
+                ..Default::default()
+            };
+            niuma_core::codex_voice_settings::save(&home, &settings).expect("settings");
+            let environment = BTreeMap::from([
+                ("PATH".into(), bin.to_string_lossy().into_owned()),
+                ("HOME".into(), provider_home.to_string_lossy().into_owned()),
+                (
+                    "USERPROFILE".into(),
+                    provider_home.to_string_lossy().into_owned(),
+                ),
+                (
+                    "CODEX_HOME".into(),
+                    provider_home.join("codex").to_string_lossy().into_owned(),
+                ),
+                (
+                    "KIRO_HOME".into(),
+                    provider_home.join("kiro").to_string_lossy().into_owned(),
+                ),
+                (
+                    "HERMES_HOME".into(),
+                    provider_home.join("hermes").to_string_lossy().into_owned(),
+                ),
+            ]);
+            niuma_core::codex_voice_settings::replace_private_environment(&home, &environment)
+                .expect("isolated provider environment");
+            let settings_path = home.root().join("settings.yaml");
+            let environment_path = home.root().join("state/secrets/codex_voice_analyst.json");
+            let saved_settings = std::fs::read(&settings_path).expect("saved settings");
+            let saved_environment = std::fs::read(&environment_path).expect("saved environment");
+            let token = AccessTokenStore::new(home.clone())
+                .expect("tokens")
+                .create("admin", vec![], true, None)
+                .expect("admin");
+            let router = app_with_mode(home.clone(), WebMode::Normal);
+            for _ in 0..2 {
+                let response = router
+                    .clone()
+                    .oneshot(
+                        Request::builder()
+                            .uri("/api/v1/codex_voice/calls/active")
+                            .header(header::AUTHORIZATION, format!("Bearer {}", token.token))
+                            .body(Body::empty())
+                            .expect("readiness request"),
+                    )
+                    .await
+                    .expect("readiness response");
+                assert_eq!(response.status(), StatusCode::OK);
+                let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .expect("response body");
+                let body: serde_json::Value = serde_json::from_slice(&bytes).expect("JSON");
+                assert_eq!(body["result"]["readiness"]["analyst_runtime"], name);
+                assert_eq!(
+                    body["result"]["readiness"]["analyst_runtime_available"],
+                    selected_cli_available,
+                    "{name}: availability must use the selected Runtime, not Codex"
+                );
+                assert_eq!(
+                    body["result"]["readiness"]["analyst_runtime_setup_required"],
+                    false
+                );
+                assert!(body["result"]["analyst"].is_null());
+                assert!(body["result"]["call"].is_null());
+            }
+            assert!(
+                !executable.with_extension("invoked").exists(),
+                "readiness GET must not run any CLI"
+            );
+            assert!(std::fs::read(&settings_path).expect("retained settings") == saved_settings);
+            assert!(
+                std::fs::read(&environment_path).expect("retained environment")
+                    == saved_environment
+            );
+            assert!(
+                !home
+                    .root()
+                    .join("state/codex_voice/analyst-workdir")
+                    .exists()
+            );
+        }
+    }
+}
+
+#[test]
+fn connected_voice_principal_loses_authority_when_its_token_is_revoked() {
+    let temp = tempfile::tempdir().expect("temp");
+    let home = HomeLayout::from_path(temp.path()).expect("home");
+    let store = AccessTokenStore::new(home.clone()).expect("tokens");
+    let token = store.create("admin", vec![], true, None).expect("admin");
+    store
+        .create("remaining-admin", vec![], true, None)
+        .expect("retain another administrator");
+    let principal = crate::auth::Principal {
+        user_id: token.user_id.clone(),
+        allowed_groups: vec![],
+        is_admin: true,
+        raw_token: token.token.clone(),
+    };
+    assert!(principal.current_admin(&home).expect("current"));
+    store.delete(&token.token_id()).expect("revoke");
+    assert!(!principal.current_admin(&home).expect("revoked"));
+    assert!(
+        principal.is_admin,
+        "the initial WebSocket identity alone is insufficient"
+    );
+}
+
+#[tokio::test]
+async fn exhibit_cannot_read_or_mutate_voice_notification_state_even_as_admin() {
+    let temp = tempfile::tempdir().expect("temp");
+    let home = HomeLayout::from_path(temp.path()).expect("home");
+    home.initialize().expect("initialize");
+    let token = AccessTokenStore::new(home.clone())
+        .expect("tokens")
+        .create("admin", vec![], true, None)
+        .expect("admin");
+    let router = app_with_mode(home.clone(), WebMode::Exhibit);
+    for (method, path) in [
+        ("GET", "preferences"),
+        ("PUT", "preferences"),
+        ("GET", "notifications"),
+        ("POST", "messages/viewed"),
+        ("POST", "calls/fake/notification-output"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(format!("/api/v1/codex_voice/{path}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", token.token))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
+    }
+    assert!(
+        !home
+            .root()
+            .join("state/codex_voice/notifications.json")
+            .exists()
+    );
+}
+
+#[tokio::test]
+async fn scoped_users_cannot_read_or_mutate_global_voice_notification_state() {
+    let temp = tempfile::tempdir().expect("temp");
+    let home = HomeLayout::from_path(temp.path()).expect("home");
+    home.initialize().expect("home");
+    let token = AccessTokenStore::new(home.clone())
+        .expect("tokens")
+        .create("scoped", vec!["g_one".into()], false, None)
+        .expect("token");
+    let router = app_with_mode(home.clone(), WebMode::Normal);
+    for (method, path) in [
+        ("GET", "preferences"),
+        ("PUT", "preferences"),
+        ("GET", "notifications"),
+        ("POST", "messages/viewed"),
+        ("POST", "calls/fake/notification-output"),
+    ] {
+        let response = router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method)
+                    .uri(format!("/api/v1/codex_voice/{path}"))
+                    .header(header::AUTHORIZATION, format!("Bearer {}", token.token))
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{}"))
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::FORBIDDEN, "{method} {path}");
+    }
+    assert!(
+        !home
+            .root()
+            .join("state/codex_voice/notifications.json")
+            .exists()
+    );
+}
+
+#[test]
+fn public_voice_payloads_do_not_expose_local_paths_or_codex_commands() {
+    let value = info_value(SessionInfo {
+        provider: niuma_contracts::codex_voice::VoiceProvider::Codex,
+        generation: "voice-1".into(),
+        analyst_generation: Some("analyst-1".into()),
+        mode: Default::default(),
+        voice: "cove".into(),
+        connected: true,
+    });
+    let analyst = analyst_info_value(AnalystInfo {
+        structured: false,
+        queued_inputs: 0,
+        permissions: vec![],
+        progress: String::new(),
+        last_error: String::new(),
+        manual_task_id: None,
+        manual_tasks: vec![],
+        generation: "analyst-1".into(),
+        tui_ready: true,
+        phase: "ready".into(),
+        last_result: "done".into(),
+        warning: String::new(),
+    });
+
+    assert!(value.get("group_id").is_none());
+    assert_eq!(analyst["tui_ready"], true);
+    for forbidden in ["root", "analyst_thread_id", "analyst_tui_command"] {
+        assert!(value.get(forbidden).is_none());
+        assert!(analyst.get(forbidden).is_none());
+    }
+}
+
+#[test]
+fn voice_terminal_sizes_are_bounded() {
+    assert_eq!(valid_terminal_size(120, 32), Some((120, 32)));
+    assert_eq!(valid_terminal_size(9, 32), None);
+    assert_eq!(
+        parsed_terminal_size(&json!({"cols":144,"rows":40})),
+        Some((144, 40))
+    );
+    assert_eq!(parsed_terminal_size(&json!({"cols":144,"rows":1})), None);
+}
+
+#[tokio::test]
+async fn admin_can_update_voice_analyst_launch_settings_without_secret_echo() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    home.initialize().expect("initialize");
+    let token = AccessTokenStore::new(home.clone())
+        .expect("tokens")
+        .create("admin", Vec::new(), true, None)
+        .expect("admin token");
+    let authorization = format!("Bearer {}", token.token);
+    let router = app_with_mode(home.clone(), WebMode::Normal);
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/codex_voice/analyst-settings")
+                .header(header::AUTHORIZATION, &authorization)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "settings":{
+                            "runtime":"codex",
+                            "command":"codex --profile voice -c 'model=\"gpt-test\"'"
+                        },
+                        "environment_set":{"OPENAI_API_KEY":"private-value"}
+                    })
+                    .to_string(),
+                ))
+                .expect("update request"),
+        )
+        .await
+        .expect("update response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        niuma_core::codex_voice_settings::load(&home)
+            .expect("saved settings")
+            .command,
+        ["codex", "--profile", "voice", "-c", "model=\"gpt-test\""]
+    );
+    assert_eq!(
+        niuma_core::codex_voice_settings::private_environment(&home)
+            .expect("saved private environment")
+            .get("OPENAI_API_KEY")
+            .map(String::as_str),
+        Some("private-value")
+    );
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/codex_voice/analyst-settings")
+                .header(header::AUTHORIZATION, &authorization)
+                .body(Body::empty())
+                .expect("settings request"),
+        )
+        .await
+        .expect("settings response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = axum::body::to_bytes(response.into_body(), 64 * 1024)
+        .await
+        .expect("settings body");
+    let text = String::from_utf8(body.to_vec()).expect("UTF-8 settings body");
+    assert!(text.contains("OPENAI_API_KEY"));
+    assert!(!text.contains("private-value"));
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/codex_voice/analyst-settings")
+                .header(header::AUTHORIZATION, authorization)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "settings":{
+                            "runtime":"codex",
+                            "command":["codex","--profile","voice","-c","model=\"gpt-test\""]
+                        },
+                        "environment_clear":true
+                    })
+                    .to_string(),
+                ))
+                .expect("clear request"),
+        )
+        .await
+        .expect("clear response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        niuma_core::codex_voice_settings::private_environment(&home)
+            .expect("cleared private environment")
+            .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn admin_can_recover_from_a_deleted_runtime_profile_binding() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+    home.initialize().expect("initialize");
+    niuma_core::codex_voice_settings::save(
+        &home,
+        &niuma_contracts::CodexVoiceAnalystSettings {
+            profile_id: "deleted-profile".into(),
+            ..Default::default()
+        },
+    )
+    .expect("dangling settings");
+    let token = AccessTokenStore::new(home.clone())
+        .expect("tokens")
+        .create("admin", Vec::new(), true, None)
+        .expect("admin token");
+    let response = app_with_mode(home.clone(), WebMode::Normal)
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/v1/codex_voice/analyst-settings")
+                .header(header::AUTHORIZATION, format!("Bearer {}", token.token))
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    serde_json::json!({
+                        "settings":{"runtime":"codex","command":[]}
+                    })
+                    .to_string(),
+                ))
+                .expect("recovery request"),
+        )
+        .await
+        .expect("recovery response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let saved = niuma_core::codex_voice_settings::load(&home).expect("saved settings");
+    assert!(saved.profile_id.is_empty());
+}

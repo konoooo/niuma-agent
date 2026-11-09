@@ -1,4 +1,4 @@
-const PRELOAD_RELOAD_KEY = "cccc_vite_preload_reload_at";
+const PRELOAD_RELOAD_KEY = "niuma_vite_preload_reload_at";
 const PRELOAD_RELOAD_COOLDOWN_MS = 15_000;
 const DYNAMIC_IMPORT_ERROR_PATTERNS = [
   "failed to fetch dynamically imported module",

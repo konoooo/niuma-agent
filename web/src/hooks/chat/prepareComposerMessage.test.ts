@@ -21,9 +21,9 @@ describe("prepareComposerMessage", () => {
     const result = prepareComposerMessage({ text, files: [], now: Date.UTC(2026, 7, 28, 1, 2, 3) });
 
     expect(result.converted).toBe(true);
-    expect(result.text).toBe("[file] cccc-message-20260828010203.txt");
+    expect(result.text).toBe("[file] niuma-message-20260828010203.txt");
     expect(result.files).toHaveLength(1);
-    expect(result.files[0].name).toBe("cccc-message-20260828010203.txt");
+    expect(result.files[0].name).toBe("niuma-message-20260828010203.txt");
     expect(result.files[0].type).toBe("text/plain;charset=utf-8");
     expect(await result.files[0].text()).toBe(text);
   });

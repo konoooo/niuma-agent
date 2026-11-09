@@ -1,21 +1,21 @@
 # CLI 快速入门
 
-通过命令行开始使用 CCCC。
+通过命令行开始使用 牛马Agent。
 
 [English](./cli) | 简体中文 | [日本語](./cli-ja)
 
 ## 开始之前
 
-先按[安装指南](./#installation)安装 CCCC。本教程以 Claude Code 为例：
+先按[安装指南](./#installation)安装 牛马Agent。本教程以 Claude Code 为例：
 请先安装它的 CLI 并完成登录。如果 Claude 要求信任项目目录，可以提前在项目里确认，
 也可以启动后在智能体的终端里确认（见第 4 步）。
 如果已经配置好[其他受支持的 Runtime](../runtimes)，也可以改用它。
 
-在终端中确认 CCCC 可用：
+在终端中确认 牛马Agent 可用：
 
 ```bash
-cccc --version
-cccc doctor
+niuma-agent --version
+niuma-agent doctor
 ```
 
 `doctor` 会报告安装情况、检测到的 Runtime 和 daemon 状态。检测到 Runtime 不代表
@@ -24,8 +24,8 @@ cccc doctor
 ## 第 1 步：启动 daemon
 
 ```bash
-cccc daemon start
-cccc daemon status
+niuma-agent daemon start
+niuma-agent daemon status
 ```
 
 如果已有兼容的 daemon 正在运行，`daemon start` 会复用它。
@@ -35,48 +35,48 @@ cccc daemon status
 
 ```bash
 cd /path/to/your/project
-cccc attach .
+niuma-agent attach .
 ```
 
 这会创建一个新工作组，将当前目录关联为它的项目工作区（称为“scope”），
 并将它设为当前工作组。输出中包含 `group_id`。要回到已有工作组，请使用
-`cccc groups` 和 `cccc use <group_id>`；再次执行 `cccc attach .` 会另建一个工作组。
+`niuma-agent groups` 和 `niuma-agent use <group_id>`；再次执行 `niuma-agent attach .` 会另建一个工作组。
 
-界面中运行或接入智能体运行时的成员称为智能体；CLI 仍使用 `cccc actor` 命令和 `actor_id` 等字段。
-工作组对应的命令和字段也保留原名，例如 `cccc group` 和 `group_id`。
+界面中运行或接入智能体运行时的成员称为智能体；CLI 仍使用 `niuma-agent actor` 命令和 `actor_id` 等字段。
+工作组对应的命令和字段也保留原名，例如 `niuma-agent group` 和 `group_id`。
 
 ## 第 3 步：添加第一个智能体 {#第-3-步-添加第一个-agent}
 
 ```bash
-cccc actor add assistant --runtime claude
+niuma-agent actor add assistant --runtime claude
 ```
 
 工作组成员列表中第一个非内部智能体是“foreman”（领班，负责协调工作）。
 停用它不会自动把其他成员提升为领班。
 
-CCCC 启动这个 Claude Code 会话时会自动注入 CCCC MCP 配置，本例不需要单独执行
-`cccc setup`。其他 Runtime 可能需要额外设置，详见
-[受支持的 Runtime](../runtimes) 和 [`cccc setup`](/reference/cli#cccc-setup)。
+牛马Agent 启动这个 Claude Code 会话时会自动注入 牛马Agent MCP 配置，本例不需要单独执行
+`niuma-agent setup`。其他 Runtime 可能需要额外设置，详见
+[受支持的 Runtime](../runtimes) 和 [`niuma-agent setup`](/reference/cli#niuma-setup)。
 
 ## 第 4 步：启动智能体 {#第-4-步-启动-agent}
 
 ```bash
-cccc group start
+niuma-agent group start
 ```
 
 `group start` 会启动当前工作组中已启用的智能体。也可以只启动一个智能体：
 
 ```bash
-cccc actor start assistant
+niuma-agent actor start assistant
 ```
 
-用 `cccc actor list` 查看智能体状态。如果启动过程中需要交互确认，
+用 `niuma-agent actor list` 查看智能体状态。如果启动过程中需要交互确认，
 请在 [Web UI](#启动-web-ui-可选) 中打开该智能体的终端。
 
 ## 第 5 步：发送消息
 
 ```bash
-cccc send "你好，请介绍一下自己。" --to assistant
+niuma-agent send "你好，请介绍一下自己。" --to assistant
 ```
 
 ## 第 6 步：查看回复
@@ -84,13 +84,13 @@ cccc send "你好，请介绍一下自己。" --to assistant
 以 JSON 形式持续查看工作组中记录的消息及其他事件：
 
 ```bash
-cccc tail -f
+niuma-agent tail -f
 ```
 
 关注智能体发出的 `chat.message` 事件。原生终端输出可在 Web UI 中查看。
 按 **Ctrl+C** 结束查看，智能体会继续运行。
 
-`cccc inbox` 用于读取并**消费**智能体的未读 Mail，将这批消息标为已读。
+`niuma-agent inbox` 用于读取并**消费**智能体的未读 Mail，将这批消息标为已读。
 查看智能体的回复请使用 `tail` 或 Web 聊天界面。
 
 ## 添加更多智能体 {#添加更多-agent}
@@ -98,23 +98,23 @@ cccc tail -f
 如果已安装 Codex 并完成登录，可以添加第二个智能体：
 
 ```bash
-cccc actor add reviewer --runtime codex
-cccc actor start reviewer
+niuma-agent actor add reviewer --runtime codex
+niuma-agent actor start reviewer
 ```
 
 指定消息的接收方：
 
 ```bash
-cccc send "请实现这个功能" --to assistant
-cccc send "请审查代码" --to reviewer
-cccc send "请协调下一步工作" --to "@foreman"
-cccc send "团队共同约束：CI 通过之前暂停部署" --to "@all"
+niuma-agent send "请实现这个功能" --to assistant
+niuma-agent send "请审查代码" --to reviewer
+niuma-agent send "请协调下一步工作" --to "@foreman"
+niuma-agent send "团队共同约束：CI 通过之前暂停部署" --to "@all"
 ```
 
 如果一项工作需要跨会话持续跟踪负责人、预期成果和完成证据，可以使用 `tracked-send`：
 
 ```bash
-cccc tracked-send "请实现这个功能，并回复验证结果。" \
+niuma-agent tracked-send "请实现这个功能，并回复验证结果。" \
   --to assistant \
   --title "实现功能" \
   --outcome "功能已实现，并已报告验证结果"
@@ -127,68 +127,68 @@ cccc tracked-send "请实现这个功能，并回复验证结果。" \
 将 `<event_id>` 替换为 `tail` 中要回复的那条消息的 `id`：
 
 ```bash
-cccc reply <event_id> "谢谢，这样可以。"
-cccc reply <event_id> "不紧急的补充说明" --to assistant --mode mail
+niuma-agent reply <event_id> "谢谢，这样可以。"
+niuma-agent reply <event_id> "不紧急的补充说明" --to assistant --mode mail
 ```
 
 Mail 仅支持智能体收件人，不会立即触发对方执行。
 
 ## 选择工作组和发送者 {#选择-group-和发送者}
 
-支持 `--group` 的命令按以下顺序确定目标：显式选项 → `CCCC_GROUP_ID` 环境变量 →
-通过 `attach` 或 `cccc use` 选中的当前工作组。仅切换目录不会切换工作组。
-消息发送者按 `--by` → `CCCC_ACTOR_ID` → `user` 的顺序确定。
+支持 `--group` 的命令按以下顺序确定目标：显式选项 → `NIUMA_GROUP_ID` 环境变量 →
+通过 `attach` 或 `niuma-agent use` 选中的当前工作组。仅切换目录不会切换工作组。
+消息发送者按 `--by` → `NIUMA_ACTOR_ID` → `user` 的顺序确定。
 因此，即使其他会话切换了当前工作组，智能体仍使用自己的工作组。
 
 ## 常用命令
 
-给其他实例发送消息时，先用 `cccc connect` 查找可访问的工作组，
-再使用 `cccc send --dst-instance ... --dst-group ...`。
+给其他实例发送消息时，先用 `niuma-agent connect` 查找可访问的工作组，
+再使用 `niuma-agent send --dst-instance ... --dst-group ...`。
 回复时使用收到的消息在本地的事件 ID。包括 Direct 连接在内的完整流程见
 [智能体协作](../connect.md#agent-collaboration)。
 
 ### 工作组管理 {#group-管理}
 
 ```bash
-cccc groups                # 列出所有工作组
-cccc use <group_id>        # 选择工作组
-cccc active                # 显示当前工作组
-cccc group show <group_id> # 显示工作组信息
-cccc group start           # 启动本组已启用的智能体
-cccc group stop            # 停止本组智能体，保留历史
+niuma-agent groups                # 列出所有工作组
+niuma-agent use <group_id>        # 选择工作组
+niuma-agent active                # 显示当前工作组
+niuma-agent group show <group_id> # 显示工作组信息
+niuma-agent group start           # 启动本组已启用的智能体
+niuma-agent group stop            # 停止本组智能体，保留历史
 ```
 
 ### 智能体管理 {#actor-管理}
 
 ```bash
-cccc actor list                  # 列出智能体
-cccc actor add <id> --runtime <r> # 添加智能体
-cccc actor start <id>            # 启动智能体
-cccc actor stop <id>             # 停止智能体
-cccc actor restart <id>          # 重启智能体
-cccc actor remove <id>           # 移除智能体
+niuma-agent actor list                  # 列出智能体
+niuma-agent actor add <id> --runtime <r> # 添加智能体
+niuma-agent actor start <id>            # 启动智能体
+niuma-agent actor stop <id>             # 停止智能体
+niuma-agent actor restart <id>          # 重启智能体
+niuma-agent actor remove <id>           # 移除智能体
 ```
 
 ### 消息
 
 ```bash
-cccc send "消息"                   # 未指定 --to：使用默认收件策略（初始为 foreman）
-cccc send "消息" --to assistant    # 发给指定智能体
-cccc send "消息" --to "@foreman"     # 发给领班
-cccc send "消息" --to "@all"         # 显式广播，不是默认的任务分派方式
-cccc tracked-send "工作内容" --to assistant --title "任务标题" --outcome "完成标准"
-cccc reply <event_id> "回复内容"    # 回复消息
-cccc inbox --actor-id assistant   # 读取并消费智能体的未读 Mail
-cccc tail -n 50                   # 最近的事件
-cccc tail -f                      # 持续查看新事件
+niuma-agent send "消息"                   # 未指定 --to：使用默认收件策略（初始为 foreman）
+niuma-agent send "消息" --to assistant    # 发给指定智能体
+niuma-agent send "消息" --to "@foreman"     # 发给领班
+niuma-agent send "消息" --to "@all"         # 显式广播，不是默认的任务分派方式
+niuma-agent tracked-send "工作内容" --to assistant --title "任务标题" --outcome "完成标准"
+niuma-agent reply <event_id> "回复内容"    # 回复消息
+niuma-agent inbox --actor-id assistant   # 读取并消费智能体的未读 Mail
+niuma-agent tail -n 50                   # 最近的事件
+niuma-agent tail -f                      # 持续查看新事件
 ```
 
 ### daemon 控制
 
 ```bash
-cccc daemon status # 检查状态
-cccc daemon start  # 启动 daemon
-cccc daemon stop   # 停止 daemon 及其管理的各组进程
+niuma-agent daemon status # 检查状态
+niuma-agent daemon start  # 启动 daemon
+niuma-agent daemon stop   # 停止 daemon 及其管理的各组进程
 ```
 
 ## 启动 Web UI（可选） {#启动-web-ui-可选}
@@ -196,22 +196,22 @@ cccc daemon stop   # 停止 daemon 及其管理的各组进程
 在另一个终端中启动 Web UI：
 
 ```bash
-cccc web
+niuma-agent web
 ```
 
-不带子命令的 `cccc` 启动同样的服务；在交互式终端里，它还会为本次启动打开一个状态面板。
-`cccc --headless` 与 `cccc web` 完全相同。两者都会复用已运行的 daemon，需要时则自动启动它。
+不带子命令的 `niuma-agent` 启动同样的服务；在交互式终端里，它还会为本次启动打开一个状态面板。
+`niuma-agent --headless` 与 `niuma-agent web` 完全相同。两者都会复用已运行的 daemon，需要时则自动启动它。
 默认配置下访问 http://127.0.0.1:8848/；如果已修改监听地址或端口，
-请使用启动时显示的地址。可以用 `cccc web --port 9000` 指定其他端口。
+请使用启动时显示的地址。可以用 `niuma-agent web --port 9000` 指定其他端口。
 
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `CCCC_HOME` | `~/.cccc` | 运行数据目录 |
-| `CCCC_WEB_PORT` | `8848` | 没有优先级更高的已保存设置或 `--port` 时使用的 Web UI 端口 |
+| `NIUMA_HOME` | `~/.niuma-agent` | 运行数据目录 |
+| `NIUMA_WEB_PORT` | `8848` | 没有优先级更高的已保存设置或 `--port` 时使用的 Web UI 端口 |
 
-需要共享工作组和运行状态的命令应使用同一个 `CCCC_HOME`。
+需要共享工作组和运行状态的命令应使用同一个 `NIUMA_HOME`。
 完整的 Web 监听选项及优先级见 [CLI 参考](/reference/cli#environment-variables)。
 
 ## 结束工作
@@ -219,50 +219,50 @@ cccc web
 按 **Ctrl+C** 退出 `tail -f` 后，停止当前工作组的智能体：
 
 ```bash
-cccc group stop
+niuma-agent group stop
 ```
 
-工作组和已记录的历史会保留。用 `cccc group start` 可以重新启动这些智能体。
-若要停止整个实例，包括其他工作组的托管进程，请使用 `cccc daemon stop`。
+工作组和已记录的历史会保留。用 `niuma-agent group start` 可以重新启动这些智能体。
+若要停止整个实例，包括其他工作组的托管进程，请使用 `niuma-agent daemon stop`。
 
 ## 排查问题
 
 ### daemon 无法启动
 
 ```bash
-cccc daemon status
-cccc doctor
+niuma-agent daemon status
+niuma-agent doctor
 ```
 
-如果 daemon 已停止，执行 `cccc daemon start`。
+如果 daemon 已停止，执行 `niuma-agent daemon start`。
 如果它没有响应，先查看报错，再决定是否停止并重启；重启 daemon 会中断各工作组的托管进程。
 
 ### 智能体没有回复 {#agent-没有回复}
 
 ```bash
 # 检查智能体状态
-cccc actor list
+niuma-agent actor list
 
 # 查看记录的错误和消息
-cccc tail -n 50
+niuma-agent tail -n 50
 ```
 
 在 Web UI 的智能体终端中检查是否有登录、信任或工具审批提示，
 并确认[对应 Runtime 的配置](../runtimes)。修正原因后，可以用
-`cccc actor start <actor_id>` 再次启动，必要时用 `cccc actor restart <actor_id>` 重启。
+`niuma-agent actor start <actor_id>` 再次启动，必要时用 `niuma-agent actor restart <actor_id>` 重启。
 
 ### 找不到工作组 {#找不到-group}
 
 ```bash
 # 列出所有工作组
-cccc groups
+niuma-agent groups
 
 # 选择已有工作组
-cccc use <group_id>
-cccc active
+niuma-agent use <group_id>
+niuma-agent active
 ```
 
-确认当前终端使用了预期的 `CCCC_HOME`。
+确认当前终端使用了预期的 `NIUMA_HOME`。
 需要创建新工作组，或明确指定已有工作组以附加 scope 时，才使用 `attach`。
 
 ## 后续阅读

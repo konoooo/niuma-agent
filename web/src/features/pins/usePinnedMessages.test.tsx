@@ -89,7 +89,7 @@ it("shows a pinned slash command as the conversation does, not its internal disp
     group_id: "g1",
     by: "user",
     data: {
-      text: "[CCCC] INTERNAL CONTROL: capability skill dispatch",
+      text: "[NIUMA] INTERNAL CONTROL: capability skill dispatch",
       refs: [
         {
           kind: "control",

@@ -2,7 +2,7 @@ import type { LedgerEvent } from "../types";
 
 export type SuggestedUserMessage = { eventId: string; text: string; by: string; ts: string };
 
-export const SUGGESTED_USER_MESSAGE_CONSUMED_KEY = "cccc.suggestedUserMessage.consumed.v1";
+export const SUGGESTED_USER_MESSAGE_CONSUMED_KEY = "niuma-agent.suggestedUserMessage.consumed.v1";
 export const SUGGESTED_USER_MESSAGE_MAX_CHARS = 4000;
 
 export function normalizeSuggestedUserMessage(value: unknown): string {

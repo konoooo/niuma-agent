@@ -1,6 +1,6 @@
 # Discord Setup
 
-Connect your CCCC working group to Discord for community access.
+Connect your 牛马Agent working group to Discord for community access.
 
 ## Overview
 
@@ -14,13 +14,13 @@ Discord integration is great for:
 ## Prerequisites
 
 - A Discord server where you have admin rights
-- CCCC installed and running
+- 牛马Agent installed and running
 
 ## Step 1: Create a Discord Application
 
 1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
 2. Click **New Application**
-3. Enter a name (e.g., "CCCC Bot")
+3. Enter a name (e.g., "牛马Agent Bot")
 4. Accept the terms and click **Create**
 
 ## Step 2: Create a Bot
@@ -91,11 +91,11 @@ Never share your bot token. If exposed, regenerate it immediately.
 export DISCORD_BOT_TOKEN="your-bot-token-here"
 ```
 
-## Step 7: Configure CCCC
+## Step 7: Configure 牛马Agent
 
 ### Option A: Via Web UI
 
-1. Open the CCCC Web UI at `http://127.0.0.1:8848/`
+1. Open the 牛马Agent Web UI at `http://127.0.0.1:8848/`
 2. Go to **Settings** (gear icon in header)
 3. Navigate to the **IM Bridge** section
 4. Select **Discord** as the platform
@@ -106,7 +106,7 @@ export DISCORD_BOT_TOKEN="your-bot-token-here"
 ### Option B: Via CLI
 
 ```bash
-cccc im set discord --token-env DISCORD_BOT_TOKEN
+niuma-agent im set discord --token-env DISCORD_BOT_TOKEN
 ```
 
 Both methods save to `group.yaml`:
@@ -120,7 +120,7 @@ im:
 ## Step 8: Start the Bridge
 
 ```bash
-cccc im start
+niuma-agent im start
 ```
 
 ## Step 9: Subscribe in Discord
@@ -139,7 +139,7 @@ In channels, @mention the bot for ordinary text:
 @YourBotName /send Please review the latest pull request
 ```
 
-Recognized CCCC commands such as `/send`, `/status`, and `/subscribe` may be sent without an @mention. Unrelated slash commands remain ignored:
+Recognized 牛马Agent commands such as `/send`, `/status`, and `/subscribe` may be sent without an @mention. Unrelated slash commands remain ignored:
 
 ```
 /send Please review the latest pull request
@@ -152,7 +152,7 @@ In direct messages with the bot, you can use `/send` directly:
 ```
 
 ::: warning Important
-- In channels, ordinary text and files require @mention; recognized CCCC slash commands do not
+- In channels, ordinary text and files require @mention; recognized 牛马Agent slash commands do not
 - After mentioning the bot, plain text is treated as implicit send to foreman
 - Use `/send` when you need explicit recipients like `@all` or `@peers`
 :::
@@ -180,21 +180,21 @@ Agent output is updated progressively by editing the initial Discord message. Co
 
 ### Thread Support
 
-Create threads for focused discussions. Discord threads are channels, so CCCC naturally authorizes and replies to the specific thread channel.
+Create threads for focused discussions. Discord threads are channels, so 牛马Agent naturally authorizes and replies to the specific thread channel.
 
 ### File Attachments
 
-Attach files to your message. They're stored in CCCC's blob storage, then forwarded to agents.
+Attach files to your message. They're stored in 牛马Agent's blob storage, then forwarded to agents.
 
 ### Embeds
 
-CCCC formats responses with Discord embeds for better readability when appropriate.
+牛马Agent formats responses with Discord embeds for better readability when appropriate.
 
 ## Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `/subscribe` | Start receiving messages from CCCC |
+| `/subscribe` | Start receiving messages from 牛马Agent |
 | `/unsubscribe` | Stop receiving messages |
 | `/send <message>` | Send to foreman (default) |
 | `/send @<actor> <message>` | Send to a specific agent |
@@ -216,9 +216,9 @@ Register application commands for better UX:
 
 Example slash command structure:
 ```
-/cccc send <message>
-/cccc status
-/cccc agents
+/niuma-agent send <message>
+/niuma-agent status
+/niuma-agent agents
 ```
 
 ## Troubleshooting
@@ -242,14 +242,14 @@ Enable Message Content Intent:
 
 ### "Gateway READY timed out" Error
 
-The Discord Gateway uses a WebSocket connection. If Discord is only reachable through a proxy, set the proxy before starting CCCC. CCCC supports HTTP CONNECT and SOCKS5 proxy URLs and respects `NO_PROXY`.
+The Discord Gateway uses a WebSocket connection. If Discord is only reachable through a proxy, set the proxy before starting 牛马Agent. 牛马Agent supports HTTP CONNECT and SOCKS5 proxy URLs and respects `NO_PROXY`.
 
 macOS/Linux:
 
 ```bash
 export HTTPS_PROXY="http://127.0.0.1:7890"
-cccc im stop
-cccc im start
+niuma-agent im stop
+niuma-agent im start
 ```
 
 Windows PowerShell:
@@ -257,22 +257,22 @@ Windows PowerShell:
 ```powershell
 $env:HTTPS_PROXY = "http://127.0.0.1:7890"
 [Environment]::SetEnvironmentVariable("HTTPS_PROXY", $env:HTTPS_PROXY, "User")
-cccc im stop
-cccc im start
+niuma-agent im stop
+niuma-agent im start
 ```
 
-Use a `socks5://` URL instead when connecting through a SOCKS5 proxy. Restart the CCCC process after changing a persistent environment variable. If the error instead names `MESSAGE_CONTENT`, enable **Message Content Intent** in the Developer Portal.
+Use a `socks5://` URL instead when connecting through a SOCKS5 proxy. Restart the 牛马Agent process after changing a persistent environment variable. If the error instead names `MESSAGE_CONTENT`, enable **Message Content Intent** in the Developer Portal.
 
 ### Bot is offline
 
 1. Check the bridge is running:
    ```bash
-   cccc im status
+   niuma-agent im status
    ```
 
 2. Verify the token:
    ```bash
-   cccc im logs -f
+   niuma-agent im logs -f
    ```
 
 3. Regenerate token if needed

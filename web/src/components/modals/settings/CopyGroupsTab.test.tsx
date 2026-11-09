@@ -398,7 +398,7 @@ it.each([
         requires_reconnect: { native_sessions: requiresReconnect },
       });
       const notices = [...host.querySelectorAll("[data-copy-groups-preview] li")].filter((node) =>
-        node.textContent?.includes("Native CCCC access imports paused"),
+        node.textContent?.includes("Native 牛马Agent access imports paused"),
       );
       expect(notices).toHaveLength(visible ? 1 : 0);
       if (visible) {

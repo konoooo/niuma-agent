@@ -24,9 +24,9 @@ def _project(root: Path) -> None:
 @pytest.mark.parametrize(
     ("target", "suffix", "executable"),
     [
-        ("x86_64-unknown-linux-gnu", ".tar.gz", "cccc"),
-        ("aarch64-apple-darwin", ".tar.gz", "cccc"),
-        ("x86_64-pc-windows-msvc", ".zip", "cccc.exe"),
+        ("x86_64-unknown-linux-gnu", ".tar.gz", "niuma-agent"),
+        ("aarch64-apple-darwin", ".tar.gz", "niuma-agent"),
+        ("x86_64-pc-windows-msvc", ".zip", "niuma-agent.exe"),
     ],
 )
 def test_builds_expected_platform_archive(
@@ -37,7 +37,7 @@ def test_builds_expected_platform_archive(
     binary.write_bytes(b"release executable")
 
     archive = build(binary, tmp_path / "dist", target=target, root=tmp_path)
-    package = f"cccc-v0.4.36-rc1-{target}"
+    package = f"niuma-v0.4.36-rc1-{target}"
 
     assert archive.name == f"{package}{suffix}"
     if suffix == ".zip":
@@ -54,7 +54,7 @@ def test_archive_is_reproducible(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"deterministic")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1770000000")
 
@@ -73,7 +73,7 @@ def test_archive_is_reproducible(
 
 def test_rejects_retired_macos_intel_target(tmp_path: Path) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"retired target")
 
     with pytest.raises(ValueError, match="unsupported release target"):

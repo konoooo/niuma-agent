@@ -56,7 +56,7 @@ export function capabilityCenterRemovalAction(
   const sourceId = String(row.source_id || "").trim();
   if (!sourceId) return "none";
   // A built-in cannot be removed; the Group switch is the one place that turns it off.
-  if (sourceId === "cccc_builtin") return "none";
+  if (sourceId === "niuma_builtin") return "none";
   const type = capabilityCenterType(row);
   if (type === "skill" && sourceId === "agent_self_proposed") return "delete";
   const hasLocalFootprint = Boolean(
@@ -317,7 +317,7 @@ export function capabilityCenterIsReadonlySystem(
   state?: CapabilityStateResult | null,
 ): boolean {
   const sourceId = String(row.source_id || "").trim();
-  if (sourceId !== "cccc_builtin") return false;
+  if (sourceId !== "niuma_builtin") return false;
   // A built-in the Group has not turned on is a system row; an enabled one stays in view.
   const capId = String(row.capability_id || "").trim();
   return !capabilityCenterEnabledIds(state).has(capId);

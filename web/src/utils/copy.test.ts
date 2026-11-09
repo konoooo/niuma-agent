@@ -24,7 +24,7 @@ it.each([
 ])(
   "removes the fallback copy of the text when the legacy copy %s",
   async (outcome, execCommand) => {
-    const secret = "https://cccc.example.test/mcp/web-model/c/token/private-only";
+    const secret = "https://niuma-agent.example.test/mcp/web-model/c/token/private-only";
     const button = document.createElement("button");
     document.body.append(button);
     button.focus();

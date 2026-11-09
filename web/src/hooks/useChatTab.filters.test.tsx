@@ -384,7 +384,7 @@ it("drops a stored Waiting for you filter while those prompts are off", async ()
 
   await act(async () => useUIStore.getState().setShowPendingPrompts(true));
   expect(chat.chatFilter).toBe("pending_user");
-  localStorage.removeItem("cccc-pending-prompts");
+  localStorage.removeItem("niuma-pending-prompts");
 });
 
 const pendingPage = (events: LedgerEvent[]) =>

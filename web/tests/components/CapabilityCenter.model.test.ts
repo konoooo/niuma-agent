@@ -142,7 +142,7 @@ describe("CapabilityCenter model", () => {
         row({
           capability_id: "pack:blocked",
           kind: "pack",
-          source_id: "cccc_builtin",
+          source_id: "niuma_builtin",
           blocked_global: true,
         }),
       ],
@@ -235,12 +235,12 @@ describe("CapabilityCenter model", () => {
   it("protects inactive built-ins and labels row actions by capability type", () => {
     expect(
       capabilityCenterRemovalAction(
-        row({ capability_id: "skill:cccc:install", kind: "skill", source_id: "cccc_builtin" }),
+        row({ capability_id: "skill:niuma-agent:install", kind: "skill", source_id: "niuma_builtin" }),
       ),
     ).toBe("none");
     expect(
       capabilityCenterRemovalAction(
-        row({ capability_id: "pack:diagnostics", kind: "pack", source_id: "cccc_builtin" }),
+        row({ capability_id: "pack:diagnostics", kind: "pack", source_id: "niuma_builtin" }),
         { enabled: true },
       ),
     ).toBe("none");
@@ -355,7 +355,7 @@ describe("CapabilityCenter model", () => {
     ).toBe("none");
     expect(
       capabilityCenterSourceRemovalAction({
-        source_id: "cccc_builtin",
+        source_id: "niuma_builtin",
         enabled: true,
         record_count: 34,
       }),
@@ -381,7 +381,7 @@ describe("CapabilityCenter model", () => {
       row({
         capability_id: "pack:diagnostics",
         kind: "pack",
-        source_id: "cccc_builtin",
+        source_id: "niuma_builtin",
         name: "Terminal Debug",
       }),
       row({
@@ -393,7 +393,7 @@ describe("CapabilityCenter model", () => {
       row({
         capability_id: "pack:enabled-builtin",
         kind: "pack",
-        source_id: "cccc_builtin",
+        source_id: "niuma_builtin",
         name: "Enabled Builtin",
       }),
     ];

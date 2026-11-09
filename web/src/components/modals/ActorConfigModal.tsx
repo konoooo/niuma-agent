@@ -828,9 +828,9 @@ function CreateActorConfigModal({
                                   <div className="font-medium">{t("manualMcpRequired")}</div>
                                   <div className="mt-1">
                                     {t("configureMcpStdio")}{" "}
-                                    <code className="px-1 rounded bg-amber-500/15">cccc</code>{" "}
+                                    <code className="px-1 rounded bg-amber-500/15">niuma-agent</code>{" "}
                                     {t("thatRuns")}{" "}
-                                    <code className="px-1 rounded bg-amber-500/15">cccc mcp</code>.
+                                    <code className="px-1 rounded bg-amber-500/15">niuma-agent mcp</code>.
                                   </div>
                                   <pre className="mt-1.5 p-2 rounded overflow-x-auto whitespace-pre bg-amber-500/10 text-amber-800 dark:text-amber-100">
                                     <code>{BASIC_MCP_CONFIG_SNIPPET}</code>
@@ -2125,7 +2125,7 @@ function EditActorConfigModal({
                 {isNativeActor ? (
                   <div className="space-y-2 text-xs text-[var(--color-text-muted)]">
                     <span className="font-medium">
-                      {t(sourceDirectory ? "workingDirectory" : "runtimeSwitch.ccccWorkspace")}
+                      {t(sourceDirectory ? "workingDirectory" : "runtimeSwitch.niumaWorkspace")}
                     </span>
                     <div
                       className="break-all rounded-xl border border-[var(--glass-border-subtle)] bg-[var(--glass-tab-bg)] px-3 py-2.5 text-sm text-[var(--color-text-secondary)]"
@@ -2513,9 +2513,9 @@ function EditActorConfigModal({
                                 <div className="font-medium">{t("manualMcpRequired")}</div>
                                 <div className="mt-1">
                                   {t("configureMcpStdio")}{" "}
-                                  <code className="px-1 rounded bg-amber-500/15">cccc</code>{" "}
+                                  <code className="px-1 rounded bg-amber-500/15">niuma-agent</code>{" "}
                                   {t("thatRuns")}{" "}
-                                  <code className="px-1 rounded bg-amber-500/15">cccc mcp</code>.
+                                  <code className="px-1 rounded bg-amber-500/15">niuma-agent mcp</code>.
                                 </div>
                                 <pre className="mt-1.5 p-2 rounded overflow-x-auto whitespace-pre bg-amber-500/10 text-amber-800 dark:text-amber-100">
                                   <code>{BASIC_MCP_CONFIG_SNIPPET}</code>

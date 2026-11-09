@@ -67,7 +67,7 @@ describe("AccountTab", () => {
     expect(html).not.toContain("account.linkInstallation");
   });
 
-  it("presents account linking as optional for local CCCC", () => {
+  it("presents account linking as optional for local 牛马Agent", () => {
     const html = renderToStaticMarkup(
       <AccountTab isDark={false} onOpenWebAccess={() => undefined} />,
     );

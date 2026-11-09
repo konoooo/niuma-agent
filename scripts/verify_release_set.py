@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the complete Rust-only CCCC release artifact set."""
+"""Verify the complete Rust-only 牛马Agent release artifact set."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ def _sha256(path: Path) -> str:
 
 
 def _archive_binary(path: Path, *, package: str, windows: bool) -> bytes:
-    member = f"{package}/{'cccc.exe' if windows else 'cccc'}"
+    member = f"{package}/{'niuma-agent.exe' if windows else 'niuma-agent'}"
     expected = {
         f"{package}/",
         member,
@@ -110,7 +110,7 @@ def _checksum_manifest(path: Path) -> dict[str, str]:
 def _verify_installers(directory: Path, *, cargo_version: str) -> None:
     shell = directory.joinpath("install.sh").read_text(encoding="utf-8")
     powershell = directory.joinpath("install.ps1").read_text(encoding="utf-8-sig")
-    if "@CCCC_" in shell or "@CCCC_" in powershell:
+    if "@NIUMA_" in shell or "@NIUMA_" in powershell:
         raise ValueError("release installers contain unresolved metadata placeholders")
     if not shell.startswith("#!/usr/bin/env sh\n"):
         raise ValueError("install.sh is not the canonical Unix installer")
@@ -127,11 +127,11 @@ def verify(directory: Path, *, cargo_version: str, wheel_version: str) -> None:
         raise ValueError(f"release directory not found: {directory}")
 
     wheels = {
-        platform: f"cccc_pair-{wheel_version}-py3-none-{platform}.whl"
+        platform: f"niuma_pair-{wheel_version}-py3-none-{platform}.whl"
         for platform in WHEEL_TARGETS
     }
     archives = {
-        target: f"cccc-v{cargo_version}-{target}{ARCHIVE_SUFFIXES[target]}"
+        target: f"niuma-v{cargo_version}-{target}{ARCHIVE_SUFFIXES[target]}"
         for target in ARCHIVE_SUFFIXES
     }
     payload_names = frozenset(wheels.values()) | frozenset(archives.values())
@@ -158,7 +158,7 @@ def verify(directory: Path, *, cargo_version: str, wheel_version: str) -> None:
     for platform, target in WHEEL_TARGETS.items():
         wheel = directory / wheels[platform]
         wheel_binary = verify_wheel(wheel, platform_tag=platform)
-        package = f"cccc-v{cargo_version}-{target}"
+        package = f"niuma-v{cargo_version}-{target}"
         archive_binary = _archive_binary(
             directory / archives[target],
             package=package,
@@ -166,7 +166,7 @@ def verify(directory: Path, *, cargo_version: str, wheel_version: str) -> None:
         )
         if wheel_binary != archive_binary:
             raise ValueError(
-                f"{platform} wheel and {target} archive contain different CCCC executable bytes"
+                f"{platform} wheel and {target} archive contain different 牛马Agent executable bytes"
             )
 
     manifest = _checksum_manifest(directory / "SHA256SUMS")

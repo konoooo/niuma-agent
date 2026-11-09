@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Cross-repository, provider-free Connect directory and messaging regression on isolated Linux Homes.
 
-Build target/debug/cccc first. The sibling homepage's dependencies must be installed.
+Build target/debug/niuma-agent first. The sibling homepage's dependencies must be installed.
 This starts fixture daemons, native Web routers and a SQLite-backed account handler. It does
 not start actors, modify an existing Home, or use website/browser credentials.
 """
@@ -31,7 +31,7 @@ def eventually(check, timeout=75):
 
 
 def ipc(home, op, **args):
-    address = json.loads((home / "daemon/ccccd.addr.json").read_text())
+    address = json.loads((home / "daemon/niumad.addr.json").read_text())
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stream:
         stream.settimeout(5)
         stream.connect(address["path"])
@@ -91,7 +91,7 @@ def stop(process):
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="cccc-connect-directory-") as root:
+    with tempfile.TemporaryDirectory(prefix="niuma-connect-directory-") as root:
         root = Path(root)
         processes = []
         logs = []
@@ -120,12 +120,12 @@ def main():
                 log = (root / f"{home.name}-{len(processes)}.log").open("w+")
                 logs.append(log)
                 process = subprocess.Popen(
-                    [str(ROOT / "target/debug/cccc"), *(command or ["daemon", "run"])],
+                    [str(ROOT / "target/debug/niuma-agent"), *(command or ["daemon", "run"])],
                     cwd=root,
                     env={
                         **os.environ,
-                        "CCCC_HOME": str(home),
-                        "CCCC_ACCOUNT_ORIGIN": config["origin"],
+                        "NIUMA_HOME": str(home),
+                        "NIUMA_ACCOUNT_ORIGIN": config["origin"],
                     },
                     stdout=log,
                     stderr=log,
@@ -137,7 +137,7 @@ def main():
             for device in config["devices"]:
                 home = root / device["device_id"]
                 (home / "secrets").mkdir(parents=True)
-                (home / ".cccc-rust-v1").write_text("CCCC Rust home v1\n")
+                (home / ".niuma-agent-rust-v1").write_text("牛马Agent Rust home v1\n")
                 state = home / "secrets/membership.json"
                 state.write_text(
                     json.dumps(
@@ -164,7 +164,7 @@ def main():
                 )
                 homes.append(home)
                 daemons.append(start(home))
-                eventually(lambda: (home / "daemon/ccccd.addr.json").exists(), 10)
+                eventually(lambda: (home / "daemon/niumad.addr.json").exists(), 10)
                 webs.append(
                     start(home, ["web", "--host", "127.0.0.1", "--port", str(port)])
                 )

@@ -65,7 +65,7 @@ export function AuthTokenLoginForm({
         </div>
         <div className="relative">
           <Input
-            name="cccc-access-token"
+            name="niuma-access-token"
             type={showToken ? "text" : "password"}
             value={token}
             onChange={(event) => setToken(event.target.value)}
@@ -122,8 +122,8 @@ export function AuthTokenLoginForm({
 
 function RecoveryHelp({ isLocal }: { isLocal: boolean }) {
   const { t } = useTranslation("layout");
-  const tokenPath = "~/.cccc/access_tokens.yaml";
-  const bootstrapPath = "~/.cccc/web_bootstrap_token";
+  const tokenPath = "~/.niuma-agent/access_tokens.yaml";
+  const bootstrapPath = "~/.niuma-agent/web_bootstrap_token";
   return (
     <Surface className="mt-3 text-left" radius="md">
       <div className="text-sm font-semibold text-[var(--color-text-primary)]">

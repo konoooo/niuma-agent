@@ -5,7 +5,7 @@ tracking disabled or X10 tracking scroll local history directly; X10 reports
 button presses only, not wheel input. VT200, drag and any-event mouse-tracking
 modes and alternate buffers receive one xterm wheel event per accumulated row
 of finger movement, so applications that keep their own history can scroll it. Dragging downward
-moves toward earlier output; tapping still focuses the terminal. CCCC does not
+moves toward earlier output; tapping still focuses the terminal. 牛马Agent does not
 override Claude's renderer settings or construct mouse escape sequences itself.
 Application scrolling requires a writable connection. Read-only normal buffers
 always scroll local history, including when another page owns terminal input.
@@ -16,7 +16,7 @@ Native PTY agents always keep terminal output in two bounded memory layers, with
 
 - A configurable in-memory hot buffer serves live WebSocket output, cursor reconnects, history queries, and raw-replay fallback. It defaults to 10 MiB per agent.
 - A completed-session cache keeps up to 256 KiB per stopped agent and 8 MiB total queryable without reopening files.
-- When durable persistence is enabled, an append-oriented rolling transcript under `CCCC_HOME/groups/<group_id>/state/terminal/<actor_id>/` preserves raw PTY bytes across agent and daemon restarts.
+- When durable persistence is enabled, an append-oriented rolling transcript under `NIUMA_HOME/groups/<group_id>/state/terminal/<actor_id>/` preserves raw PTY bytes across agent and daemon restarts.
 
 Fresh WebSocket clients negotiate `snapshot_v1`. Rust maintains a bounded headless terminal mirror beside the raw byte ring and serializes its current screen plus up to 512 recent scrollback lines into one ANSI snapshot. The snapshot carries the exact raw PTY cursor it represents; after xterm parses and acknowledges it, the stream continues with untouched PTY bytes after that cursor. Snapshot encoding bytes never advance the raw cursor. This makes a newly opened agent show the latest terminal state immediately instead of parsing the oldest retained output first.
 
@@ -45,7 +45,7 @@ therefore not be treated as a durable resume token.
 Durable capture is opt-in through `observability.terminal_transcript.enabled=true` and `observability.terminal_transcript.persist=true`. Both default to `false`. `per_actor_bytes` controls both the memory ring and, when enabled, durable retention. It defaults to 10 MiB; zero selects that default, and larger values are capped at 50,000,000 bytes.
 
 ```yaml
-# CCCC_HOME/settings.yaml
+# NIUMA_HOME/settings.yaml
 observability:
   terminal_transcript:
     enabled: true
@@ -55,11 +55,11 @@ observability:
 
 Restart the affected PTY agents after changing this setting; capture mode is selected when each session starts.
 
-When the durable limit is reached, CCCC keeps the newest bytes, removes older session files, and reports `cursor_expired` for cursors older than the retained boundary. Disabling persistence stops new durable writes; it does not silently delete existing transcript files.
+When the durable limit is reached, 牛马Agent keeps the newest bytes, removes older session files, and reports `cursor_expired` for cursors older than the retained boundary. Disabling persistence stops new durable writes; it does not silently delete existing transcript files.
 
-If the archive cannot be created or written, agent startup and PTY draining continue with bounded in-memory history. CCCC reports the archive failure locally instead of turning an observability failure into a runtime outage.
+If the archive cannot be created or written, agent startup and PTY draining continue with bounded in-memory history. 牛马Agent reports the archive failure locally instead of turning an observability failure into a runtime outage.
 
-Transcript files are created with owner-only permissions on Unix. They contain raw terminal output and can therefore include commands or secrets printed by a runtime. Protect `CCCC_HOME` accordingly.
+Transcript files are created with owner-only permissions on Unix. They contain raw terminal output and can therefore include commands or secrets printed by a runtime. Protect `NIUMA_HOME` accordingly.
 
 ## Shutdown behavior
 
@@ -113,7 +113,7 @@ forced termination issues OS termination without waiting for those operations,
 so final transcript writes may be incomplete.
 
 Windows standard-process launches (managed providers and helpers, DeepSeek, and
-supervised daemon startup) begin suspended. CCCC assigns the Job before resuming
+supervised daemon startup) begin suspended. 牛马Agent assigns the Job before resuming
 the primary thread, so descendants inherit Job membership from their first
 instruction. Caller-supplied detached-process flags are preserved explicitly.
 Failed assignment or resume terminates and reaps the suspended child.

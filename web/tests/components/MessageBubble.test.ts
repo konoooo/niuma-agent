@@ -18,6 +18,6 @@ describe("mayContainMarkdown", () => {
   });
 
   it("keeps internal attachment manifests as plain text", () => {
-    expect(mayRenderMarkdown("[cccc] Attachments:\n- file.txt")).toBe(false);
+    expect(mayRenderMarkdown("[niuma-agent] Attachments:\n- file.txt")).toBe(false);
   });
 });

@@ -185,7 +185,7 @@ describe("voice composer draft routing", () => {
     ["先跑测试", "再提交", "先跑测试再提交"],
     ["了解です", "次に進みます", "了解です次に進みます"],
     ["Run the tests", "then commit", "Run the tests then commit"],
-    ["发布 CCCC", "v0.4.48", "发布 CCCC v0.4.48"],
+    ["发布 牛马Agent", "v0.4.48", "发布 牛马Agent v0.4.48"],
     ["draft  ", "voice", "draft  voice"],
     ["- item\t", "voice", "- item\tvoice"],
     ["first line\n", "voice", "first line\nvoice"],

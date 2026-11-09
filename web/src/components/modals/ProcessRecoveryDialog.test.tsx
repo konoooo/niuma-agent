@@ -339,7 +339,7 @@ describe("ProcessRecoveryDialog", () => {
     });
     await mount(["web"]);
     const commands = document.body.querySelector("pre")?.textContent ?? "";
-    expect(commands).toContain("cccc daemon process-recovery --owner web list");
+    expect(commands).toContain("niuma-agent daemon process-recovery --owner web list");
     expect(commands).toContain("--accept-risk");
     expect(text()).toContain("processRecovery.offlineWebRunning");
     expect(text()).toContain("processRecovery.hints.retry_later_voice");

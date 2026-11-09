@@ -4,7 +4,7 @@ export type PreparedComposerMessage = { text: string; files: File[]; converted: 
 
 function messageAttachmentName(now: number): string {
   const timestamp = new Date(now).toISOString().replace(/\D/g, "").slice(0, 14);
-  return `cccc-message-${timestamp}.txt`;
+  return `niuma-message-${timestamp}.txt`;
 }
 
 export function prepareComposerMessage(input: {

@@ -36,14 +36,14 @@ async function start() {
 }
 
 it.each(["zh", "ja"])("marks the first rendered page with its stored %s language", async (lang) => {
-  window.localStorage.setItem("cccc-language", lang);
+  window.localStorage.setItem("niuma-language", lang);
   const i18n = await start();
   expect(i18n.resolvedLanguage).toBe(lang);
   expect(document.documentElement.lang).toBe(lang);
 });
 
 it("uses query language over storage and normalizes a region code", async () => {
-  window.localStorage.setItem("cccc-language", "en");
+  window.localStorage.setItem("niuma-language", "en");
   window.history.replaceState({}, "", "/ui/?lang=zh-CN");
   const i18n = await start();
   expect(i18n.resolvedLanguage).toBe("zh");
@@ -65,7 +65,7 @@ it("marks the English fallback when the detected language is unsupported", async
 });
 
 it("tracks later changes and does not react to an independent i18n instance", async () => {
-  window.localStorage.setItem("cccc-language", "en");
+  window.localStorage.setItem("niuma-language", "en");
   const i18n = await start();
   await i18n.changeLanguage("ja");
   expect(document.documentElement.lang).toBe("ja");
@@ -81,7 +81,7 @@ it("tracks later changes and does not react to an independent i18n instance", as
 });
 
 it("keeps the document in the last language requested while locales load", async () => {
-  window.localStorage.setItem("cccc-language", "en");
+  window.localStorage.setItem("niuma-language", "en");
   const i18n = await start();
   const first = i18n.changeLanguage("zh");
   const last = i18n.changeLanguage("ja");

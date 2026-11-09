@@ -41,7 +41,7 @@ describe("CapabilitiesTab model", () => {
       canManageSkillAssignments({
         capability_id: "pack:group-runtime",
         kind: "pack",
-        source_id: "cccc_builtin",
+        source_id: "niuma_builtin",
       }),
     ).toBe(false);
   });
@@ -120,14 +120,14 @@ describe("CapabilitiesTab model", () => {
   });
 
   it("updates slash command hidden skills without dropping unrelated preferences", () => {
-    const hidden = ["skill:cccc:install", "skill:team:writer"];
+    const hidden = ["skill:niuma-agent:install", "skill:team:writer"];
 
     expect(isCapabilityHiddenFromSlashCommands("skill:team:writer", hidden)).toBe(true);
     expect(nextSlashCommandHiddenCapabilities(hidden, "skill:team:writer", true)).toEqual([
-      "skill:cccc:install",
+      "skill:niuma-agent:install",
     ]);
     expect(nextSlashCommandHiddenCapabilities(hidden, "skill:team:reviewer", false)).toEqual([
-      "skill:cccc:install",
+      "skill:niuma-agent:install",
       "skill:team:writer",
       "skill:team:reviewer",
     ]);

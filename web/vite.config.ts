@@ -8,8 +8,8 @@ function localProxyHost(host: string | undefined): string {
   return value;
 }
 
-const backendHost = localProxyHost(process.env.CCCC_WEB_HOST);
-const backendPort = Number(process.env.CCCC_WEB_PORT || 8848) || 8848;
+const backendHost = localProxyHost(process.env.NIUMA_WEB_HOST);
+const backendPort = Number(process.env.NIUMA_WEB_PORT || 8848) || 8848;
 const backendTarget = `http://${backendHost}:${backendPort}`;
 
 const MERMAID_DEPENDENCY_PATTERN =

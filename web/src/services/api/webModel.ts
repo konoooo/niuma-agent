@@ -428,7 +428,7 @@ export async function createNomcpSession(args: {
       group_id: String(args.groupId || "").trim(),
       title: String(args.title || "No-MCP advisory session").trim(),
       brief: String(
-        args.brief || "Review the linked CCCC project context and return advisory findings.",
+        args.brief || "Review the linked 牛马Agent project context and return advisory findings.",
       ).trim(),
       recipient: String(args.recipient || "user").trim() || "user",
       reply_to_event_id: String(args.replyToEventId || "").trim(),

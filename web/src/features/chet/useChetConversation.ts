@@ -94,7 +94,7 @@ function requestIds(records: readonly ChetRecord[]): Set<string> {
 function storageWorks(): boolean {
   try {
     // Outside the pending prefix, so other tabs do not take the probe for a send.
-    const probe = "cccc.chet.storage-probe";
+    const probe = "niuma-agent.chet.storage-probe";
     window.localStorage.setItem(probe, "1");
     window.localStorage.removeItem(probe);
     return true;

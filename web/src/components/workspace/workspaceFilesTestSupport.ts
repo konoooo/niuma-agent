@@ -111,7 +111,7 @@ async function click(node: HTMLElement) {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
-  localStorage.removeItem("cccc-workspace-show-ignored");
+  localStorage.removeItem("niuma-workspace-show-ignored");
   vi.clearAllMocks();
 });
 

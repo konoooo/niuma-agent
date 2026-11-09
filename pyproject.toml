@@ -4,7 +4,7 @@ build-backend = "scripts.native_wheel_backend"
 backend-path = ["."]
 
 [project]
-name = "cccc-pair"
+name = "niuma-agent"
 version = "0.4.49"
 description = "Global multi-agent delivery kernel with working groups, scopes, and an append-only collaboration ledger"
 readme = { file = "README.md", content-type = "text/markdown" }
@@ -25,9 +25,9 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ChesterRa/cccc"
-Repository = "https://github.com/ChesterRa/cccc"
-Issues = "https://github.com/ChesterRa/cccc/issues"
+Homepage = "https://github.com/konoooo/niuma-agent"
+Repository = "https://github.com/konoooo/niuma-agent"
+Issues = "https://github.com/konoooo/niuma-agent/issues"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

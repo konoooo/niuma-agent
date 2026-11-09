@@ -29,7 +29,7 @@ const render = async (call: Partial<WebModelConnectorCall>) => {
             {
               at: "2026-10-23T13:46:52Z",
               method: "tools/call",
-              tool_name: "cccc_runtime_wait_next_turn",
+              tool_name: "niuma_runtime_wait_next_turn",
               ok: false,
               reason: null,
               ...call,

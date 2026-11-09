@@ -1,0 +1,59 @@
+[package]
+name = "niuma-agent-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Persistence and domain kernel for 牛马Agent collaborative agents"
+publish = false
+
+[dependencies]
+aws-lc-rs.workspace = true
+base64.workspace = true
+niuma-contracts = { package = "niuma-agent-contracts", version = "=0.4.49", path = "../niuma-contracts" }
+niuma-runtime = { package = "niuma-agent-runtime", version = "=0.4.49", path = "../niuma-runtime" }
+chrono.workspace = true
+chrono-tz.workspace = true
+cron.workspace = true
+directories.workspace = true
+fs2.workspace = true
+fs_at.workspace = true
+same-file.workspace = true
+flate2.workspace = true
+hmac.workspace = true
+if-addrs.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+serde_yaml.workspace = true
+shell-words.workspace = true
+mime_guess.workspace = true
+renamore.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+tar.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+tracing.workspace = true
+url.workspace = true
+uuid.workspace = true
+unicase.workspace = true
+zip.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libproc = "0.14.11"
+nix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+niuma-windows-process = { path = "../niuma-windows-process" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "niuma_core"
+[build-dependencies]
+sha2.workspace = true

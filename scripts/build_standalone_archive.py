@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wrap one release-ready CCCC executable in a deterministic standalone archive."""
+"""Wrap one release-ready 牛马Agent executable in a deterministic standalone archive."""
 
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ from pathlib import Path
 
 
 _TARGETS = {
-    "x86_64-unknown-linux-gnu": (".tar.gz", "cccc"),
-    "aarch64-apple-darwin": (".tar.gz", "cccc"),
-    "x86_64-pc-windows-msvc": (".zip", "cccc.exe"),
+    "x86_64-unknown-linux-gnu": (".tar.gz", "niuma-agent"),
+    "aarch64-apple-darwin": (".tar.gz", "niuma-agent"),
+    "x86_64-pc-windows-msvc": (".zip", "niuma-agent.exe"),
 }
 
 
@@ -98,7 +98,7 @@ def build(binary: Path, output_dir: Path, *, target: str, root: Path) -> Path:
         raise ValueError(f"unsupported release target: {target!r}") from error
 
     version = _version(root.resolve())
-    package = f"cccc-v{version}-{target}"
+    package = f"niuma-v{version}-{target}"
     output_dir.mkdir(parents=True, exist_ok=True)
     output = output_dir / f"{package}{suffix}"
     files = _files(root.resolve(), binary, executable_name)

@@ -4,7 +4,7 @@ import { findMessageMentionRanges, getMessageMentionTokens } from "./mentionHigh
 
 const actors = [
   { id: "claude-1", title: "Claude" },
-  { id: "codex-1", title: "CCCC开发监督" },
+  { id: "codex-1", title: "牛马Agent开发监督" },
 ] as Actor[];
 
 function marked(text: string, tokens = getMessageMentionTokens(actors, undefined)) {
@@ -56,7 +56,7 @@ it("needs a boundary on both sides of a name", () => {
   expect(marked("@claude-10 x@claude-1 @claude-1x @claude-1/notes")).toEqual([]);
   expect(marked("请@claude-1看一下（@codex-1）。")).toEqual(["agent:@claude-1", "agent:@codex-1"]);
   expect(marked("请@codex-1看一下README.md")).toEqual(["agent:@codex-1"]);
-  expect(marked("@CCCC开发监督 好的，@CCCC开发监督们")).toEqual(["agent:@CCCC开发监督"]);
+  expect(marked("@牛马Agent开发监督 好的，@牛马Agent开发监督们")).toEqual(["agent:@牛马Agent开发监督"]);
 });
 
 it("prefers the longest known name", () => {
@@ -71,7 +71,7 @@ it("gives an agent's references the accent slot of its name, and nothing else on
   const tokens = getMessageMentionTokens(actors, {
     refs: [{ kind: "local_group_route", token: "#Target Repo" }],
   });
-  const text = "@claude-1 @Claude @CCCC开发监督 @all #Target Repo";
+  const text = "@claude-1 @Claude @牛马Agent开发监督 @all #Target Repo";
   expect(findMessageMentionRanges(text, tokens).map((range) => range.accent)).toEqual([
     getActorAccentIndex("claude-1"),
     getActorAccentIndex("claude-1"),

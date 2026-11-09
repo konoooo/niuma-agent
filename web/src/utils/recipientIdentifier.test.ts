@@ -17,7 +17,7 @@ describe("formatRecipientIdentifier", () => {
     const identifier = formatRecipientIdentifier({ kind: "selector", selector: "@foreman" });
 
     expect(identifier).toBe("@foreman (local selector)");
-    expect(identifier).not.toContain("cccc_");
+    expect(identifier).not.toContain("niuma_");
     expect(identifier.split("\n")).toHaveLength(1);
   });
 });

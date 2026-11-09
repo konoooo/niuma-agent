@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 1200 440" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="title desc">
-  <title id="title">CCCC — coding agents, coordinated like a group chat</title>
+  <title id="title">牛马Agent — coding agents, coordinated like a group chat</title>
   <desc id="desc">A user, foreman and peers coordinate through a local Group ledger and communicate with connected remote Groups, with separate delivery, read and reply status markers.</desc>
 
   <rect x="1" y="1" width="1198" height="438" rx="28" fill="#0B0D10" stroke="#2A2E34" stroke-width="2"/>
@@ -10,10 +10,10 @@
   </g>
 
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif">
-    <text x="60" y="166" fill="#F7F7F2" font-size="86" font-weight="760" letter-spacing="-3">CCCC</text>
+    <text x="60" y="166" fill="#F7F7F2" font-size="86" font-weight="760" letter-spacing="-3">牛马Agent</text>
     <text x="64" y="220" fill="#F7F7F2" font-size="32" font-weight="650">Coding agents, coordinated</text>
     <text x="64" y="260" fill="#F7F7F2" font-size="32" font-weight="650">like a group chat.</text>
-    <text x="64" y="308" fill="#AEB3BA" font-size="21">Persistent groups · explicit delivery · CCCC Connect</text>
+    <text x="64" y="308" fill="#AEB3BA" font-size="21">Persistent groups · explicit delivery · 牛马Agent Connect</text>
   </g>
 
   <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" font-weight="600">

@@ -1,6 +1,6 @@
 # Workflow Examples
 
-Common patterns for using CCCC to coordinate AI agents.
+Common patterns for using 牛马Agent to coordinate AI agents.
 
 ## Solo Development with One Agent
 
@@ -10,9 +10,9 @@ The simplest setup: one agent assisting you with a project.
 
 ```bash
 cd /your/project
-cccc attach .
-cccc actor add assistant --runtime claude
-cccc
+niuma-agent attach .
+niuma-agent actor add assistant --runtime claude
+niuma-agent
 ```
 
 ### Workflow
@@ -30,9 +30,9 @@ Use one agent for implementation and another for review.
 ### Setup
 
 ```bash
-cccc actor add implementer --runtime claude
-cccc actor add reviewer --runtime codex
-cccc group start
+niuma-agent actor add implementer --runtime claude
+niuma-agent actor add reviewer --runtime codex
+niuma-agent group start
 ```
 
 ### Workflow
@@ -54,10 +54,10 @@ For complex projects, use multiple specialized agents.
 ### Setup Example
 
 ```bash
-cccc actor add architect --runtime claude    # Design decisions
-cccc actor add frontend --runtime codex      # UI implementation
-cccc actor add backend --runtime droid       # API implementation
-cccc actor add tester --runtime kimi         # Testing
+niuma-agent actor add architect --runtime claude    # Design decisions
+niuma-agent actor add frontend --runtime codex      # UI implementation
+niuma-agent actor add backend --runtime droid       # API implementation
+niuma-agent actor add tester --runtime kimi         # Testing
 ```
 
 ### Coordination
@@ -86,16 +86,16 @@ Monitor and control your agents from anywhere.
 cloudflared tunnel --url http://127.0.0.1:8848
 
 # Stable (custom domain)
-cloudflared tunnel create cccc
-cloudflared tunnel route dns cccc cccc.yourdomain.com
-cloudflared tunnel run cccc
+cloudflared tunnel create niuma-agent
+cloudflared tunnel route dns niuma-agent niuma-agent.yourdomain.com
+cloudflared tunnel run niuma-agent
 ```
 
 **Option 2: IM Bridge**
 
 ```bash
-cccc im set telegram --token-env TELEGRAM_BOT_TOKEN
-cccc im start
+niuma-agent im set telegram --token-env TELEGRAM_BOT_TOKEN
+niuma-agent im start
 ```
 
 Then use your Telegram app to:
@@ -124,11 +124,11 @@ Run long-running tasks unattended.
 
 ```bash
 # Configure notifications
-cccc im set telegram --token-env TELEGRAM_BOT_TOKEN
-cccc im start
+niuma-agent im set telegram --token-env TELEGRAM_BOT_TOKEN
+niuma-agent im start
 
 # Start the task
-cccc tracked-send "Please refactor the authentication module and report progress every hour." \
+niuma-agent tracked-send "Please refactor the authentication module and report progress every hour." \
   --to @foreman \
   --title "Refactor authentication module" \
   --outcome "Refactor is complete, risks are reported, and validation evidence is provided"

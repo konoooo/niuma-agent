@@ -1,10 +1,10 @@
-# CCCC Collaboration Standard (CCCS) v1
+# 牛马Agent Collaboration Standard (CCCS) v1
 
-Status: Draft (proposed for CCCC v0.4.x ecosystem)
+Status: Draft (proposed for 牛马Agent v0.4.x ecosystem)
 
 This document defines **CCCS v1**, a small, transport-agnostic standard for multi-agent collaboration built around an append-only event ledger.
 It is designed to be **stable**, **extensible**, and **implementable** by:
-- CCCC itself (daemon + web UI + MCP/IM bridges)
+- 牛马Agent itself (daemon + web UI + MCP/IM bridges)
 - Client SDKs (TypeScript/Python/Go/etc.)
 - External tools and integrations (CI, IM bots, IDE plugins, automation)
 
@@ -41,7 +41,7 @@ CCCS v1 does NOT standardize:
 - **Actor**: A named agent identity within a group (e.g., `foreman`, `peer-1`).
 - **Principal**: Any entity that can write events (`user`, an `actor_id`, `system`, or `svc:<name>`).
   - Service principals SHOULD use a stable namespace (RECOMMENDED: `svc:com.example.mybot` when disambiguation is needed).
-  - The `svc:cccc.` prefix is RESERVED for CCCC ecosystem services.
+  - The `svc:niuma-agent.` prefix is RESERVED for 牛马Agent ecosystem services.
 - **Ledger**: An append-only sequence of events for a group.
 - **Client**: Any process/UI/bot that reads or writes events via a daemon.
 - **Daemon**: A single-writer authority that appends events and enforces permissions.
@@ -153,7 +153,7 @@ bare Actor ID retains its existing meaning. A stored service identity is not,
 by itself, proof of a service-authored message under local-trust IPC (§5.4).
 
 For a local Chet-authored chat message, the host writes
-`data._cccc_chet_group_generation` with the current Group generation. This
+`data._niuma_chet_group_generation` with the current Group generation. This
 field is read-only to clients: message and raw-event write operations MUST
 reject a caller-supplied value. A local service identity is recognized only
 when `by` is `svc:chet`, the host field matches the current Group generation,
@@ -286,7 +286,7 @@ data: {
 - Connect replies fulfill only the original remote instance/Actor/generation
   obligation. Live consumers resolve this identity from the canonical Connect
   envelope and original request, never from the display sender or an identically
-  named local Actor; see `CCCC_CONNECT_V1.md`.
+  named local Actor; see `NIUMA_CONNECT_V1.md`.
 - `request_reply` MUST NOT use an empty recipient list or a broadcast selector
   (`@all`, `@peers`, or `@foreman`). The daemon MUST materialize and validate a
   concrete recipient set before appending the message.
@@ -359,7 +359,7 @@ unconfirmed. It does not retract a message or stop an Actor task. A terminal
 `source_event_id` and the local original message via `original_event_id`.
 A cancellation for an original absent after its delivery deadline may record
 `source_event_id:null, not_delivered:true`; it changes no obligation.
-See [CCCC_CONNECT_V1.md](CCCC_CONNECT_V1.md) for authority and recovery.
+See [NIUMA_CONNECT_V1.md](NIUMA_CONNECT_V1.md) for authority and recovery.
 
 ### 6.4 Questions to the user
 
@@ -517,8 +517,8 @@ data: {
 **Rules**
 - Clients MUST ignore unknown `data.kind` values within `system.notify` (open enum).
 - Implementations MAY enforce an allowlist of `data.kind` values, but should not assume clients understand new kinds.
-- External IM bridges MUST fail closed: a `system.notify` is eligible for IM delivery only when `im_visibility="public"`. Missing, invalid, or `internal` values stay inside CCCC. Actor-targeted notifications remain internal even if a malformed producer also marks them public.
-- Routing: CCCC's own `mail_notice` and `reply_notice` prompts go only to their `target_actor_id` and are not Inbox items. For every other notification, the sender (`by`) never receives its own notification. A non-empty `target_actor_id` addresses exactly that Actor, so a notification that targets its sender reaches no one rather than everyone. Implementations also read a non-empty `data.actor_id` as the target when `target_actor_id` is absent. Without a target, `to` lists Actor IDs or the selectors `@all`, `@peers` and `@foreman`; names and titles are not resolved as they are for `chat.message`. Internal Actors receive a notification only when `to` names them; other Actors receive it when `to` is empty (a broadcast) or selects them.
+- External IM bridges MUST fail closed: a `system.notify` is eligible for IM delivery only when `im_visibility="public"`. Missing, invalid, or `internal` values stay inside 牛马Agent. Actor-targeted notifications remain internal even if a malformed producer also marks them public.
+- Routing: 牛马Agent's own `mail_notice` and `reply_notice` prompts go only to their `target_actor_id` and are not Inbox items. For every other notification, the sender (`by`) never receives its own notification. A non-empty `target_actor_id` addresses exactly that Actor, so a notification that targets its sender reaches no one rather than everyone. Implementations also read a non-empty `data.actor_id` as the target when `target_actor_id` is absent. Without a target, `to` lists Actor IDs or the selectors `@all`, `@peers` and `@foreman`; names and titles are not resolved as they are for `chat.message`. Internal Actors receive a notification only when `to` names them; other Actors receive it when `to` is empty (a broadcast) or selects them.
 - `by` is the producer. A port that acts for a caller MUST NOT copy the caller's identity into `data` (for example, an MCP tool's `actor_id`); producers address recipients only with `target_actor_id` or `to`.
 
 `system.notify` has no generic acknowledgement protocol. Domain workflows use
@@ -600,7 +600,7 @@ type ReferenceV1 =
   qualified by both Instance and Group ID. Names and `token` are display snapshots.
   It is advisory context, never a destination, access grant or automatic send.
   Consumers MUST NOT interpret its Group ID as a local destination. When asked to
-  contact it, Agents use `cccc_connect(instance_id, target_group_id)` to discover
+  contact it, Agents use `niuma_connect(instance_id, target_group_id)` to discover
   the current target, then ordinary Connect messaging with both destination IDs.
 - Attachments SHOULD include content hashes where possible (`sha256`) to enable reproducibility/auditing.
 - `path` MUST be stable and retrievable within the group’s storage scope.
@@ -629,7 +629,7 @@ Connect messages additionally qualify remote Group IDs with `src_instance_id` /
 `dst_instance_id`; consumers MUST NOT treat such a remote Group ID as a local
 Group navigation or authorization target. The device transport,
 immutable message metadata, durable acceptance and terminal delivery receipts are
-specified in [CCCC_CONNECT_V1.md](CCCC_CONNECT_V1.md). Those extensions do not
+specified in [NIUMA_CONNECT_V1.md](NIUMA_CONNECT_V1.md). Those extensions do not
 grant remote history, Context, TUI or arbitrary tool access. Cross-member
 connections also pin an immutable `connection_id` to the logical delivery and
 its replies/cancellations. Group resource generations change on import or
@@ -745,7 +745,7 @@ To reduce implementation burden, CCCS v1 MAY be implemented in profiles:
 ### 13.2 Management Profile (optional)
 - `group.*`, `actor.*`
 
-CCCC emits `group.foreman_change` after removal of the current foreman, with
+牛马Agent emits `group.foreman_change` after removal of the current foreman, with
 `data.from` naming the removed Actor and `data.to` naming its successor or
 `null` when none remain. `by` retains the removal's principal. This is a
 management notification of the committed membership change, not an independent
@@ -832,11 +832,11 @@ failure or permission to resend. Receipts and a deduplicated internal user notic
 must be committed before their old queue records are removed. No remote grant is
 inferred from history. Read-only status projections may annotate affected messages
 with `_retired_bridge=true`; replay must preserve it and consumers must not offer
-an active reply through that retired route. See [Daemon IPC](CCCC_DAEMON_IPC_V1.md#8172-cccc-connect-and-manual-bridge-retirement).
+an active reply through that retired route. See [Daemon IPC](NIUMA_DAEMON_IPC_V1.md#8172-niuma-connect-and-manual-bridge-retirement).
 
 Standalone Direct Group connections use the same cross-instance provenance,
 Actor generation, immutable connection ID and durable receipt rules. Their
 `direct-<UUID>` grant authorizes only the paired Group generations and carries no
 membership account/device authority. Removal or replacement cannot redirect an
 existing delivery or let a new connection fulfill its obligation. See the
-[Direct connection specification](CCCC_CONNECT_V1.md#standalone-direct-group-connections).
+[Direct connection specification](NIUMA_CONNECT_V1.md#standalone-direct-group-connections).

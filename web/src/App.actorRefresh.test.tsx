@@ -31,7 +31,7 @@ vi.mock("./hooks/useAppChrome", () => ({
   useAppChrome: () => ({
     canManageGroups: true,
     webModeKnown: true,
-    ccccHome: "",
+    niumaHome: "",
     fetchDirSuggestions: noop,
     refreshWebAccessSession: async () => true,
   }),
@@ -165,7 +165,7 @@ function jsonResponse(result: unknown): Response {
 async function serveRequest(input: string | URL | Request, init?: RequestInit): Promise<Response> {
   const url = new URL(
     typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
-    "http://cccc.test",
+    "http://niuma-agent.test",
   );
   const method = init?.method || "GET";
   requests.push({ method, pathname: url.pathname, at: Date.now() });
@@ -229,7 +229,7 @@ beforeEach(async () => {
   // Settle lazy module loading before advancing the synthetic clock.
   await import("./components/AgentTab");
   localStorage.clear();
-  localStorage.setItem("cccc-theme", "dark");
+  localStorage.setItem("niuma-theme", "dark");
   clearAuthToken();
   vi.useFakeTimers();
   requests = [];

@@ -20,13 +20,13 @@ function createBlock(source: string): HTMLDivElement {
   const container = document.createElement("div");
   container.innerHTML = `
     <div data-mermaid-block data-mermaid-state="pending">
-      <button data-cccc-mermaid-expand hidden>Expand</button>
-      <button class="mermaid-view-toggle" data-cccc-mermaid-toggle data-view-source-label="View source" data-view-diagram-label="View diagram">View source</button>
-      <button class="copy-button" data-cccc-markdown-copy data-code="${encodeURIComponent(source)}">Copy</button>
-      <div class="mermaid-status" data-cccc-mermaid-status>Rendering</div>
-      <div class="mermaid-render-target" data-cccc-mermaid-target></div>
-      <div class="mermaid-error" data-cccc-mermaid-error hidden data-render-failed="Render failed" data-too-large="Too large"></div>
-      <pre class="mermaid-source" data-cccc-mermaid-source hidden><code></code></pre>
+      <button data-niuma-mermaid-expand hidden>Expand</button>
+      <button class="mermaid-view-toggle" data-niuma-mermaid-toggle data-view-source-label="View source" data-view-diagram-label="View diagram">View source</button>
+      <button class="copy-button" data-niuma-markdown-copy data-code="${encodeURIComponent(source)}">Copy</button>
+      <div class="mermaid-status" data-niuma-mermaid-status>Rendering</div>
+      <div class="mermaid-render-target" data-niuma-mermaid-target></div>
+      <div class="mermaid-error" data-niuma-mermaid-error hidden data-render-failed="Render failed" data-too-large="Too large"></div>
+      <pre class="mermaid-source" data-niuma-mermaid-source hidden><code></code></pre>
     </div>`;
   document.body.append(container);
   return container;
@@ -87,7 +87,7 @@ describe("Mermaid message rendering", () => {
     const toggle = container.querySelector<HTMLButtonElement>(".mermaid-view-toggle")!;
     const target = container.querySelector<HTMLElement>(".mermaid-render-target")!;
     const source = container.querySelector<HTMLElement>(".mermaid-source")!;
-    const expand = container.querySelector<HTMLButtonElement>("[data-cccc-mermaid-expand]")!;
+    const expand = container.querySelector<HTMLButtonElement>("[data-niuma-mermaid-expand]")!;
     expect(mermaidMock.initialize).toHaveBeenCalledWith(
       expect.objectContaining({ securityLevel: "strict", theme: "dark" }),
     );
@@ -123,9 +123,9 @@ describe("Mermaid message rendering", () => {
     await vi.waitFor(() => {
       expect(container.querySelector("[data-svg-collision=true]")).not.toBeNull();
     });
-    const toggle = container.querySelector<HTMLButtonElement>("[data-cccc-mermaid-toggle]")!;
-    const source = container.querySelector<HTMLElement>("[data-cccc-mermaid-source]")!;
-    const target = container.querySelector<HTMLElement>("[data-cccc-mermaid-target]")!;
+    const toggle = container.querySelector<HTMLButtonElement>("[data-niuma-mermaid-toggle]")!;
+    const source = container.querySelector<HTMLElement>("[data-niuma-mermaid-source]")!;
+    const target = container.querySelector<HTMLElement>("[data-niuma-mermaid-target]")!;
 
     expect(toggleMermaidView(toggle)).toBe(true);
     expect(source.hidden).toBe(false);

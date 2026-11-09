@@ -1,4 +1,4 @@
-"""Reject generic source builds that cannot produce the native CCCC artifact.
+"""Reject generic source builds that cannot produce the native 牛马Agent artifact.
 
 Published platform wheels are assembled by ``build_native_wheel.py`` from the
 same release executable as the standalone archive. A source-tree PEP 517 build
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 
 _MESSAGE = (
-    "CCCC does not build a wheel, editable install, or sdist from source "
+    "牛马Agent does not build a wheel, editable install, or sdist from source "
     "through PEP 517. "
     "Install a published platform wheel, use the website installer, or build "
     "the native executable with scripts/build_package.sh (or "

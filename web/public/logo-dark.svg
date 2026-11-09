@@ -1,18 +1,18 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <title>CCCC logo</title>
+  <title>牛马Agent logo</title>
   <desc>Four concentric open rings representing coordinated coding agents.</desc>
   <defs>
-    <filter id="ccccDarkShadow" x="22" y="30" width="468" height="452" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+    <filter id="niumaDarkShadow" x="22" y="30" width="468" height="452" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
       <feFlood flood-opacity="0" result="BackgroundImageFix" />
       <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha" />
       <feOffset dy="12" />
       <feGaussianBlur stdDeviation="12" />
       <feColorMatrix type="matrix" values="0 0 0 0 0.0470588 0 0 0 0 0.0470588 0 0 0 0 0.0470588 0 0 0 0.3 0" />
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_ccccDark" />
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_ccccDark" result="shape" />
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_niumaDark" />
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_niumaDark" result="shape" />
     </filter>
   </defs>
-  <g filter="url(#ccccDarkShadow)">
+  <g filter="url(#niumaDarkShadow)">
     <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-width="36">
       <path d="M 397.4 397.4 A 200 200 0 1 1 397.4 114.6" />
       <path d="M 358.5 358.5 A 145 145 0 1 1 358.5 153.5" />

@@ -6,7 +6,7 @@ export const CHET_PRINCIPAL = "svc:chet";
 export const CHET_SELECTOR = "@chet";
 export const CHET_NAME = "Chet";
 /** The host stamps each message Chet writes with the Group generation it was written in. */
-const GENERATION_FIELD = "_cccc_chet_group_generation";
+const GENERATION_FIELD = "_niuma_chet_group_generation";
 
 /** The generation Chet's messages carry, or "" until the Group is known. */
 export function chetGeneration(group: Pick<GroupDoc, "generation" | "created_at"> | null): string {

@@ -538,7 +538,7 @@ export function LocalAsrModels({
             <p className="mt-1 max-w-2xl text-xs leading-5 text-[var(--color-text-muted)]">
               {t("assistants.localAsrHint", {
                 defaultValue:
-                  "Download the local speech models used for private transcription on this device. The sherpa-onnx engine is built into CCCC.",
+                  "Download the local speech models used for private transcription on this device. The sherpa-onnx engine is built into 牛马Agent.",
               })}
             </p>
           </div>
@@ -588,7 +588,7 @@ export function LocalAsrModels({
             </div>
             <p className="mt-1 text-xs leading-5 text-[var(--color-text-muted)]">
               {t("assistants.localAsrEngineHint", {
-                defaultValue: "Built into the CCCC executable.",
+                defaultValue: "Built into the 牛马Agent executable.",
               })}
             </p>
             {streamingRuntimeInstalledVersion ? (

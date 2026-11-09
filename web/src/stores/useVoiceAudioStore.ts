@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 export type VoiceAudioPreferences = { inputDeviceId: string; outputDeviceId: string };
-export const VOICE_AUDIO_STORAGE_KEY = "cccc.voice.audio.v1";
+export const VOICE_AUDIO_STORAGE_KEY = "niuma-agent.voice.audio.v1";
 const defaults: VoiceAudioPreferences = { inputDeviceId: "", outputDeviceId: "" };
 
 function deviceId(value: unknown): string {
@@ -35,7 +35,7 @@ function initial(): VoiceAudioPreferences {
   const current = read(VOICE_AUDIO_STORAGE_KEY);
   if (current) return current;
   // Preserve an existing device choice once when moving it out of Codex Voice.
-  const previous = read("cccc.codexVoice.preferences.v1");
+  const previous = read("niuma-agent.codexVoice.preferences.v1");
   if (previous) {
     persist(previous);
     return previous;

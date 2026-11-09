@@ -1,0 +1,82 @@
+[package]
+name = "niuma-agent-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Web API, UI server, and integration adapters for 牛马Agent"
+publish = false
+include = [
+  "assets/web-dist/**",
+  "build.rs",
+  "resources/**",
+  "src/**",
+]
+
+[dependencies]
+anyhow.workspace = true
+aes.workspace = true
+async-stream.workspace = true
+async-trait.workspace = true
+aws-lc-rs.workspace = true
+axum.workspace = true
+base64.workspace = true
+bzip2.workspace = true
+niuma-client = { package = "niuma-agent-client", version = "=0.4.49", path = "../niuma-client" }
+niuma-contracts = { package = "niuma-agent-contracts", version = "=0.4.49", path = "../niuma-contracts" }
+niuma-core = { package = "niuma-agent-core", version = "=0.4.49", path = "../niuma-core" }
+niuma-daemon = { package = "niuma-agent-daemon", version = "=0.4.49", path = "../niuma-daemon" }
+niuma-mcp = { package = "niuma-agent-mcp", version = "=0.4.49", path = "../niuma-mcp" }
+niuma-runtime = { package = "niuma-agent-runtime", version = "=0.4.49", path = "../niuma-runtime" }
+chromiumoxide.workspace = true
+chrono.workspace = true
+crc32fast.workspace = true
+cbc.workspace = true
+dingtalk-stream.workspace = true
+ed25519-dalek.workspace = true
+futures-util.workspace = true
+flate2.workspace = true
+fs2.workspace = true
+mime_guess.workspace = true
+md-5.workspace = true
+lark-channel.workspace = true
+notify.workspace = true
+percent-encoding.workspace = true
+reqwest.workspace = true
+rust-embed = { workspace = true, features = ["interpolate-folder-path"] }
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serenity.workspace = true
+sha2.workspace = true
+shell-words.workspace = true
+sherpa-onnx.workspace = true
+tar.workspace = true
+takecell.workspace = true
+tempfile.workspace = true
+hound.workspace = true
+hmac.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tower-http = { workspace = true, features = ["compression-br", "compression-gzip"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+teloxide.workspace = true
+uuid.workspace = true
+url.workspace = true
+weixin-agent.workspace = true
+
+[dev-dependencies]
+http-body-util.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "niuma_web"
+
+[[bin]]
+name = "niuma-web"
+path = "src/main.rs"

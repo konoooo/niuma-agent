@@ -45,7 +45,7 @@ export function DirectJoinForm({
           disabled={busy}
           autoComplete="off"
           spellCheck={false}
-          placeholder="cccc-direct:…"
+          placeholder="niuma-direct:…"
           className="direct-invitation-input min-h-20 resize-y font-mono text-xs leading-5"
           aria-invalid={invalid || !!expired}
           aria-describedby={invalid ? `${id}-error` : expired ? `${id}-expiry` : undefined}

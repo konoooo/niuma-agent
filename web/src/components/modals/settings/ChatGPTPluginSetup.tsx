@@ -4,7 +4,7 @@ import { copyTextToClipboard } from "../../../utils/copy";
 import { primaryButtonClass, secondaryButtonClass } from "./types";
 
 const CHATGPT_PLUGINS_URL = "https://chatgpt.com/settings/plugins-settings";
-const PLUGIN_NAME = "CCCC";
+const PLUGIN_NAME = "牛马Agent";
 
 interface Props {
   disabled: boolean;
@@ -14,7 +14,7 @@ interface Props {
 }
 
 /**
- * The one manual step a Dot cannot do itself: adding CCCC as a custom MCP
+ * The one manual step a Dot cannot do itself: adding 牛马Agent as a custom MCP
  * plugin in the ChatGPT account. Every value to enter is one click away.
  */
 export function ChatGPTPluginSetup({ disabled, urlCopied, onCopyUrl, onCopyFailed }: Props) {

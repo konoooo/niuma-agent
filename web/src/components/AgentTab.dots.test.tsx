@@ -67,7 +67,7 @@ vi.mock("../services/api", () => ({
     ok: true,
     result: {
       connectors: [{ connector_id: "shared", provider: "chatgpt_web" }],
-      connector_base_url: "https://cccc.example.test",
+      connector_base_url: "https://niuma-agent.example.test",
     },
   }),
   fetchGrokActorState: (...args: unknown[]) => mocks.load(...args),
@@ -117,7 +117,7 @@ beforeEach(() => {
       recovery: {
         state: "connected",
         cwd: "/synthetic/native",
-        command: "CCCC_HOME='/synthetic/cccc' codex resume 'fixture'",
+        command: "NIUMA_HOME='/synthetic/niuma-agent' codex resume 'fixture'",
       },
     },
   }));
@@ -480,7 +480,7 @@ it("uses the footer's single Actor editor entry for a configured Dots pane", asy
   expect(mocks.update).not.toHaveBeenCalled();
 });
 
-it("uses CCCC access controls and a shared-login destination for the browser runtime", async () => {
+it("uses 牛马Agent access controls and a shared-login destination for the browser runtime", async () => {
   const browserActor = { ...actor, runtime: "web_model", running: false } as Actor;
   await render(false, browserActor);
   expect(host.querySelector('[aria-label="dotsPause"]')).not.toBeNull();
@@ -634,7 +634,7 @@ it.each([false, true])(
     expect(host.querySelector('[role="status"]')?.textContent).toBe("webAccessPaused");
     expect(host.textContent).toContain("nativeSession.recovery.states.connected");
     expect(host.querySelector("pre code")?.textContent).toBe(
-      "CCCC_HOME='/synthetic/cccc' codex resume 'fixture'",
+      "NIUMA_HOME='/synthetic/niuma-agent' codex resume 'fixture'",
     );
     const copy = [...host.querySelectorAll("button")].find(
       (button) => button.textContent === "nativeSession.recovery.copyCommand",

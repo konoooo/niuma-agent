@@ -1,19 +1,19 @@
 services:
-  cccc:
+  niuma-agent:
     build:
       context: ..
       dockerfile: docker/Dockerfile
       args:
         HTTP_PROXY: ${HTTP_PROXY:-}
         HTTPS_PROXY: ${HTTPS_PROXY:-}
-    image: cccc
-    container_name: cccc
+    image: niuma-agent
+    container_name: niuma-agent
     restart: unless-stopped
     init: true
     ports:
-      - "127.0.0.1:${CCCC_PORT:-8848}:8848"
+      - "127.0.0.1:${NIUMA_PORT:-8848}:8848"
     volumes:
-      - cccc-data:/data
+      - niuma-data:/data
       - ${WORKSPACE_PATH:-.}:/workspace
     environment:
       - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN:-}
@@ -22,5 +22,5 @@ services:
       - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
 
 volumes:
-  cccc-data:
+  niuma-data:
     external: true

@@ -73,7 +73,7 @@ describe("api error normalization", () => {
     expect(
       formatApiErrorMessage({
         code: "daemon_unavailable",
-        message: "CCCC daemon unavailable",
+        message: "牛马Agent daemon unavailable",
         details: {
           transport: "tcp",
           endpoint: { host: "127.0.0.1", port: 9001 },
@@ -81,7 +81,7 @@ describe("api error normalization", () => {
           reason: "os_error",
         },
       }),
-    ).toBe("CCCC daemon unavailable · tcp 127.0.0.1:9001 · connect os error");
+    ).toBe("牛马Agent daemon unavailable · tcp 127.0.0.1:9001 · connect os error");
   });
 
   it("normalizes daemon_unavailable messages from response bodies", async () => {
@@ -96,10 +96,10 @@ describe("api error normalization", () => {
               ok: false,
               error: {
                 code: "daemon_unavailable",
-                message: "CCCC daemon unavailable",
+                message: "牛马Agent daemon unavailable",
                 details: {
                   transport: "unix",
-                  endpoint: { path: "/tmp/ccccd.sock" },
+                  endpoint: { path: "/tmp/niumad.sock" },
                   phase: "read",
                   reason: "timeout",
                 },
@@ -118,11 +118,11 @@ describe("api error normalization", () => {
       throw new Error("expected error response");
     }
     expect(resp.error.message).toBe(
-      "CCCC daemon unavailable · unix /tmp/ccccd.sock · read timeout",
+      "牛马Agent daemon unavailable · unix /tmp/niumad.sock · read timeout",
     );
     expect(resp.error.details).toEqual({
       transport: "unix",
-      endpoint: { path: "/tmp/ccccd.sock" },
+      endpoint: { path: "/tmp/niumad.sock" },
       phase: "read",
       reason: "timeout",
     });
@@ -270,7 +270,7 @@ describe("api.fetchPresentation", () => {
   });
 
   it("builds cookie-authenticated asset urls without query secrets", async () => {
-    sessionStorageMock.setItem("cccc_dev_token", "dev-token");
+    sessionStorageMock.setItem("niuma_dev_token", "dev-token");
     const api = await import("../../src/services/api");
     expect(api.getPresentationAssetUrl("g-demo", "slot-4")).toBe(
       "/api/v1/groups/g-demo/presentation/slots/slot-4/asset",
@@ -281,7 +281,7 @@ describe("api.fetchPresentation", () => {
   });
 
   it("builds cookie-authenticated blob urls only for group-scoped blob paths", async () => {
-    sessionStorageMock.setItem("cccc_dev_token", "dev-token");
+    sessionStorageMock.setItem("niuma_dev_token", "dev-token");
     const api = await import("../../src/services/api");
     expect(api.getGroupBlobUrl("g-demo", "state/blobs/sha256_demo.jpg")).toBe(
       "/api/v1/groups/g-demo/blobs/sha256_demo.jpg",
@@ -342,11 +342,11 @@ describe("api.fetchPresentation", () => {
   });
 
   it("builds a cookie-authenticated websocket url without query secrets", async () => {
-    sessionStorageMock.setItem("cccc_dev_token", "dev-token");
-    vi.stubGlobal("window", { location: { search: "", protocol: "https:", host: "cccc.test" } });
+    sessionStorageMock.setItem("niuma_dev_token", "dev-token");
+    vi.stubGlobal("window", { location: { search: "", protocol: "https:", host: "niuma-agent.test" } });
     const api = await import("../../src/services/api");
     expect(api.getPresentationBrowserSurfaceWebSocketUrl("g-demo", "slot-3")).toBe(
-      "wss://cccc.test/api/v1/groups/g-demo/presentation/browser_surface/ws?slot=slot-3",
+      "wss://niuma-agent.test/api/v1/groups/g-demo/presentation/browser_surface/ws?slot=slot-3",
     );
   });
 
@@ -1532,7 +1532,7 @@ describe("api bootstrap read cache", () => {
           status: 200,
           ok: true,
           text: async () =>
-            JSON.stringify({ ok: true, result: { version: "1.0.0", home: "/tmp/cccc" } }),
+            JSON.stringify({ ok: true, result: { version: "1.0.0", home: "/tmp/niuma-agent" } }),
         });
       }
       return Promise.reject(new Error(`unexpected request: GET ${path}`));

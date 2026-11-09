@@ -20,15 +20,15 @@ describe("reach membership addresses", () => {
     const state = membership({
       logged_in: true,
       online: true,
-      hostname: "https://d-1.cccc.foo",
-      web_url: "https://d-1.cccc.foo/ui/",
+      hostname: "https://d-1.niuma-agent.foo",
+      web_url: "https://d-1.niuma-agent.foo/ui/",
     });
 
-    expect(membershipPublicAddress(state)).toBe("https://d-1.cccc.foo");
-    expect(membershipAdminWebUrl(state)).toBe("https://d-1.cccc.foo/ui/");
+    expect(membershipPublicAddress(state)).toBe("https://d-1.niuma-agent.foo");
+    expect(membershipAdminWebUrl(state)).toBe("https://d-1.niuma-agent.foo/ui/");
     expect(
       membershipAdminWebUrl(
-        membership({ logged_in: true, web_url: "https://d-1.cccc.foo/ui/?token=acc_secret" }),
+        membership({ logged_in: true, web_url: "https://d-1.niuma-agent.foo/ui/?token=acc_secret" }),
       ),
     ).toBe("");
   });
@@ -36,7 +36,7 @@ describe("reach membership addresses", () => {
   it("does not advertise an offline or credential-bearing hostname", () => {
     expect(
       membershipPublicAddress(
-        membership({ logged_in: true, online: false, hostname: "https://d-1.cccc.foo" }),
+        membership({ logged_in: true, online: false, hostname: "https://d-1.niuma-agent.foo" }),
       ),
     ).toBe("");
     expect(
@@ -44,7 +44,7 @@ describe("reach membership addresses", () => {
         membership({
           logged_in: true,
           online: true,
-          hostname: "https://d-1.cccc.foo/ui/?token=acc_secret",
+          hostname: "https://d-1.niuma-agent.foo/ui/?token=acc_secret",
         }),
       ),
     ).toBe("");
@@ -59,9 +59,9 @@ describe("reach membership addresses", () => {
 
 describe("reach membership hostname safety", () => {
   it("rejects a hostname that already carries a token", () => {
-    expect(hostnameLooksTokenless("https://d-1.cccc.foo")).toBe(true);
-    expect(hostnameLooksTokenless("https://d-1.cccc.foo/ui/?token=acc_secret")).toBe(false);
-    expect(hostnameLooksTokenless("https://d-1.cccc.foo/mcp/web-model/wmc_1/token/secret")).toBe(
+    expect(hostnameLooksTokenless("https://d-1.niuma-agent.foo")).toBe(true);
+    expect(hostnameLooksTokenless("https://d-1.niuma-agent.foo/ui/?token=acc_secret")).toBe(false);
+    expect(hostnameLooksTokenless("https://d-1.niuma-agent.foo/mcp/web-model/wmc_1/token/secret")).toBe(
       false,
     );
   });

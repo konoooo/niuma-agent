@@ -194,10 +194,11 @@ it("opens a worker notification without discarding unsaved work", async () => {
   await act(async () => root.render(<Probe />));
   setWorkspaceDirty(owner, true);
   useUIStore.getState().setSidebarOpen(true);
-  const data = { type: "cccc:push:open", v: 1, group_id: "a", event_id: "message-1" };
+  const data = { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "message-1" };
+  const deadline = Date.now() + 5000;
   let ack!: ReturnType<typeof vi.fn>;
   await act(async () => {
-    ack = pushMessage(container, data);
+    ack = pushMessage(container, data, undefined, deadline);
   });
   expect(ack).toHaveBeenCalledExactlyOnceWith({ handled: true });
   expect(message).not.toHaveBeenCalled();
@@ -209,7 +210,7 @@ it("opens a worker notification without discarding unsaved work", async () => {
   expect(message).not.toHaveBeenCalled();
   expect(useUIStore.getState().sidebarOpen).toBe(true);
 
-  await act(async () => pushMessage(container, data));
+  await act(async () => pushMessage(container, data, undefined, deadline + 1));
   await act(async () => finishWorkspaceNavigation(true));
   expect(message).toHaveBeenCalledExactlyOnceWith("a", "message-1");
   expect(useUIStore.getState().sidebarOpen).toBe(false);
@@ -238,7 +239,7 @@ it("offers a manual retry when opening a notification's message fails", async ()
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
   await act(async () => {
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "message-1" });
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "message-1" });
   });
   const notice = useUIStore.getState().notice;
   expect(notice?.message).toBe("notifications.messageUnavailable");
@@ -272,7 +273,7 @@ it("does not report an old failure after a newer notification takes over", async
   }
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
-  const first = { type: "cccc:push:open", v: 1, group_id: "a", event_id: "old" };
+  const first = { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "old" };
   const second = { ...first, event_id: "new" };
   await act(async () => pushMessage(container, first, undefined, Date.now() + 5000));
   await act(async () => pushMessage(container, second, undefined, Date.now() + 5001));
@@ -305,7 +306,7 @@ it("does not report a failure after the reader has switched Groups", async () =>
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "old" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "old" }),
   );
   await act(async () => select("b"));
   await act(async () => fail(false));
@@ -334,7 +335,7 @@ it("dismisses a message retry notice when the reader leaves its Group", async ()
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "old" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "old" }),
   );
   expect(useUIStore.getState().notice?.message).toBe("notifications.messageUnavailable");
   await act(async () => select("b"));
@@ -363,7 +364,7 @@ it("closes the phone's Group list when a notification opens a message in an open
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "m-1" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "m-1" }),
   );
   expect(message).toHaveBeenCalledExactlyOnceWith("a", "m-1");
   expect(useUIStore.getState().sidebarOpen).toBe(false);
@@ -392,7 +393,7 @@ it("accepts only the dedicated worker and rechecks Group access before navigatio
   }
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe groups={both} />));
-  const data = { type: "cccc:push:open", v: 1, group_id: "b", event_id: "message-2" };
+  const data = { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "message-2" };
   const wrongSource = pushMessage(container, data, "/another/sw.js");
   expect(wrongSource).not.toHaveBeenCalled();
   expect(message).not.toHaveBeenCalled();
@@ -433,7 +434,7 @@ it("keeps a notification until an earlier navigation confirmation is resolved", 
   let ack!: ReturnType<typeof vi.fn>;
   await act(async () => {
     ack = pushMessage(container, {
-      type: "cccc:push:open",
+      type: "niuma-agent:push:open",
       v: 1,
       group_id: "a",
       event_id: "message-3",
@@ -474,7 +475,7 @@ it("loads a notification's group when the page has not loaded its initial list y
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "b", event_id: "message" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "message" }),
   );
   expect(apiJson).toHaveBeenCalledWith("/api/v1/groups", {
     cache: "no-store",
@@ -517,7 +518,7 @@ it.each(["worker", "URL"])(
       if (source === "URL") parse();
       else
         pushMessage(container, {
-          type: "cccc:push:open",
+          type: "niuma-agent:push:open",
           v: 1,
           group_id: "b",
           event_id: "message",
@@ -592,7 +593,7 @@ it.each([
     root = createRoot(document.createElement("div"));
     await act(async () => root.render(<Probe />));
     await act(async () =>
-      pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "b", event_id: "message" }),
+      pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "message" }),
     );
     expect(error).toHaveBeenCalledExactlyOnceWith(expected);
   },
@@ -627,7 +628,7 @@ it.each(["worker", "URL"])(
       if (source === "URL") parse();
       else
         pushMessage(container, {
-          type: "cccc:push:open",
+          type: "niuma-agent:push:open",
           v: 1,
           group_id: "b",
           event_id: "message",
@@ -747,7 +748,7 @@ it("acts on a click that reaches the page late, but not on a stale or older one"
     act(async () =>
       pushMessage(
         container,
-        { type: "cccc:push:open", v: 1, group_id: group, event_id: `in-${group}` },
+        { type: "niuma-agent:push:open", v: 1, group_id: group, event_id: `in-${group}` },
         "/ui/push/sw.js",
         deadline,
       ),
@@ -795,7 +796,7 @@ it("does not replace a newer group list with an older empty response", async () 
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe list={[]} />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "message" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "message" }),
   );
   latest = [{ group_id: "a" }] as GroupMeta[];
   await act(async () => finish({ ok: true, result: { groups: [] } }));
@@ -835,7 +836,7 @@ it("reports a stalled notification lookup instead of waiting indefinitely", asyn
     root = createRoot(document.createElement("div"));
     await act(async () => root.render(<Probe />));
     await act(async () =>
-      pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "b", event_id: "message" }),
+      pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "message" }),
     );
     expect(error).not.toHaveBeenCalled();
     await act(async () => vi.advanceTimersByTimeAsync(10000));
@@ -874,7 +875,7 @@ it("does not restore a Group removed while a notification lookup is in flight", 
   root = createRoot(document.createElement("div"));
   await act(async () => root.render(<Probe list={first} />));
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "b", event_id: "message" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "message" }),
   );
   snapshot = latest;
   await act(async () => root.render(<Probe list={latest} />));
@@ -945,7 +946,7 @@ it("lets a new notification supersede an unresolved URL lookup", async () => {
   await act(async () => root.render(<Probe />));
   await act(async () => parse());
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "b", event_id: "newer" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "b", event_id: "newer" }),
   );
   expect(message).toHaveBeenCalledExactlyOnceWith("b", "newer");
   await act(async () => finishOld({ ok: true, result: { groups: [] } }));
@@ -1012,7 +1013,7 @@ it("uses the current group when a pending navigation is confirmed", async () => 
   await act(async () => root.render(<Probe />));
   setWorkspaceDirty(Symbol("unsaved editor"), true);
   await act(async () =>
-    pushMessage(container, { type: "cccc:push:open", v: 1, group_id: "a", event_id: "message" }),
+    pushMessage(container, { type: "niuma-agent:push:open", v: 1, group_id: "a", event_id: "message" }),
   );
   await act(async () => forceSelect("b"));
   await act(async () => finishWorkspaceNavigation(true));

@@ -33,7 +33,7 @@ it("刷新后按工作组分别保留动画开关", async () => {
 
 it("旧版动画视图设置迁移为消息视图加展开动画", async () => {
   localStorage.setItem(
-    "cccc-chat-sessions",
+    "niuma-chat-sessions",
     JSON.stringify({ "group-a": { workView: "animation" } }),
   );
   const { useUIStore } = await import("./useUIStore");

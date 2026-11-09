@@ -72,7 +72,7 @@ export function LocalSessionsHelp({
               className="w-full"
               contentClassName="w-[var(--radix-popover-trigger-width)]"
             />
-            <pre className="overflow-x-auto rounded-lg border border-[var(--glass-border-subtle)] bg-[var(--glass-tab-bg)] p-3 font-mono">{`cccc sessions enable --runtime ${current.value}`}</pre>
+            <pre className="overflow-x-auto rounded-lg border border-[var(--glass-border-subtle)] bg-[var(--glass-tab-bg)] p-3 font-mono">{`niuma-agent sessions enable --runtime ${current.value}`}</pre>
             <p className="font-medium text-[var(--color-text-primary)]">
               {t("localSessions.setupNext")}
             </p>
@@ -103,7 +103,7 @@ export function LocalSessionsHelp({
         <div className="space-y-3 pb-3 pt-1 text-xs leading-relaxed">
           <p>{t("localSessions.setupCheck")}</p>
           <pre className="overflow-x-auto rounded-lg border border-[var(--glass-border-subtle)] bg-[var(--glass-tab-bg)] p-3 font-mono">
-            cccc sessions list
+            niuma-agent sessions list
           </pre>
           <ul className="list-disc space-y-2 pl-5">
             <li>{t("localSessions.setupReload")}</li>
@@ -114,7 +114,7 @@ export function LocalSessionsHelp({
       </details>
       <a
         className="inline-block py-1 text-xs underline underline-offset-2"
-        href="https://chesterra.github.io/cccc/guide/local-sessions"
+        href="https://github.com/konoooo/niuma-agent/tree/main/docs/guide/local-sessions"
         target="_blank"
         rel="noopener noreferrer"
       >

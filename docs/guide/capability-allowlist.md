@@ -6,8 +6,8 @@ This guide documents the release behavior of capability governance.
 
 Allowlist policy is always composed from two layers:
 
-1. packaged default: `crates/cccc-daemon/resources/capability-allowlist.default.yaml`
-2. user overlay: `CCCC_HOME/config/capability-allowlist.user.yaml`
+1. packaged default: `crates/niuma-daemon/resources/capability-allowlist.default.yaml`
+2. user overlay: `NIUMA_HOME/config/capability-allowlist.user.yaml`
 
 Effective policy is deterministic merge:
 

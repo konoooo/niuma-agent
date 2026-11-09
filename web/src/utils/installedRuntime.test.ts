@@ -4,7 +4,7 @@ import { installedRuntimeFor } from "./installedRuntime";
 
 function detected(...installed: string[]): RuntimeInfo[] {
   // As the daemon reports them where Node and npm exist: web models and custom commands are
-  // always available, and DeepSeek is too, since CCCC can install its harness.
+  // always available, and DeepSeek is too, since 牛马Agent can install its harness.
   const always = ["deepseek", "web_model", "chatgpt_dots", "grok_web_model", "custom"];
   return ["claude", "codex", "opencode", ...always].map((name) => ({
     name,

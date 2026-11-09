@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const webDir = join(root, "web");
 const webDist = join(webDir, "dist");
-const rustAssets = join(root, "crates", "cccc-web", "assets", "web-dist");
+const rustAssets = join(root, "crates", "niuma-web", "assets", "web-dist");
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 function run(command, args) {
@@ -32,4 +32,4 @@ rmSync(rustAssets, { recursive: true, force: true });
 mkdirSync(rustAssets, { recursive: true });
 cpSync(webDist, rustAssets, { recursive: true });
 
-console.log("OK: prepared Rust crate Web assets -> crates/cccc-web/assets/web-dist");
+console.log("OK: prepared Rust crate Web assets -> crates/niuma-web/assets/web-dist");

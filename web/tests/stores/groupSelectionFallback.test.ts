@@ -33,13 +33,13 @@ beforeEach(() => {
 });
 
 it("opens the first unarchived Group in sidebar order when the remembered Group is gone", async () => {
-  localStorage.setItem("cccc-selected-group-id", "removed");
+  localStorage.setItem("niuma-selected-group-id", "removed");
   useGroupStore.setState({ selectedGroupId: "removed", archivedGroupIds: ["c"] });
 
   await useGroupStore.getState().refreshGroups();
 
   expect(useGroupStore.getState().selectedGroupId).toBe("b");
-  expect(localStorage.getItem("cccc-selected-group-id")).toBe("b");
+  expect(localStorage.getItem("niuma-selected-group-id")).toBe("b");
   expect(useGroupStore.getState().groupOrder).toEqual(["c", "b", "a"]);
 });
 
@@ -52,7 +52,7 @@ it("uses sidebar order when all Groups are archived", async () => {
 });
 
 it("keeps a valid remembered Group even if it is archived", async () => {
-  localStorage.setItem("cccc-selected-group-id", "a");
+  localStorage.setItem("niuma-selected-group-id", "a");
   useGroupStore.setState({ archivedGroupIds: ["a"] });
 
   await useGroupStore.getState().refreshGroups();

@@ -359,7 +359,7 @@ export function ConnectRemotePanel({
           ref={iframe}
           src={opened.url}
           allowFullScreen
-          title={instance?.display_name || "CCCC Connect"}
+          title={instance?.display_name || "牛马Agent Connect"}
           inert={paused || !workbench.available}
           className={`min-h-0 w-full flex-1 border-0 ${ready && !paused && workbench.available ? "" : "invisible"}`}
         />

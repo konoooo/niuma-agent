@@ -9,7 +9,7 @@ export type CodexVoicePreferences = {
 };
 
 export const DEFAULT_CODEX_REALTIME_VOICE = "cove";
-const STORAGE_KEY = "cccc.codexVoice.preferences.v1";
+const STORAGE_KEY = "niuma-agent.codexVoice.preferences.v1";
 
 // Documented ChatGPT Live voice profiles, checked 2026-10-16:
 // https://help.openai.com/en/articles/20001274-chatgpt-voice

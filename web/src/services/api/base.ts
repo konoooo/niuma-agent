@@ -40,7 +40,7 @@ type UnknownRecord = Record<string, unknown>;
 type ApiErrorShape = { code?: string; message?: string; details?: unknown };
 
 let cachedToken: string | null = null;
-const FORCE_LOGIN_KEY = "cccc_force_token_login";
+const FORCE_LOGIN_KEY = "niuma_force_token_login";
 
 let authRequiredHandler: (() => void) | null = null;
 
@@ -77,7 +77,7 @@ export function setAuthToken(token: string): void {
   clearAllReadRequestCaches();
   cachedToken = token;
   try {
-    sessionStorage.setItem("cccc_dev_token", token);
+    sessionStorage.setItem("niuma_dev_token", token);
   } catch {
     void 0;
   }
@@ -87,7 +87,7 @@ export function clearAuthToken(): void {
   clearAllReadRequestCaches();
   cachedToken = "";
   try {
-    sessionStorage.removeItem("cccc_dev_token");
+    sessionStorage.removeItem("niuma_dev_token");
   } catch {
     void 0;
   }
@@ -143,7 +143,7 @@ function getAuthToken(): string | null {
   }
 
   try {
-    const stored = sessionStorage.getItem("cccc_dev_token");
+    const stored = sessionStorage.getItem("niuma_dev_token");
     if (stored) {
       cachedToken = stored;
       return stored;

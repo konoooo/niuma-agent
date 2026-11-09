@@ -16,7 +16,7 @@ const fromChet = (marker: string): LedgerEvent => ({
   kind: "chat.message",
   by: "svc:chet",
   ts: "2026-11-02T08:00:00Z",
-  data: { text: "Please check the build.", to: ["user"], _cccc_chet_group_generation: marker },
+  data: { text: "Please check the build.", to: ["user"], _niuma_chet_group_generation: marker },
 });
 
 let host: HTMLDivElement;

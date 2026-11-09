@@ -9,7 +9,7 @@ for command_name in node npm cargo rustc python3; do
   fi
 done
 TARGET="$(rustc -vV | sed -n 's/^host: //p')"
-BINARY="$ROOT_DIR/target/release/cccc"
+BINARY="$ROOT_DIR/target/release/niuma-agent"
 
 node "$ROOT_DIR/scripts/prepare_rust_web_assets.mjs" --install-deps
 cargo build \
@@ -17,13 +17,13 @@ cargo build \
   --release \
   --locked \
   --features standalone \
-  -p cccc \
-  --bin cccc
+  -p niuma-agent \
+  --bin niuma-agent
 python3 "$ROOT_DIR/scripts/build_standalone_archive.py" \
   "$BINARY" \
   --target "$TARGET" \
   --output-dir "$ROOT_DIR/dist"
 "$BINARY" --version
 
-echo "OK: built the native CCCC archive in dist/"
+echo "OK: built the native 牛马Agent archive in dist/"
 echo "Run: $BINARY"

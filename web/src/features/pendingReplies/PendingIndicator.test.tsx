@@ -84,7 +84,7 @@ it("tells the user when the running daemon cannot count waiting replies", async 
     expect(badge.textContent).toBe("?");
     const button = host.querySelector<HTMLButtonElement>("button:has([data-pending-state])")!;
     expect(button.getAttribute("aria-label")).toMatch(
-      /^Alpha · (openPendingRepliesDaemonUnsupported|.*not supported by the running CCCC daemon)/,
+      /^Alpha · (openPendingRepliesDaemonUnsupported|.*not supported by the running 牛马Agent daemon)/,
     );
   } finally {
     await act(async () => root.unmount());
@@ -145,7 +145,7 @@ it("hides sidebar indicators in both layouts without changing the waiting view",
   } finally {
     await act(async () => root.unmount());
     useUIStore.setState({ showPendingPrompts: true });
-    localStorage.removeItem("cccc-pending-prompts");
+    localStorage.removeItem("niuma-pending-prompts");
     host.remove();
   }
 });

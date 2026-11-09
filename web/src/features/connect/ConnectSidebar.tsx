@@ -40,7 +40,7 @@ export function ConnectSidebar({
           onClick={() => setOpen((value) => !value)}
         >
           <span>
-            CCCC Connect <span className="ml-1 font-normal">{workbench.instances.length}</span>
+            牛马Agent Connect <span className="ml-1 font-normal">{workbench.instances.length}</span>
           </span>
           <LcdIcon
             icon={ChevronDown}

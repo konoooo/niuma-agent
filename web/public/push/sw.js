@@ -1,5 +1,5 @@
 // This worker handles notifications only. It never intercepts or caches fetches.
-const OPEN_MESSAGE = "cccc:push:open";
+const OPEN_MESSAGE = "niuma-agent:push:open";
 // Some browsers only permit opening a window briefly after a notification click.
 const CLICK_TIMEOUT_MS = 650;
 // How long after that an open page still acts on the click (LATE_CLICK_MS in the page's
@@ -26,7 +26,7 @@ function notificationDetails(notification) {
     title:
       typeof notification?.title === "string" && notification.title.trim()
         ? notification.title
-        : "CCCC",
+        : "牛马Agent",
     body: typeof notification?.body === "string" ? notification.body : "",
     tag: typeof notification?.tag === "string" ? notification.tag : "",
     target,

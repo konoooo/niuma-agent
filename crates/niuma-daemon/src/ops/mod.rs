@@ -1,0 +1,157 @@
+pub(crate) mod actor_activity;
+pub(crate) mod actor_delivery;
+mod actor_delivery_preamble;
+mod actor_delivery_render;
+mod actor_delivery_worker;
+mod actor_leave;
+mod actor_listing;
+mod actor_model_config;
+mod actor_profile_runtime;
+pub(crate) mod actor_runtime;
+mod actor_runtime_status;
+#[cfg(test)]
+mod actor_runtime_status_tests;
+#[cfg(test)]
+mod actor_runtime_tests;
+mod actor_saga;
+mod actor_secrets;
+mod actor_switch;
+mod actors;
+mod assistants;
+mod automation_config;
+mod automation_manage;
+mod automation_rule_access;
+pub(crate) mod automation_runtime;
+mod capabilities;
+mod chet_history;
+mod codex_mcp;
+pub(crate) mod codex_voice_analyst;
+pub(crate) mod codex_voice_controller;
+pub(crate) mod codex_voice_lifecycle;
+mod connect;
+mod connect_messages;
+pub(crate) mod connect_outbound;
+mod connect_peer;
+mod context;
+mod direct;
+pub(crate) use connect::ConnectService;
+mod context_projection;
+mod deepseek_runtime;
+mod diagnostics;
+pub(crate) mod dots_events;
+mod event_prefix;
+mod grok_webhook;
+mod group_copy;
+mod group_create_rollback;
+mod group_creation;
+mod group_recovery;
+mod group_reset;
+mod group_rest;
+mod group_runtime;
+mod group_scopes;
+mod group_space;
+mod groups;
+mod hermes_runtime;
+mod im;
+pub(crate) mod instruction_files;
+#[cfg(test)]
+mod isolated_test;
+pub(crate) mod local_headless;
+pub(crate) mod local_sessions;
+mod maintenance;
+mod membership;
+mod owned_process_recovery;
+pub(crate) use membership::ReachRestore;
+pub(crate) use membership::validated_live_web_binding;
+mod mail_advisory;
+mod mcp_identity_notice;
+mod membership_account;
+mod membership_cloudflared;
+mod memory;
+mod message_idempotency;
+mod message_metadata;
+mod message_pins;
+mod messaging;
+pub(crate) use messaging::reply_crosses_groups;
+mod messaging_inbox;
+mod messaging_query;
+mod messaging_query_status;
+mod messaging_recipients;
+mod messaging_status;
+mod presentation;
+mod profile_access;
+mod profiles;
+mod remote_access;
+mod reply_requests;
+mod runtime_completion;
+pub(crate) mod runtime_delivery;
+mod runtime_mcp;
+pub(crate) mod runtime_restore;
+mod runtime_session;
+mod runtime_state;
+mod settings;
+mod task_list;
+mod terminal;
+mod terminal_history_source;
+mod terminal_text;
+mod voice_notifications;
+pub(crate) mod voice_secretary;
+mod web_model_connectors;
+mod working_state;
+#[cfg(test)]
+mod working_state_tests;
+
+use niuma_contracts::DaemonRequest;
+
+pub(crate) mod operation;
+use operation::Operation;
+
+pub(crate) fn resolve_operation(request: &DaemonRequest) -> Option<Operation> {
+    for resolver in [
+        group_creation::resolve_operation,
+        groups::resolve_operation,
+        hermes_runtime::resolve_operation,
+        group_copy::resolve_operation,
+        group_scopes::resolve_operation,
+        group_space::resolve_operation,
+        actors::resolve_operation,
+        actor_leave::resolve_operation,
+        actor_switch::resolve_operation,
+        local_sessions::resolve_operation,
+        automation_config::resolve_operation,
+        assistants::resolve_operation,
+        capabilities::resolve_operation,
+        chet_history::resolve_operation,
+        messaging::resolve_operation,
+        message_pins::resolve_operation,
+        presentation::resolve_operation,
+        profiles::resolve_operation,
+        diagnostics::resolve_operation,
+        remote_access::resolve_operation,
+        membership::resolve_operation,
+        connect::resolve_operation,
+        connect_peer::resolve_operation,
+        direct::resolve_operation,
+        connect_outbound::resolve_operation,
+        runtime_state::resolve_operation,
+        dots_events::resolve_operation,
+        grok_webhook::resolve_operation,
+        maintenance::resolve_operation,
+        owned_process_recovery::resolve_operation,
+        im::resolve_operation,
+        memory::resolve_operation,
+        context::resolve_operation,
+        settings::resolve_operation,
+        web_model_connectors::resolve_operation,
+        voice_notifications::resolve_operation,
+        voice_secretary::resolve_operation,
+        terminal::resolve_operation,
+    ] {
+        if let Some(operation) = resolver(request) {
+            return Some(operation);
+        }
+    }
+    None
+}
+
+mod connect_cancellation;

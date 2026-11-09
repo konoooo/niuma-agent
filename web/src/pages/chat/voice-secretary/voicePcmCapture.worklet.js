@@ -38,4 +38,4 @@ class VoiceSecretaryPcmCapture extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("cccc-secretary-pcm-capture", VoiceSecretaryPcmCapture);
+registerProcessor("niuma-secretary-pcm-capture", VoiceSecretaryPcmCapture);

@@ -74,7 +74,7 @@ describe("terminalWorkingState", () => {
   it("does not treat codex model footers as prompt visibility", () => {
     const result = getTerminalSignalFromChunk(
       "",
-      "› \ngpt-5.5 medium · ~/Desktop/waterbang/ai/cccc\n",
+      "› \ngpt-5.5 medium · ~/Desktop/waterbang/ai/niuma-agent\n",
       "codex",
     );
     expect(result.signalKind).toBe(null);
@@ -104,9 +104,9 @@ describe("terminalWorkingState", () => {
       [
         "• Working (8s • esc to interrupt)",
         "• Messages to be submitted after next tool call",
-        "↳ [cccc] user -> @foreman:",
+        "↳ [niuma-agent] user -> @foreman:",
         "Use /skills to list available skills",
-        "gpt-5.4 default · 100% left · ~/Desktop/waterbang/ai/cccc",
+        "gpt-5.4 default · 100% left · ~/Desktop/waterbang/ai/niuma-agent",
       ].join("\n"),
       "codex",
     );

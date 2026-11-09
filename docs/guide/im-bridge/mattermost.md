@@ -1,13 +1,13 @@
 # Mattermost
 
-This guide applies to CCCC builds that include Mattermost in the IM Bridge platform list. See the [acceptance record](../../specs/mattermost-im-acceptance.md) for verification evidence and limitations.
+This guide applies to 牛马Agent builds that include Mattermost in the IM Bridge platform list. See the [acceptance record](../../specs/mattermost-im-acceptance.md) for verification evidence and limitations.
 
-The connector links one CCCC Group to Mattermost using a Bot Token, REST and WebSocket. CCCC initiates HTTPS/WSS connections from its own host. You do not need to install CCCC on the Mattermost server or expose a public callback endpoint.
+The connector links one 牛马Agent Group to Mattermost using a Bot Token, REST and WebSocket. 牛马Agent initiates HTTPS/WSS connections from its own host. You do not need to install 牛马Agent on the Mattermost server or expose a public callback endpoint.
 
 ## Access boundaries
 
 ::: warning Chats in the same Group share context
-Use a dedicated Bot for each Group. Do not reuse the same Bot identity across Groups or running CCCC instances, even with different tokens. CCCC does not detect or prevent that reuse. If multiple Groups authorize the same chat through that Bot, they may process messages more than once and mix replies.
+Use a dedicated Bot for each Group. Do not reuse the same Bot identity across Groups or running 牛马Agent instances, even with different tokens. 牛马Agent does not detect or prevent that reuse. If multiple Groups authorize the same chat through that Bot, they may process messages more than once and mix replies.
 
 A Group can authorize multiple channels, direct messages and threads. They share the Group's context and subscription output. A direct message is **not** a separate private Agent session. Approving a chat grants its participants access to the Group; it is not individual user authorization.
 :::
@@ -17,17 +17,17 @@ A Group can authorize multiple channels, direct messages and threads. They share
 1. Create a dedicated Bot account on your Mattermost site and obtain its access token. Use a Bot Token, not a personal or administrator token.
 2. Add the Bot to the required teams and channels. Invite it separately to private channels.
 3. Allow it to read joined channels, create and edit its own posts, upload and read files, and add or remove its own reactions. System administrator access is unnecessary.
-4. Verify HTTPS and WebSocket connectivity from the CCCC host. Any reverse proxy must support WebSocket upgrades.
+4. Verify HTTPS and WebSocket connectivity from the 牛马Agent host. Any reverse proxy must support WebSocket upgrades.
 
 See Mattermost's [Bot account guide](https://developers.mattermost.com/integrate/reference/bot-accounts/) and [API documentation](https://api.mattermost.com/). Bot membership in group direct messages depends on the site's version and permissions; do not bypass restrictions by making the Bot an administrator.
 
-## 2. Configure CCCC Web
+## 2. Configure 牛马Agent Web
 
 Open the target Group's **IM Bridge** settings:
 
 1. Select **Mattermost**.
 2. Enter the site URL, such as `https://mattermost.example.com`. Installation subpaths such as `https://example.com/chat` are supported. Do not append `/api/v4`, query parameters or credentials.
-3. Enter the Bot Token or an environment variable name available to the running CCCC process, such as `MATTERMOST_BOT_TOKEN`. Prefer an environment variable reference to keep the token out of shared configurations and screenshots.
+3. Enter the Bot Token or an environment variable name available to the running 牛马Agent process, such as `MATTERMOST_BOT_TOKEN`. Prefer an environment variable reference to keep the token out of shared configurations and screenshots.
 4. Save, then start the connector. Start also saves the current form before connecting; a failed save prevents startup. Invalid addresses disable Save and Start. Management errors appear in the form so you can correct them and retry.
 5. Confirm the status is **Running**. Startup verifies the Bot identity and WebSocket `hello`, not just whether a token field is filled in.
 
@@ -41,30 +41,30 @@ Use HTTPS in production. HTTP is suitable only for a trusted local or isolated t
 
 ## 3. Authorize a chat
 
-Replace `cccc_bot` with the Bot's actual **username**, not its display name. In a channel or direct message, enter:
+Replace `niuma_bot` with the Bot's actual **username**, not its display name. In a channel or direct message, enter:
 
 ```text
-@cccc_bot /subscribe
+@niuma_bot /subscribe
 ```
 
-Review the Group and target in CCCC's **Pending Requests**, then approve the request. You can also bind with the pairing key, which expires after 10 minutes. Channels and threads are authorized separately; approving a channel does not authorize every thread.
+Review the Group and target in 牛马Agent's **Pending Requests**, then approve the request. You can also bind with the pairing key, which expires after 10 minutes. Channels and threads are authorized separately; approving a channel does not authorize every thread.
 
 ::: tip Slash commands in Mattermost
-Mattermost intercepts input beginning with `/`. Prefix CCCC commands with `@cccc_bot` in channels and direct messages. You do not need to register custom Mattermost slash commands named `/send` or `/subscribe`.
+Mattermost intercepts input beginning with `/`. Prefix 牛马Agent commands with `@niuma_bot` in channels and direct messages. You do not need to register custom Mattermost slash commands named `/send` or `/subscribe`.
 :::
 
 ## 4. Send messages and control subscriptions
 
 | Input | Action |
 |---|---|
-| `@cccc_bot Hello` | Send to the default foreman |
-| `@cccc_bot /send @reviewer Review this material` | Send to the specified agent |
-| `@cccc_bot /send @all Please respond` | Broadcast to all agents |
-| `@cccc_bot /send @peers Add your feedback` | Send to members other than the foreman |
-| `@cccc_bot /status`, `@cccc_bot /help` | Show status or help without calling a model |
-| `@cccc_bot /pause`, `@cccc_bot /resume` | Pause or resume this chat target's subscription |
-| `@cccc_bot /verbose on`, `@cccc_bot /verbose off` | Toggle more detailed public exchanges; private events remain private |
-| `@cccc_bot /unsubscribe` | Unsubscribe; `/unsub` is also supported |
+| `@niuma_bot Hello` | Send to the default foreman |
+| `@niuma_bot /send @reviewer Review this material` | Send to the specified agent |
+| `@niuma_bot /send @all Please respond` | Broadcast to all agents |
+| `@niuma_bot /send @peers Add your feedback` | Send to members other than the foreman |
+| `@niuma_bot /status`, `@niuma_bot /help` | Show status or help without calling a model |
+| `@niuma_bot /pause`, `@niuma_bot /resume` | Pause or resume this chat target's subscription |
+| `@niuma_bot /verbose on`, `@niuma_bot /verbose off` | Toggle more detailed public exchanges; private events remain private |
+| `@niuma_bot /unsubscribe` | Unsubscribe; `/unsub` is also supported |
 
 Authorized direct messages accept ordinary text without the Bot prefix. Questions and files in channels require explicit addressing. Mentioning another agent in the body does not add a recipient. `/sub` aliases `/subscribe`; `/verbose` without an argument enables it, and also accepts `true/false` and `1/0`.
 
@@ -72,7 +72,7 @@ Channel subscription output appears in the main timeline. Separately approved th
 
 ## 5. Progressive output and files
 
-- When CCCC publishes `chat.stream`, the Bot creates and updates the same post. Otherwise, it sends the final reply. Terminal activity is not automatically converted into chat output.
+- When 牛马Agent publishes `chat.stream`, the Bot creates and updates the same post. Otherwise, it sends the final reply. Terminal activity is not automatically converted into chat output.
 - Duplicate final text is omitted only when the entire streamed final body was delivered successfully and matches the final message. Long final bodies reuse the initial post for the first chunk and send the rest in order. An edit or chunk failure keeps the full final-message fallback; already delivered portions may appear twice after partial failure.
 - Long messages split safely at Unicode character boundaries, with a default limit of 16,383 characters per post. Site or proxy limits may be lower.
 - Images, ordinary files, PDFs, audio and video travel through the Group's Blob storage. Attachment-only messages are supported. File transport does not imply OCR, PDF parsing or speech transcription.
@@ -84,26 +84,26 @@ Channel subscription output appears in the main timeline. Separately approved th
 
 Filenames, local paths and `refs` in message text are not automatically uploaded. Like other native IM connectors, Mattermost sends only the message's `attachments`.
 
-To deliver a file, an Agent should call `cccc_file_send(...)` and check the result. The file must be in the current working directory's scope. For an incoming `state/blobs/...` attachment, read or resolve it through the file tools, then copy the file into the working directory before sending it back. A failed tool call must not be replaced by a plain-text claim that the file was sent.
+To deliver a file, an Agent should call `niuma_file_send(...)` and check the result. The file must be in the current working directory's scope. For an incoming `state/blobs/...` attachment, read or resolve it through the file tools, then copy the file into the working directory before sending it back. A failed tool call must not be replaced by a plain-text claim that the file was sent.
 
-When diagnosing delivery, inspect both CCCC `attachments` and the Mattermost post's `file_ids`. Text saying that a file was sent is not delivery evidence.
+When diagnosing delivery, inspect both 牛马Agent `attachments` and the Mattermost post's `file_ids`. Text saying that a file was sent is not delivery evidence.
 
 ## 6. CLI and operations
 
 ```sh
-cccc im set mattermost --group g_example \
+niuma-agent im set mattermost --group g_example \
   --mattermost-url https://mattermost.example.com \
   --bot-token-env MATTERMOST_BOT_TOKEN
-cccc im start --group g_example
-cccc im status --group g_example
-cccc im pending --group g_example
-cccc im bind --group g_example --key KEY_FROM_CHAT
-cccc im authorized --group g_example
-cccc im logs --group g_example -f
-cccc im stop --group g_example
+niuma-agent im start --group g_example
+niuma-agent im status --group g_example
+niuma-agent im pending --group g_example
+niuma-agent im bind --group g_example --key KEY_FROM_CHAT
+niuma-agent im authorized --group g_example
+niuma-agent im logs --group g_example -f
+niuma-agent im stop --group g_example
 ```
 
-The existing `config`, `unset`, `reject` and `revoke` operations also apply; consult `cccc im --help` for arguments. Stopping the connector does not stop agents. Network workers run in the CCCC Web process, without a separate connector service.
+The existing `config`, `unset`, `reject` and `revoke` operations also apply; consult `niuma-agent im --help` for arguments. Stopping the connector does not stop agents. Network workers run in the 牛马Agent Web process, without a separate connector service.
 
 ### Errors and logs
 
@@ -111,7 +111,7 @@ The existing `config`, `unset`, `reject` and `revoke` operations also apply; con
 
 Records contain the time, Group, operation and a redacted error, excluding chat bodies and file contents. Errors are capped at 4,096 characters. The log rotates to `im_bridge.log.1` before exceeding 1 MiB and retains one rotated file. File-write failures are reported on stderr without stopping message handling. `last_error` is the latest status, not log history; clearing it does not delete logs.
 
-Daemon errors can include user input. The connector records fixed submission error categories and source post IDs instead of raw daemon text. An explicit recipient rejection asks you to correct the `/send` target. An unknown outcome asks you to check CCCC before resending, without automatically submitting again or adding a failure reaction. It only removes the processing reaction. The inbound worker remembers that source post; a manually resent message has a new ID and is not protected by that deduplication.
+Daemon errors can include user input. The connector records fixed submission error categories and source post IDs instead of raw daemon text. An explicit recipient rejection asks you to correct the `/send` target. An unknown outcome asks you to check 牛马Agent before resending, without automatically submitting again or adding a failure reaction. It only removes the processing reaction. The inbound worker remembers that source post; a manually resent message has a new ID and is not protected by that deduplication.
 
 If channel or sender lookup fails, a short notice is attempted only for an exactly authorized, subscribed, unpaused target that meets the addressing rules. Unauthorized targets, this Bot and known other Bots receive no notice. An unknown channel type is not treated as a direct message. Lookup failures do not download files or invoke a model. A failed notice is logged without repeated attempts.
 

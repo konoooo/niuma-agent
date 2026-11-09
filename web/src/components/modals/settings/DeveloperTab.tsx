@@ -221,7 +221,7 @@ export function DeveloperTab({
         }
       >
         <SettingsRow
-          label={`${t("developer.ccccVersion")} / ${t("developer.daemonVersion")}`}
+          label={`${t("developer.niumaVersion")} / ${t("developer.daemonVersion")}`}
           help={versionMismatch ? t("developer.buildMismatchHint") : undefined}
         >
           <span className="inline-flex items-center font-mono text-[13px] text-[var(--color-text-secondary)]">

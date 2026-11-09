@@ -16,7 +16,7 @@ vi.mock("../../services/api", () => ({
     ok: true,
     result: {
       connectors: [{ connector_id: "shared", provider: "chatgpt_web" }],
-      connector_base_url: "https://cccc.example.test",
+      connector_base_url: "https://niuma-agent.example.test",
     },
   }),
   fetchDotsActorState: async () => ({

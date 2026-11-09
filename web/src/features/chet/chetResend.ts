@@ -6,5 +6,5 @@ import { v5 as uuidV5 } from "uuid";
  * successor also did not start, its own ID can name a further attempt.
  */
 export function resendId(inputId: string): string {
-  return uuidV5(`cccc:chet-resend:v1:${inputId.toLowerCase()}`, uuidV5.URL);
+  return uuidV5(`niuma-agent:chet-resend:v1:${inputId.toLowerCase()}`, uuidV5.URL);
 }

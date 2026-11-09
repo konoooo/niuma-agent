@@ -60,7 +60,7 @@ it("reports failure without group, event, URL, untrusted error text or message c
   finish("failed");
   expect(warn).toHaveBeenCalledOnce();
   const [label, body] = warn.mock.calls[0];
-  expect(label).toBe("[CCCC message jump]");
+  expect(label).toBe("[牛马Agent message jump]");
   expect(JSON.parse(String(body))).toMatchObject({
     request: "failed",
     http_status: 503,

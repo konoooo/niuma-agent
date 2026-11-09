@@ -205,10 +205,10 @@ let errorTimeoutId: number | null = null;
 let noticeTimeoutId: number | null = null;
 
 // localStorage key for sidebar collapsed state
-const SIDEBAR_COLLAPSED_KEY = "cccc-sidebar-collapsed";
-const SIDEBAR_WIDTH_KEY = "cccc-sidebar-width";
-const PENDING_PROMPTS_KEY = "cccc-pending-prompts";
-const CHAT_SESSIONS_KEY = "cccc-chat-sessions";
+const SIDEBAR_COLLAPSED_KEY = "niuma-sidebar-collapsed";
+const SIDEBAR_WIDTH_KEY = "niuma-sidebar-width";
+const PENDING_PROMPTS_KEY = "niuma-pending-prompts";
+const CHAT_SESSIONS_KEY = "niuma-chat-sessions";
 
 export function clampSidebarWidth(value: number): number {
   const numeric = Number(value);

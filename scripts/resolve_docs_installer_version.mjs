@@ -5,7 +5,7 @@ const metadataFlag = process.argv.indexOf("--metadata");
 const metadataPath = metadataFlag >= 0 ? process.argv[metadataFlag + 1] : "";
 const outputFlag = process.argv.indexOf("--output");
 const outputPath = outputFlag >= 0 ? process.argv[outputFlag + 1] : "";
-const repository = process.env.GITHUB_REPOSITORY || "ChesterRa/cccc";
+const repository = process.env.GITHUB_REPOSITORY || "konoooo/niuma-agent";
 
 if (metadataFlag >= 0 && !metadataPath) {
   throw new Error("--metadata requires a JSON file path");
@@ -19,9 +19,9 @@ if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
 
 function requiredAssets(version) {
   return [
-    `cccc-v${version}-aarch64-apple-darwin.tar.gz`,
-    `cccc-v${version}-x86_64-pc-windows-msvc.zip`,
-    `cccc-v${version}-x86_64-unknown-linux-gnu.tar.gz`,
+    `niuma-v${version}-aarch64-apple-darwin.tar.gz`,
+    `niuma-v${version}-x86_64-pc-windows-msvc.zip`,
+    `niuma-v${version}-x86_64-unknown-linux-gnu.tar.gz`,
     "SHA256SUMS",
     "install.ps1",
     "install.sh",
@@ -37,7 +37,7 @@ function parseVersion(value) {
   const prerelease = match[4] ? match[4].split(".") : [];
   if (core.some((part) => part > 18446744073709551615n) ||
       prerelease.some((part) => /^0[0-9]+$/.test(part))) return null;
-  // CCCC historically tags prereleases as rc2/rc10, not rc.2/rc.10.
+  // 牛马Agent historically tags prereleases as rc2/rc10, not rc.2/rc.10.
   const sequence = /^(alpha|beta|rc)(0|[1-9][0-9]*)$/.exec(match[4] || "");
   return {
     raw: match[0].replace(/^v/, ""),
@@ -96,7 +96,7 @@ if (metadataPath) {
   const headers = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
-    "User-Agent": "cccc-docs-release-resolver",
+    "User-Agent": "niuma-docs-release-resolver",
   };
   if (process.env.GITHUB_TOKEN) {
     headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;

@@ -3,11 +3,11 @@
 // which reads like a user direct cross-send (T412). Display-only.
 
 export function isDelegationRequestText(text: string): boolean {
-  return String(text || "").includes("[cccc-delegation:v1]");
+  return String(text || "").includes("[niuma-delegation:v1]");
 }
 
 export function isDelegationResultText(text: string): boolean {
-  return String(text || "").includes("[cccc-delegation-result:v1]");
+  return String(text || "").includes("[niuma-delegation-result:v1]");
 }
 
 // i18n key for the destination ("→") chip given the message text.
@@ -41,7 +41,7 @@ export function isDelegationSourceOutboundEvent(data: unknown): boolean {
   });
 }
 
-const PROTOCOL_COMMENT_OPEN = "<!-- cccc-delegation-protocol";
+const PROTOCOL_COMMENT_OPEN = "<!-- niuma-delegation-protocol";
 const PROTOCOL_COMMENT_CLOSE = "-->";
 
 // Default display text: drop the machine-protocol comment so the bubble shows

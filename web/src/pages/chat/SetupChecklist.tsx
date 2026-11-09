@@ -30,7 +30,7 @@ export function SetupChecklist({
   const isCompact = variant === "compact";
   const { t } = useTranslation("chat");
   const copyWithFeedback = useCopyFeedback();
-  const attachCmd = `cccc attach . --group ${selectedGroupId}`;
+  const attachCmd = `niuma-agent attach . --group ${selectedGroupId}`;
 
   // Nothing to show.
   if (!needsScope && !needsActors && !needsStart) {

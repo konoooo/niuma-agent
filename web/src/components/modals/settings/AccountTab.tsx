@@ -257,7 +257,7 @@ export function AccountTab({
         ) : null}
 
         <div className={settingsWorkspacePanelClass(isDark)}>
-          <h4 className="text-sm font-semibold text-[var(--color-text-primary)]">CCCC Connect</h4>
+          <h4 className="text-sm font-semibold text-[var(--color-text-primary)]">牛马Agent Connect</h4>
           <p className="mt-1 text-xs leading-5 text-[var(--color-text-muted)]">
             {t("account.connect.description")}
           </p>

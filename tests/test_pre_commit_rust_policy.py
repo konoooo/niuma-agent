@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _rust_precommit_plan(*changed_files: str) -> dict[str, str]:
     env = os.environ.copy()
-    env.pop("CCCC_GROUP_ID", None)
-    env.pop("CCCC_ACTOR_ID", None)
+    env.pop("NIUMA_GROUP_ID", None)
+    env.pop("NIUMA_ACTOR_ID", None)
     result = subprocess.run(
         ["scripts/pre_commit_rust.sh", "--dry-run", "--", *changed_files],
         cwd=ROOT,
@@ -28,40 +28,40 @@ def _rust_precommit_plan(*changed_files: str) -> dict[str, str]:
 def test_process_global_runtime_tests_are_isolated_from_workspace_parallelism() -> None:
     workspace = _rust_precommit_plan("Cargo.toml")
     daemon = _rust_precommit_plan(
-        "crates/cccc-daemon/src/lib.rs",
-        "crates/cccc-daemon/tests/message_delivery.rs",
+        "crates/niuma-daemon/src/lib.rs",
+        "crates/niuma-daemon/tests/message_delivery.rs",
     )
     runtime = _rust_precommit_plan(
-        "crates/cccc-runtime/src/lib.rs",
-        "crates/cccc-runtime/tests/terminal_replay.rs",
+        "crates/niuma-runtime/src/lib.rs",
+        "crates/niuma-runtime/tests/terminal_replay.rs",
     )
 
     for commands in (workspace, daemon, runtime):
         assert (
-            "cargo test --workspace --exclude cccc-pair-daemon --exclude cccc-pair-runtime --locked"
+            "cargo test --workspace --exclude niuma-agent-daemon --exclude niuma-agent-runtime --locked"
             in commands["rust_test"]
         )
         assert (
-            "cargo test --package cccc-pair-runtime --locked"
+            "cargo test --package niuma-agent-runtime --locked"
             in commands["rust_runtime_test"]
         )
         assert "-- --test-threads=1" in commands["rust_runtime_test"]
         assert (
-            "cargo test --package cccc-pair-daemon --locked"
+            "cargo test --package niuma-agent-daemon --locked"
             in commands["rust_daemon_test"]
         )
         assert "-- --test-threads=1" in commands["rust_daemon_test"]
-    changed_test = daemon["rust_changed_test[cccc-pair-daemon:message_delivery]"]
+    changed_test = daemon["rust_changed_test[niuma-agent-daemon:message_delivery]"]
     assert (
-        "cargo test --package cccc-pair-daemon --test message_delivery --locked"
+        "cargo test --package niuma-agent-daemon --test message_delivery --locked"
         in changed_test
     )
     assert "-- --test-threads=1" in changed_test
     changed_runtime_test = runtime[
-        "rust_changed_test[cccc-pair-runtime:terminal_replay]"
+        "rust_changed_test[niuma-agent-runtime:terminal_replay]"
     ]
     assert (
-        "cargo test --package cccc-pair-runtime --test terminal_replay --locked"
+        "cargo test --package niuma-agent-runtime --test terminal_replay --locked"
         in changed_runtime_test
     )
     assert "-- --test-threads=1" in changed_runtime_test

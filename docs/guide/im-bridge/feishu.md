@@ -1,6 +1,6 @@
 # Feishu (Lark) Setup
 
-Connect your CCCC working group to Feishu for enterprise collaboration in China.
+Connect your 牛马Agent working group to Feishu for enterprise collaboration in China.
 
 ## Overview
 
@@ -13,14 +13,14 @@ Feishu (飞书, also known as Lark internationally) is ideal for:
 ## Prerequisites
 
 - Feishu enterprise account with admin access
-- CCCC installed and running
+- 牛马Agent installed and running
 
 ## Step 1: Create an App
 
 1. Go to [Feishu Open Platform](https://open.feishu.cn/app)
 2. Click **Create Custom App**
 3. Fill in the app information:
-   - App Name (e.g., "CCCC Bot")
+   - App Name (e.g., "牛马Agent Bot")
    - App Description
    - App Icon
 4. Click **Create**
@@ -53,16 +53,16 @@ Copyable scope configuration:
 |-------|---------|
 | `im:message.group_at_msg:readonly` | Receive group messages that mention the bot |
 | `im:message.p2p_msg:readonly` | Receive direct messages sent to the bot |
-| `im:message:send_as_bot` | Send CCCC replies as the bot |
+| `im:message:send_as_bot` | Send 牛马Agent replies as the bot |
 | `im:message:update` | Progressively edit a response message; final-message fallback still works without it |
 | `im:message:readonly` | Read inbound message metadata/content needed by the bridge |
 | `im:resource` | Upload and download Feishu message images/files |
 :::
 
-`im:resource` is the only Feishu resource/file scope CCCC needs. Do not add
+`im:resource` is the only Feishu resource/file scope 牛马Agent needs. Do not add
 `corehr:file:download` or other HR/document scopes for IM attachments.
 
-## Step 3: Configure CCCC
+## Step 3: Configure 牛马Agent
 
 1. In your app dashboard, go to **Credentials & Basic Info**
 2. Copy **App ID** and **App Secret**
@@ -73,7 +73,7 @@ Keep your App Secret confidential. Never commit it to version control.
 
 ### Option A: Via Web UI
 
-1. Open the CCCC Web UI at `http://127.0.0.1:8848/`
+1. Open the 牛马Agent Web UI at `http://127.0.0.1:8848/`
 2. Go to **Settings** (gear icon in header)
 3. Navigate to the **IM Bridge** tab
 4. Select **Feishu/Lark** as the platform
@@ -82,7 +82,7 @@ Keep your App Secret confidential. Never commit it to version control.
    - **App Secret**: Your Feishu App Secret
 6. Click **Save Config**
 
-![CCCC IM Bridge Configuration](/images/cccc-im-bridge-feishu.png)
+![牛马Agent IM Bridge Configuration](/images/niuma-im-bridge-feishu.png)
 
 ### Option B: Via CLI
 
@@ -93,10 +93,10 @@ export FEISHU_APP_ID="cli_your_app_id"
 export FEISHU_APP_SECRET="your_app_secret"
 ```
 
-Then configure CCCC:
+Then configure 牛马Agent:
 
 ```bash
-cccc im set feishu \
+niuma-agent im set feishu \
   --app-key-env FEISHU_APP_ID \
   --app-secret-env FEISHU_APP_SECRET
 ```
@@ -119,19 +119,19 @@ Click the **Save Config** button in the IM Bridge settings. The bridge will star
 ### Via CLI
 
 ```bash
-cccc im start
+niuma-agent im start
 ```
 
 Verify it's running:
 
 ```bash
-cccc im status
+niuma-agent im status
 ```
 
 ## Step 5: Enable Persistent Connection (Recommended)
 
 ::: warning Prerequisite
-The CCCC IM Bridge must be running before you can configure event subscriptions. Enable persistent connection so CCCC can receive events via a long connection (no public callback URL required for this mode).
+The 牛马Agent IM Bridge must be running before you can configure event subscriptions. Enable persistent connection so 牛马Agent can receive events via a long connection (no public callback URL required for this mode).
 :::
 
 1. Go back to [Feishu Open Platform](https://open.feishu.cn/app)
@@ -161,7 +161,7 @@ You must enable the Bot capability so users can find and chat with your bot afte
 :::
 
 1. In the sidebar, go to **Features** → **Bot**
-2. In **Bot Setting**, fill in the **Get started** field with a greeting message (e.g., "cccc im")
+2. In **Bot Setting**, fill in the **Get started** field with a greeting message (e.g., "niuma-agent im")
 3. Click **Save**
 
 ![Feishu Bot Setting](/images/feishu-bot-setting.png)
@@ -208,7 +208,7 @@ Or use the explicit `/send` command for specifying recipients:
 When you @mention the bot (in groups) or send a direct message, plain text is automatically treated as `/send` to the foreman. You only need the explicit `/send` command when targeting specific agents like `@all` or `@peers`.
 :::
 
-Even if the app is granted the broader `im:message.group_msg` event scope, CCCC ignores ambient group traffic. A recognized CCCC slash command is an explicit bot address and can be sent without an @mention; ordinary group text or attachments must explicitly mention the current bot. Direct chats continue to accept plain text. The native worker enforces the same rule across providers.
+Even if the app is granted the broader `im:message.group_msg` event scope, 牛马Agent ignores ambient group traffic. A recognized 牛马Agent slash command is an explicit bot address and can be sent without an @mention; ordinary group text or attachments must explicitly mention the current bot. Direct chats continue to accept plain text. The native worker enforces the same rule across providers.
 
 ### Targeting Specific Agents
 
@@ -233,13 +233,13 @@ Agent output is updated progressively through Feishu's edit-message API (up to t
 
 ### File Sharing
 
-Attach files to your message. Feishu files are downloaded and stored in CCCC's blob storage, then forwarded to agents.
+Attach files to your message. Feishu files are downloaded and stored in 牛马Agent's blob storage, then forwarded to agents.
 
 ## Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `/subscribe` | Start receiving messages from CCCC |
+| `/subscribe` | Start receiving messages from 牛马Agent |
 | `/unsubscribe` | Stop receiving messages |
 | `/send <message>` | Send to foreman (default) |
 | `/send @<actor> <message>` | Send to a specific agent |
@@ -267,32 +267,32 @@ Attach files to your message. Feishu files are downloaded and stored in CCCC's b
 
 If outbound attachments appear as text-only messages or the bridge log contains
 `Access denied` for `/im/v1/files`, add `im:resource`. Feishu requires this
-tenant scope before CCCC can upload files and send them as real Feishu file messages.
+tenant scope before 牛马Agent can upload files and send them as real Feishu file messages.
 
 ### Bot not receiving messages
 
 1. Check Event Subscriptions are configured
 2. Verify the app is installed in the chat
 3. Ensure the app version is published
-4. Make sure CCCC IM Bridge is running
+4. Make sure 牛马Agent IM Bridge is running
 
 ### Token expired
 
-CCCC auto-refreshes tokens, but if issues persist:
+牛马Agent auto-refreshes tokens, but if issues persist:
 
 ```bash
-cccc im stop
-cccc im start
+niuma-agent im stop
+niuma-agent im start
 ```
 
 ## Advanced Configuration
 
-CCCC currently supports:
+牛马Agent currently supports:
 
 - Outbound messages via REST APIs
 - Inbound messages via the native persistent-connection worker
 
-Webhook callbacks (developer server URL), message cards, and encryption settings are not configured through CCCC at the moment.
+Webhook callbacks (developer server URL), message cards, and encryption settings are not configured through 牛马Agent at the moment.
 
 ## Security Notes
 

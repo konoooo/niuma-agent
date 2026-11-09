@@ -101,14 +101,14 @@ describe("buildComposerMentionSuggestions", () => {
       kind: "group",
       filter: "sdk",
       recipientActors: [],
-      groups: [{ group_id: "g_sdk", title: "cccc-sdk", topic: "SDK integration" }],
+      groups: [{ group_id: "g_sdk", title: "niuma-sdk", topic: "SDK integration" }],
     });
 
     expect(items).toEqual([
       expect.objectContaining({
         kind: "group",
         value: "g_sdk",
-        label: "cccc-sdk",
+        label: "niuma-sdk",
         description: "SDK integration",
         meta: "g_sdk",
       }),
@@ -118,11 +118,11 @@ describe("buildComposerMentionSuggestions", () => {
 
 describe("hasComposerGroupRouteToken", () => {
   it("keeps a destination group active only while its # route token remains", () => {
-    const groups = [{ group_id: "g_sdk", title: "cccc-sdk", topic: "SDK integration" }];
+    const groups = [{ group_id: "g_sdk", title: "niuma-sdk", topic: "SDK integration" }];
 
     expect(
       hasComposerGroupRouteToken({
-        text: "#cccc-sdk @foreman ",
+        text: "#niuma-sdk @foreman ",
         destGroupId: "g_sdk",
         selectedGroupId: "g_current",
         groups,
@@ -144,7 +144,7 @@ describe("hasComposerGroupRouteToken", () => {
         text: "参考 #g_sdk-issue @foreman",
         destGroupId: "g_sdk",
         selectedGroupId: "g_current",
-        groups: [{ group_id: "g_sdk", title: "cccc-sdk" }],
+        groups: [{ group_id: "g_sdk", title: "niuma-sdk" }],
       }),
     ).toBe(false);
   });

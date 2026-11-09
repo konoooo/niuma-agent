@@ -22,7 +22,7 @@ it("shows loading until the empty root listing settles", async () => {
 });
 
 it("offers to reveal ignored files and replaces the empty state with results", async () => {
-  localStorage.setItem("cccc-workspace-show-ignored", "false");
+  localStorage.setItem("niuma-workspace-show-ignored", "false");
   fetchWorkspaceListing.mockImplementation(
     async (_group: string, path: string, options: { showIgnored: boolean }) =>
       listing(

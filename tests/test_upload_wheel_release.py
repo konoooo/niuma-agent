@@ -12,7 +12,7 @@ def test_existing_hashes_reads_registry_digests(monkeypatch) -> None:
         "releases": {
             "0.4.35rc1": [
                 {
-                    "filename": "cccc_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl",
+                    "filename": "niuma_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl",
                     "digests": {"sha256": "ABC123"},
                 }
             ]
@@ -29,13 +29,13 @@ def test_existing_hashes_reads_registry_digests(monkeypatch) -> None:
     monkeypatch.setattr(upload_wheel_release.urllib.request, "urlopen", urlopen)
 
     assert upload_wheel_release.existing_hashes("testpypi") == {
-        "cccc_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl": "abc123"
+        "niuma_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl": "abc123"
     }
     assert observed == 1
 
 
 def test_existing_release_set_is_an_idempotent_success(monkeypatch, tmp_path: Path) -> None:
-    wheel = tmp_path / "cccc_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
+    wheel = tmp_path / "niuma_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
     wheel.write_bytes(b"same build")
     monkeypatch.setattr(
         upload_wheel_release,
@@ -52,8 +52,8 @@ def test_existing_release_set_is_an_idempotent_success(monkeypatch, tmp_path: Pa
 
 
 def test_only_missing_distributions_are_uploaded(monkeypatch, tmp_path: Path) -> None:
-    existing = tmp_path / "cccc_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
-    missing = tmp_path / "cccc_pair-0.4.36-py3-none-win_amd64.whl"
+    existing = tmp_path / "niuma_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
+    missing = tmp_path / "niuma_pair-0.4.36-py3-none-win_amd64.whl"
     existing.write_bytes(b"existing build")
     missing.write_bytes(b"missing build")
     observed: list[list[str]] = []
@@ -85,7 +85,7 @@ def test_only_missing_distributions_are_uploaded(monkeypatch, tmp_path: Path) ->
 
 
 def test_same_filename_with_different_hash_fails_without_upload(monkeypatch, tmp_path: Path) -> None:
-    wheel = tmp_path / "cccc_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
+    wheel = tmp_path / "niuma_pair-0.4.36-py3-none-manylinux_2_28_x86_64.whl"
     wheel.write_bytes(b"rebuilt artifact")
     monkeypatch.setattr(
         upload_wheel_release,

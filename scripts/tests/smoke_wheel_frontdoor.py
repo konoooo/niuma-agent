@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke the Rust-only CCCC wheel through pip's real install lifecycle."""
+"""Smoke the Rust-only 牛马Agent wheel through pip's real install lifecycle."""
 
 from __future__ import annotations
 
@@ -97,14 +97,14 @@ def _wait_for_exit(pid: int, *, timeout: float = 15.0) -> None:
         if not _process_is_running(pid):
             return
         time.sleep(0.05)
-    raise RuntimeError(f"CCCC process {pid} did not exit")
+    raise RuntimeError(f"牛马Agent process {pid} did not exit")
 
 
 def _wait_for_child_exit(process: subprocess.Popen[str], *, timeout: float = 15.0) -> None:
     try:
         process.wait(timeout=timeout)
     except subprocess.TimeoutExpired as error:
-        raise RuntimeError(f"CCCC process {process.pid} did not exit") from error
+        raise RuntimeError(f"牛马Agent process {process.pid} did not exit") from error
 
 
 def _wait_for_removal(path: Path, *, timeout: float = 10.0) -> None:
@@ -113,7 +113,7 @@ def _wait_for_removal(path: Path, *, timeout: float = 10.0) -> None:
         if not path.exists():
             return
         time.sleep(0.05)
-    raise RuntimeError(f"CCCC did not remove {path}")
+    raise RuntimeError(f"牛马Agent did not remove {path}")
 
 
 def _wheel_digest(data: bytes) -> str:
@@ -123,18 +123,18 @@ def _wheel_digest(data: bytes) -> str:
 
 def _legacy_wheel(root: Path) -> Path:
     """Create the smallest old-layout wheel needed to prove upgrade cleanup."""
-    stem = "cccc_pair-0.0.0"
+    stem = "niuma_pair-0.0.0"
     record = f"{stem}.dist-info/RECORD"
     executable_suffix = ".exe" if os.name == "nt" else ""
     entries = {
-        "cccc/__init__.py": b"LEGACY_CCCC = True\n",
-        f"{stem}.data/scripts/cccc{executable_suffix}": b"legacy cccc",
-        f"{stem}.data/scripts/ccccd{executable_suffix}": b"legacy ccccd",
+        "niuma-agent/__init__.py": b"LEGACY_NIUMA = True\n",
+        f"{stem}.data/scripts/niuma-agent{executable_suffix}": b"legacy niuma-agent",
+        f"{stem}.data/scripts/niumad{executable_suffix}": b"legacy niumad",
         f"{stem}.dist-info/METADATA": (
-            b"Metadata-Version: 2.1\nName: cccc-pair\nVersion: 0.0.0\n\n"
+            b"Metadata-Version: 2.1\nName: niuma-agent\nVersion: 0.0.0\n\n"
         ),
         f"{stem}.dist-info/WHEEL": (
-            b"Wheel-Version: 1.0\nGenerator: cccc-upgrade-fixture\n"
+            b"Wheel-Version: 1.0\nGenerator: niuma-upgrade-fixture\n"
             b"Root-Is-Purelib: true\nTag: py3-none-any\n\n"
         ),
     }
@@ -157,31 +157,31 @@ class InstalledWheelSmoke:
         self.venv = root / "venv"
         self.scripts = self.venv / ("Scripts" if os.name == "nt" else "bin")
         self.python = self.scripts / ("python.exe" if os.name == "nt" else "python")
-        self.launcher = self.scripts / ("cccc.exe" if os.name == "nt" else "cccc")
-        self.install_marker = self.scripts / ".cccc-standalone"
+        self.launcher = self.scripts / ("niuma-agent.exe" if os.name == "nt" else "niuma-agent")
+        self.install_marker = self.scripts / ".niuma-agent-standalone"
         self.source_binary = source_binary
         self.web_process: subprocess.Popen[str] | None = None
         self.web_output = None
         self.env = os.environ.copy()
-        for key in ("CCCC_LAUNCHER_PATH", "CCCC_RUST_BINARY", "PYTHONPATH", "VIRTUAL_ENV"):
+        for key in ("NIUMA_LAUNCHER_PATH", "NIUMA_RUST_BINARY", "PYTHONPATH", "VIRTUAL_ENV"):
             self.env.pop(key, None)
-        self.env["CCCC_HOME"] = str(self.home)
+        self.env["NIUMA_HOME"] = str(self.home)
         self.env["PYTHONNOUSERSITE"] = "1"
         self.env["PATH"] = str(self.scripts) + os.pathsep + self.env.get("PATH", "")
 
     @property
     def pid_path(self) -> Path:
-        return self.home / "daemon" / "ccccd.pid"
+        return self.home / "daemon" / "niumad.pid"
 
     @property
     def address_path(self) -> Path:
-        return self.home / "daemon" / "ccccd.addr.json"
+        return self.home / "daemon" / "niumad.addr.json"
 
     @property
     def web_runtime_path(self) -> Path:
         return self.home / "daemon" / "web_runtime.json"
 
-    def cccc(
+    def niuma(
         self,
         *args: str,
         input_text: str | None = None,
@@ -203,7 +203,7 @@ class InstalledWheelSmoke:
         return int(raw)
 
     def expect_status(self, daemon: str) -> None:
-        output = self.cccc("status").stdout
+        output = self.niuma("status").stdout
         expected = [
             f"Daemon:      {daemon}",
         ]
@@ -215,7 +215,7 @@ class InstalledWheelSmoke:
             raise RuntimeError(f"status retained engine rows {retired!r}:\n{output}")
 
     def expect_mcp(self) -> None:
-        output = self.cccc("mcp", input_text=MCP_REQUESTS, timeout=20.0).stdout
+        output = self.niuma("mcp", input_text=MCP_REQUESTS, timeout=20.0).stdout
         responses: dict[int, dict] = {}
         for line in output.splitlines():
             try:
@@ -226,10 +226,10 @@ class InstalledWheelSmoke:
                 responses[payload["id"]] = payload
         server = responses.get(1, {}).get("result", {}).get("serverInfo", {})
         tools = responses.get(2, {}).get("result", {}).get("tools", [])
-        if server.get("name") != "cccc-mcp":
-            raise RuntimeError(f"MCP initialize did not identify cccc-mcp:\n{output}")
-        if not any(tool.get("name") == "cccc_help" for tool in tools if isinstance(tool, dict)):
-            raise RuntimeError(f"MCP read-only tools/list omitted cccc_help:\n{output}")
+        if server.get("name") != "niuma-mcp":
+            raise RuntimeError(f"MCP initialize did not identify niuma-mcp:\n{output}")
+        if not any(tool.get("name") == "niuma_help" for tool in tools if isinstance(tool, dict)):
+            raise RuntimeError(f"MCP read-only tools/list omitted niuma_help:\n{output}")
 
     def start_web_and_expect_health(self) -> subprocess.Popen[str]:
         self.web_output = tempfile.TemporaryFile(mode="w+", encoding="utf-8")
@@ -247,7 +247,7 @@ class InstalledWheelSmoke:
         while time.monotonic() < deadline:
             if self.web_process.poll() is not None:
                 self.web_output.seek(0)
-                raise RuntimeError(f"combined CCCC exited before Web readiness:\n{self.web_output.read()}")
+                raise RuntimeError(f"combined 牛马Agent exited before Web readiness:\n{self.web_output.read()}")
             try:
                 runtime = json.loads(self.web_runtime_path.read_text(encoding="utf-8"))
                 port = int(runtime["port"])
@@ -261,25 +261,25 @@ class InstalledWheelSmoke:
         raise RuntimeError(f"Rust Web health did not become ready: {last_error}")
 
     def expect_update_refusal(self) -> None:
-        inspection = self.cccc("update", "--check", "--offline")
+        inspection = self.niuma("update", "--check", "--offline")
         if "Installation: pip" not in inspection.stdout or "not checked (offline)" not in inspection.stdout:
             raise RuntimeError(f"pip update inspection omitted ownership or freshness:\n{inspection.stdout}")
-        result = self.cccc("update", check=False)
+        result = self.niuma("update", check=False)
         if result.returncode == 0:
-            raise RuntimeError("pip-owned CCCC unexpectedly accepted standalone self-update")
-        if 'python -m pip install --upgrade "cccc-pair>=0.4.36"' not in result.stdout:
+            raise RuntimeError("pip-owned 牛马Agent unexpectedly accepted standalone self-update")
+        if 'python -m pip install --upgrade "niuma-agent>=0.4.36"' not in result.stdout:
             raise RuntimeError(f"self-update refusal omitted the pip ownership remedy:\n{result.stdout}")
 
     def verify_installed_binary(self) -> None:
         if self.source_binary is not None and self.launcher.read_bytes() != self.source_binary.read_bytes():
             raise RuntimeError("pip-installed executable differs from the release binary")
-        resolved = shutil.which("cccc", path=self.env["PATH"])
+        resolved = shutil.which("niuma-agent", path=self.env["PATH"])
         if resolved is None or Path(resolved).resolve() != self.launcher.resolve():
-            raise RuntimeError(f"PATH does not resolve to the wheel-owned CCCC command: {resolved!r}")
+            raise RuntimeError(f"PATH does not resolve to the wheel-owned 牛马Agent command: {resolved!r}")
 
     def stop_for_cleanup(self) -> None:
         if self.launcher.exists():
-            self.cccc("daemon", "stop", check=False, timeout=15.0)
+            self.niuma("daemon", "stop", check=False, timeout=15.0)
         if self.web_process is not None and self.web_process.poll() is None:
             self.web_process.terminate()
             try:
@@ -293,26 +293,26 @@ class InstalledWheelSmoke:
     def run(self) -> None:
         self.verify_installed_binary()
         for command in (("--version",), ("version",)):
-            version = self.cccc(*command).stdout.strip()
-            if not version.startswith("cccc ") or "(rust)" in version.lower():
+            version = self.niuma(*command).stdout.strip()
+            if not version.startswith("niuma-agent ") or "(rust)" in version.lower():
                 raise RuntimeError(
-                    f"unexpected CCCC version output for {command!r}: {version!r}"
+                    f"unexpected 牛马Agent version output for {command!r}: {version!r}"
                 )
         self.expect_status("stopped")
         self.expect_mcp()
         self.expect_update_refusal()
 
-        self.cccc("daemon", "start")
+        self.niuma("daemon", "start")
         daemon_pid = self.daemon_pid()
         self.expect_status("running")
-        self.cccc("daemon", "stop")
+        self.niuma("daemon", "stop")
         _wait_for_exit(daemon_pid)
         _wait_for_removal(self.address_path)
         self.expect_status("stopped")
 
         web_process = self.start_web_and_expect_health()
         self.expect_status("running")
-        self.cccc("daemon", "stop")
+        self.niuma("daemon", "stop")
         _wait_for_child_exit(web_process)
         _wait_for_removal(self.address_path)
         _wait_for_removal(self.web_runtime_path)
@@ -332,7 +332,7 @@ def _assert_python_product_absent(python: Path, env: dict[str, str]) -> None:
         [
             str(python),
             "-c",
-            "import importlib.util; print(importlib.util.find_spec('cccc'))",
+            "import importlib.util; print(importlib.util.find_spec('niuma-agent'))",
         ],
         env=env,
     )
@@ -361,14 +361,14 @@ def main() -> int:
             legacy = _legacy_wheel(Path(raw_root))
             _pip(smoke.python, smoke.env, "install", "--quiet", str(legacy))
             if not smoke.launcher.is_file():
-                raise RuntimeError("legacy upgrade fixture did not install cccc")
-            if not any(smoke.scripts.glob("ccccd*")):
-                raise RuntimeError("legacy upgrade fixture did not install ccccd")
+                raise RuntimeError("legacy upgrade fixture did not install niuma-agent")
+            if not any(smoke.scripts.glob("niumad*")):
+                raise RuntimeError("legacy upgrade fixture did not install niumad")
             smoke.install_marker.write_text("standalone-v1\n", encoding="utf-8")
 
             _pip(smoke.python, smoke.env, "install", "--quiet", "--upgrade", str(wheel))
-            if any(smoke.scripts.glob("ccccd*")):
-                raise RuntimeError("Rust-only wheel upgrade left the retired ccccd command")
+            if any(smoke.scripts.glob("niumad*")):
+                raise RuntimeError("Rust-only wheel upgrade left the retired niumad command")
             if smoke.install_marker.read_text(encoding="utf-8") != "pip-v1\n":
                 raise RuntimeError("pip install did not replace standalone ownership")
             _assert_python_product_absent(smoke.python, smoke.env)
@@ -380,13 +380,13 @@ def main() -> int:
             smoke.verify_installed_binary()
             if smoke.install_marker.read_text(encoding="utf-8") != "pip-v1\n":
                 raise RuntimeError("pip reinstall lost package-manager ownership")
-            _pip(smoke.python, smoke.env, "uninstall", "--yes", "--quiet", "cccc-pair")
+            _pip(smoke.python, smoke.env, "uninstall", "--yes", "--quiet", "niuma-agent")
             if smoke.launcher.exists():
-                raise RuntimeError("pip uninstall left the CCCC command behind")
+                raise RuntimeError("pip uninstall left the 牛马Agent command behind")
             if smoke.install_marker.exists():
                 raise RuntimeError("pip uninstall left its ownership marker behind")
             if not sentinel.is_file():
-                raise RuntimeError("pip uninstall removed user-owned CCCC_HOME state")
+                raise RuntimeError("pip uninstall removed user-owned NIUMA_HOME state")
             _assert_python_product_absent(smoke.python, smoke.env)
         finally:
             smoke.stop_for_cleanup()

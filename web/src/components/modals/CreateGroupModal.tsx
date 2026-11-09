@@ -79,7 +79,7 @@ export function CreateGroupModal({
     if (name.includes("desktop")) return <FolderIcon className={iconClassName} />;
     if (name.includes("download")) return <DownloadIcon className={iconClassName} />;
     if (name.includes("document")) return <FileIcon className={iconClassName} />;
-    if (name.includes("current") || path.endsWith("/.cccc"))
+    if (name.includes("current") || path.endsWith("/.niuma-agent"))
       return <ArrowDownIcon className={iconClassName} />;
     return <FolderIcon className={iconClassName} />;
   };

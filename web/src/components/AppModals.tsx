@@ -70,7 +70,7 @@ interface AppModalsProps {
   textScale: TextScale;
   readOnly?: boolean;
   notificationsAllowed?: boolean;
-  ccccHome: string;
+  niumaHome: string;
   composerRef: React.RefObject<HTMLTextAreaElement | null>;
   onStartReply: (ev: LedgerEvent) => void;
   onThemeChange: (theme: Theme) => void;
@@ -112,7 +112,7 @@ export function AppModals({
   textScale,
   readOnly,
   notificationsAllowed,
-  ccccHome,
+  niumaHome,
   composerRef,
   onStartReply,
   onThemeChange,
@@ -1510,7 +1510,7 @@ export function AppModals({
         isDark={isDark}
         busy={busy}
         groupId={selectedGroupId || groupDoc?.group_id || ""}
-        ccccHome={ccccHome}
+        niumaHome={niumaHome}
         projectRoot={(() => {
           const key = String(groupDoc?.active_scope_key || "").trim();
           const scopes = Array.isArray(groupDoc?.scopes) ? groupDoc?.scopes : [];

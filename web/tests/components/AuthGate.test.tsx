@@ -84,7 +84,7 @@ describe("AuthGate startup authentication", () => {
     const scrollContainer = host.querySelector('[data-testid="auth-login-scroll"]');
     expect(scrollContainer?.className).toContain("overflow-y-auto");
     expect(scrollContainer?.textContent).toContain("recoverySecurityNote");
-    const input = host.querySelector<HTMLInputElement>('input[name="cccc-access-token"]');
+    const input = host.querySelector<HTMLInputElement>('input[name="niuma-access-token"]');
     expect(input?.autocomplete).toBe("current-password");
     await act(async () => {
       if (!input) throw new Error("token input missing");
@@ -122,7 +122,7 @@ describe("AuthGate startup authentication", () => {
         </AuthGate>,
       );
     });
-    const input = host.querySelector<HTMLInputElement>('input[name="cccc-access-token"]');
+    const input = host.querySelector<HTMLInputElement>('input[name="niuma-access-token"]');
     await act(async () => {
       if (!input) throw new Error("token input missing");
       const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;

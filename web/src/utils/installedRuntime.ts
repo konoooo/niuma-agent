@@ -11,7 +11,7 @@ import {
  * disabled Add. Null when none is.
  *
  * Availability alone does not say what the reader installed: web models and custom commands are
- * always available, and DeepSeek is available wherever Node and npm are, since CCCC can install
+ * always available, and DeepSeek is available wherever Node and npm are, since 牛马Agent can install
  * its harness. None of them is chosen here.
  */
 export function installedRuntimeFor(

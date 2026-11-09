@@ -177,7 +177,7 @@ it("uses the existing call owner, shared devices and control socket without requ
   Socket.latest.emit({
     type: "response.function_call_arguments.done",
     call_id: "function-1",
-    name: "cccc_investigate",
+    name: "niuma_investigate",
     arguments: '{"request":"Inspect"}',
   });
   expect(fixture.sent).toContainEqual(
@@ -198,7 +198,7 @@ it("uses the existing call owner, shared devices and control socket without requ
   );
   fixture.server!({
     type: "provider_command",
-    message: { type: "cccc.delegation.receipt", call_id: "function-1", accepted: true },
+    message: { type: "niuma-agent.delegation.receipt", call_id: "function-1", accepted: true },
   });
   expect(Socket.latest.frames).toContainEqual({
     type: "conversation.item.create",

@@ -1,7 +1,7 @@
 [
   {
-    "name": "cccc_help",
-    "description": "Load the effective CCCC collaboration protocol reference for this group (role-aware, on-demand, with runtime quick-use hints). Use when a CCCC route, state boundary, or capability-routing detail is unclear.",
+    "name": "niuma_help",
+    "description": "Load the effective 牛马Agent collaboration protocol reference for this group (role-aware, on-demand, with runtime quick-use hints). Use when a 牛马Agent route, state boundary, or capability-routing detail is unclear.",
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
@@ -15,8 +15,8 @@
     }
   },
   {
-    "name": "cccc_bootstrap",
-    "description": "Cold-start bootstrap for the authenticated caller: session + recovery + inbox_preview + context_hygiene + memory_recall_gate + next_calls. session.members lists this Group's recipients (Actor ID, runtime, role, enabled access and optional native source_id); use those Actor IDs with ordinary message tools. session.active_scope is the Group selection; session.effective_scope is your tool workspace, retaining the running managed launch directory until exit or restart. Use it first on cold start or resume. Call cccc_help only when a CCCC route or state boundary is unclear; follow next_calls for colder detail because hidden tools are routed through cccc_capability_use.",
+    "name": "niuma_bootstrap",
+    "description": "Cold-start bootstrap for the authenticated caller: session + recovery + inbox_preview + context_hygiene + memory_recall_gate + next_calls. session.members lists this Group's recipients (Actor ID, runtime, role, enabled access and optional native source_id); use those Actor IDs with ordinary message tools. session.active_scope is the Group selection; session.effective_scope is your tool workspace, retaining the running managed launch directory until exit or restart. Use it first on cold start or resume. Call niuma_help only when a 牛马Agent route or state boundary is unclear; follow next_calls for colder detail because hidden tools are routed through niuma_capability_use.",
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
@@ -28,7 +28,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
@@ -45,18 +45,18 @@
     }
   },
   {
-    "name": "cccc_inbox_read",
+    "name": "niuma_inbox_read",
     "description": "Read and consume the next ordered Mail batch. Only mode=mail messages participate in this inbox and its cursor; Send and Send + Reply are delivered directly and are not returned here. Bootstrap previews do not consume Mail.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "limit": {
           "type": "integer",
@@ -75,8 +75,8 @@
     }
   },
   {
-    "name": "cccc_message_history",
-    "description": "Inspect actor-visible chat history without changing Mail read state. Pass event_id from a native notification to read that exact message or system notice: delivery_text has its full text and instructions, and message has the event without a text or insight already shown there. Do not combine event_id with filters or pagination. Otherwise list past Send, Send + Reply, or Mail messages; routine Mail handling should use cccc_inbox_read instead.",
+    "name": "niuma_message_history",
+    "description": "Inspect actor-visible chat history without changing Mail read state. Pass event_id from a native notification to read that exact message or system notice: delivery_text has its full text and instructions, and message has the event without a text or insight already shown there. Do not combine event_id with filters or pagination. Otherwise list past Send, Send + Reply, or Mail messages; routine Mail handling should use niuma_inbox_read instead.",
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
@@ -88,11 +88,11 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "mode": {
           "type": "string",
@@ -128,18 +128,18 @@
     }
   },
   {
-    "name": "cccc_connect",
-    "description": "Discover same-account CCCC instances and Group connections approved for your local Group, including standalone Direct connections without an account. Omit instance_id to list instances and external_groups; provide instance_id to page same-account Groups, or both instance_id and target_group_id from external_groups to read that exact external Group and its visible actors. Read-only cached metadata: fresh describes metadata age, never whether a peer is online. Human Web access tokens are neither required nor returned. Send through cccc_message_send with both dst_instance_id and dst_group_id; reply through the original local event_id. This does not provide remote history, Context, terminal or arbitrary tools.",
+    "name": "niuma_connect",
+    "description": "Discover same-account 牛马Agent instances and Group connections approved for your local Group, including standalone Direct connections without an account. Omit instance_id to list instances and external_groups; provide instance_id to page same-account Groups, or both instance_id and target_group_id from external_groups to read that exact external Group and its visible actors. Read-only cached metadata: fresh describes metadata age, never whether a peer is online. Human Web access tokens are neither required nor returned. Send through niuma_message_send with both dst_instance_id and dst_group_id; reply through the original local event_id. This does not provide remote history, Context, terminal or arbitrary tools.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Your local working Group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Your local working Group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Your local Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Your local Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "instance_id": {
           "type": "string",
@@ -170,18 +170,18 @@
     }
   },
   {
-    "name": "cccc_message_send",
-    "description": "Start a new visible chat message. Default to mode=mail for agents. Use mode=send only when delayed awareness costs more than interrupting the recipient, and mode=request_reply only when a concrete reply is also required. Mail is agent-only; messages to user must use send or request_reply. One message may address user alone or one/more agents, never both; send separate messages for separate audience domains. Do not send routine noise. Do not use this to answer an existing delivered message/event; use cccc_message_reply with that event_id instead. Choose `to` deliberately; request_reply requires concrete recipients and @all should be rare. When the user's decision or information is needed, add a question so they answer it in place.",
+    "name": "niuma_message_send",
+    "description": "Start a new visible chat message. Default to mode=mail for agents. Use mode=send only when delayed awareness costs more than interrupting the recipient, and mode=request_reply only when a concrete reply is also required. Mail is agent-only; messages to user must use send or request_reply. One message may address user alone or one/more agents, never both; send separate messages for separate audience domains. Do not send routine noise. Do not use this to answer an existing delivered message/event; use niuma_message_reply with that event_id instead. Choose `to` deliberately; request_reply requires concrete recipients and @all should be rare. When the user's decision or information is needed, add a question so they answer it in place.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "dst_group_id": {
           "type": "string",
@@ -231,7 +231,7 @@
         },
         "question": {
           "type": "object",
-          "description": "Ask the user for a decision or information, answered in place. Only with mode=request_reply and to=\"user\" alone, in a new message (not a reply). Ask only for what you cannot responsibly supply yourself: the user's authority or judgment (a change of scope, an irreversible or outward action, spending money or credits, a product preference with a real tradeoff, or conflicting instructions) or information only the user has; otherwise decide and report. For a choice, offer 2-4 mutually exclusive, actionable options, each with its consequence, and recommend one with a reason when you know enough; the user can always answer in their own words instead. Omit options for a value only the user knows (a path, a number, a clarification). Never ask for secrets. text becomes the question's context (at most 4000 characters). Limits count characters. Keep working on what does not depend on the answer, and withdraw a question that is no longer needed with cccc_reply_request_cancel.",
+          "description": "Ask the user for a decision or information, answered in place. Only with mode=request_reply and to=\"user\" alone, in a new message (not a reply). Ask only for what you cannot responsibly supply yourself: the user's authority or judgment (a change of scope, an irreversible or outward action, spending money or credits, a product preference with a real tradeoff, or conflicting instructions) or information only the user has; otherwise decide and report. For a choice, offer 2-4 mutually exclusive, actionable options, each with its consequence, and recommend one with a reason when you know enough; the user can always answer in their own words instead. Omit options for a value only the user knows (a path, a number, a clarification). Never ask for secrets. text becomes the question's context (at most 4000 characters). Limits count characters. Keep working on what does not depend on the answer, and withdraw a question that is no longer needed with niuma_reply_request_cancel.",
           "properties": {
             "v": {
               "type": "integer",
@@ -300,11 +300,11 @@
         },
         "suggested_user_message": {
           "type": "string",
-          "description": "Optional next message to suggest to the human in the CCCC Web composer when this message is addressed to user. It is not sent automatically and must not be used for approvals, permissions, or decisions."
+          "description": "Optional next message to suggest to the human in the 牛马Agent Web composer when this message is addressed to user. It is not sent automatically and must not be used for approvals, permissions, or decisions."
         },
         "dst_instance_id": {
           "type": "string",
-          "description": "Exact Connect instance ID from cccc_connect; requires dst_group_id. Omit for local messaging."
+          "description": "Exact Connect instance ID from niuma_connect; requires dst_group_id. Omit for local messaging."
         }
       },
       "required": [
@@ -317,21 +317,21 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "title": "Send a CCCC message"
+    "title": "Send a 牛马Agent message"
   },
   {
-    "name": "cccc_tracked_send",
-    "description": "Foreman-first durable delegation tool: create a task and send one linked visible delegation message. Use only when owner/scope/done/evidence must survive chat. For ordinary discussion, quick handoffs, or solo work, use cccc_message_send/reply instead.",
+    "name": "niuma_tracked_send",
+    "description": "Foreman-first durable delegation tool: create a task and send one linked visible delegation message. Use only when owner/scope/done/evidence must survive chat. For ordinary discussion, quick handoffs, or solo work, use niuma_message_send/reply instead.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "title": {
           "type": "string",
@@ -434,18 +434,18 @@
     }
   },
   {
-    "name": "cccc_message_reply",
+    "name": "niuma_message_reply",
     "description": "Reply to a visible chat message by its current event_id. Defaults to Send; choose Mail only when the recipient is an agent and the reply may wait in Inbox without an immediate prompt. Replies to user must use Send. One reply may address user alone or one/more agents, never both. Either mode fulfills the original reply request. Use only for the thread you are answering; set `to` explicitly if the audience differs. For Connect, use the received local event_id; omit to to address the original participants. Routing comes from that event, without looking up or passing a remote Group ID. A reply cannot carry a question: when the user's decision or information is needed, send a new request_reply message to user with a question.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "event_id": {
           "type": "string",
@@ -457,7 +457,7 @@
         },
         "text": {
           "type": "string",
-          "description": "Reply content visible to the recipient in CCCC."
+          "description": "Reply content visible to the recipient in 牛马Agent."
         },
         "insight": {
           "type": "string",
@@ -495,7 +495,7 @@
         },
         "suggested_user_message": {
           "type": "string",
-          "description": "Optional next message to suggest to the human in the CCCC Web composer when this message is addressed to user. It is not sent automatically and must not be used for approvals, permissions, or decisions."
+          "description": "Optional next message to suggest to the human in the 牛马Agent Web composer when this message is addressed to user. It is not sent automatically and must not be used for approvals, permissions, or decisions."
         },
         "idempotency_key": {
           "type": "string",
@@ -512,21 +512,21 @@
       "idempotentHint": false,
       "openWorldHint": true
     },
-    "title": "Reply to a CCCC message"
+    "title": "Reply to a 牛马Agent message"
   },
   {
-    "name": "cccc_message_deliver",
+    "name": "niuma_message_deliver",
     "description": "Send an existing message to selected actor runtimes without creating a duplicate chat message. Use this to promote Mail to Send or retry a blocked/failed delivery. Reserving new delivery work resumes a paused Group; a conflict or no-op does not. Ambiguous delivery requires force_ambiguous=true because the recipient may already have received the prompt.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Sender actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Sender actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "source_event_id": {
           "type": "string",
@@ -559,18 +559,18 @@
     }
   },
   {
-    "name": "cccc_reply_request_cancel",
+    "name": "niuma_reply_request_cancel",
     "description": "Cancel every still-open reply obligation for an existing Send + Reply message. This does not delete the message or prevent later voluntary replies.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Sender actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Sender actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "source_event_id": {
           "type": "string",
@@ -589,18 +589,18 @@
     }
   },
   {
-    "name": "cccc_file",
-    "description": "Read a file in your effective workspace (running managed launch, otherwise Actor default or Group active) or a delivered attachment. read returns UTF-8 text, native PNG/JPEG/WebP images, or original PDF/PPTX resources for the client file reader. Binary limit: 20 MiB; no local conversion or OCR. info/blob_path return metadata/path only. In cccc_code_exec, native media is emitted automatically and JavaScript receives metadata. This tool never sends files or changes messages; use cccc_file_send for attachments.",
+    "name": "niuma_file",
+    "description": "Read a file in your effective workspace (running managed launch, otherwise Actor default or Group active) or a delivered attachment. read returns UTF-8 text, native PNG/JPEG/WebP images, or original PDF/PPTX resources for the client file reader. Binary limit: 20 MiB; no local conversion or OCR. info/blob_path return metadata/path only. In niuma_code_exec, native media is emitted automatically and JavaScript receives metadata. This tool never sends files or changes messages; use niuma_file_send for attachments.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -626,7 +626,7 @@
         "rel_path"
       ]
     },
-    "title": "Read a CCCC file",
+    "title": "Read a 牛马Agent file",
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
@@ -635,18 +635,18 @@
     }
   },
   {
-    "name": "cccc_file_send",
-    "description": "Attach a file, or up to 10 files as one message, from your effective workspace (running managed launch, otherwise Actor default or Group active) to a CCCC message. Choose the human user alone or agent recipients, never both. Send prompts recipients; Mail stores agent Inbox mail without prompting. For a connected instance, provide both dst_instance_id and dst_group_id from cccc_connect. Returns the message/queue receipt; it does not confirm that a recipient has read the file. Use cccc_file to read files without sending them.",
+    "name": "niuma_file_send",
+    "description": "Attach a file, or up to 10 files as one message, from your effective workspace (running managed launch, otherwise Actor default or Group active) to a 牛马Agent message. Choose the human user alone or agent recipients, never both. Send prompts recipients; Mail stores agent Inbox mail without prompting. For a connected instance, provide both dst_instance_id and dst_group_id from niuma_connect. Returns the message/queue receipt; it does not confirm that a recipient has read the file. Use niuma_file to read files without sending them.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "path": {
           "anyOf": [
@@ -703,7 +703,7 @@
         },
         "dst_instance_id": {
           "type": "string",
-          "description": "exact Connect instance ID from cccc_connect, together with dst_group_id."
+          "description": "exact Connect instance ID from niuma_connect, together with dst_group_id."
         },
         "idempotency_key": {
           "type": "string",
@@ -714,7 +714,7 @@
         "path"
       ]
     },
-    "title": "Send a CCCC attachment",
+    "title": "Send a 牛马Agent attachment",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": false,
@@ -723,8 +723,8 @@
     }
   },
   {
-    "name": "cccc_code_exec",
-    "description": "Preferred/default ChatGPT Web Model tool for non-trivial local development work. Run JavaScript that orchestrates CCCC MCP tools through global tools.<toolName>(args), with ALL_TOOLS, COMMON_WORK_LOOPS, tool_help(query[, {detail:'schema'}]), tool_names(query), list_tools(query), text(), store(), load(), and yield_control(). Use this instead of many separate tool calls for multi-step loops such as read -> patch -> test -> diff -> report; direct repo/shell/git tools are still fine for simple one-step actions. The JS runtime has no Node require/import/fs/network/console access; use nested MCP tools for all real work. If the result says running with a cell_id, call cccc_code_wait. If output is truncated, verify the effects of earlier calls before repeating anything; obtain more detail using only necessary read-only steps with narrower ranges or a higher max_output_tokens (up to 50000) for subsequent output. Nested cccc_file reads automatically emit images and original PDF/PPTX resources (up to 4 binary items and 20 MiB total per result); JS receives file metadata, not base64. No image() helper is needed. Read fewer files or yield before reading more.",
+    "name": "niuma_code_exec",
+    "description": "Preferred/default ChatGPT Web Model tool for non-trivial local development work. Run JavaScript that orchestrates 牛马Agent MCP tools through global tools.<toolName>(args), with ALL_TOOLS, COMMON_WORK_LOOPS, tool_help(query[, {detail:'schema'}]), tool_names(query), list_tools(query), text(), store(), load(), and yield_control(). Use this instead of many separate tool calls for multi-step loops such as read -> patch -> test -> diff -> report; direct repo/shell/git tools are still fine for simple one-step actions. The JS runtime has no Node require/import/fs/network/console access; use nested MCP tools for all real work. If the result says running with a cell_id, call niuma_code_wait. If output is truncated, verify the effects of earlier calls before repeating anything; obtain more detail using only necessary read-only steps with narrower ranges or a higher max_output_tokens (up to 50000) for subsequent output. Nested niuma_file reads automatically emit images and original PDF/PPTX resources (up to 4 binary items and 20 MiB total per result); JS receives file metadata, not base64. No image() helper is needed. Read fewer files or yield before reading more.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -754,15 +754,15 @@
           "default": 10000,
           "minimum": 1,
           "maximum": 50000,
-          "description": "Approximate token budget for direct cccc_code_exec output."
+          "description": "Approximate token budget for direct niuma_code_exec output."
         }
       },
       "required": []
     }
   },
   {
-    "name": "cccc_code_wait",
-    "description": "Wait for or terminate a yielded cccc_code_exec cell. Use only when cccc_code_exec returned status=running and a cell_id. Returns new output since the previous yield or the final result.",
+    "name": "niuma_code_wait",
+    "description": "Wait for or terminate a yielded niuma_code_exec cell. Use only when niuma_code_exec returned status=running and a cell_id. Returns new output since the previous yield or the final result.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -774,7 +774,7 @@
       "properties": {
         "cell_id": {
           "type": "string",
-          "description": "Identifier returned by cccc_code_exec."
+          "description": "Identifier returned by niuma_code_exec."
         },
         "yield_time_ms": {
           "type": "integer",
@@ -802,8 +802,8 @@
     }
   },
   {
-    "name": "cccc_repo",
-    "description": "Read-only inspection of your effective workspace (running managed launch, otherwise Actor default or Group active): info|list|list_dir|read|search. Editing actions are rejected. list is shallow; list_dir honors depth and offset. Paths and file_path aliases are scope-relative; discovered symlinks are not followed. Search honors path, globs, case, context and limits. Check truncated/incomplete and skipped_files before concluding no match. Read returns whole-file sha256; use next_start_line to continue a truncated range. If partial_last_line is true, reread that line with a larger max_bytes (do not skip it). Use cccc_repo_edit or cccc_apply_patch for writes.",
+    "name": "niuma_repo",
+    "description": "Read-only inspection of your effective workspace (running managed launch, otherwise Actor default or Group active): info|list|list_dir|read|search. Editing actions are rejected. list is shallow; list_dir honors depth and offset. Paths and file_path aliases are scope-relative; discovered symlinks are not followed. Search honors path, globs, case, context and limits. Check truncated/incomplete and skipped_files before concluding no match. Read returns whole-file sha256; use next_start_line to continue a truncated range. If partial_last_line is true, reread that line with a larger max_bytes (do not skip it). Use niuma_repo_edit or niuma_apply_patch for writes.",
     "annotations": {
       "readOnlyHint": true,
       "destructiveHint": false,
@@ -815,7 +815,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -924,8 +924,8 @@
     }
   },
   {
-    "name": "cccc_repo_edit",
-    "description": "Write to your effective workspace repository (Actor default scope, otherwise Group active): action=replace|multi_replace|write|mkdir|delete|move. For exact small edits, prefer cccc_repo(action=read) -> replace/multi_replace with expected_sha256, then cccc_git diff. Use cccc_apply_patch for structural or multi-file Codex *** Begin Patch patches.",
+    "name": "niuma_repo_edit",
+    "description": "Write to your effective workspace repository (Actor default scope, otherwise Group active): action=replace|multi_replace|write|mkdir|delete|move. For exact small edits, prefer niuma_repo(action=read) -> replace/multi_replace with expected_sha256, then niuma_git diff. Use niuma_apply_patch for structural or multi-file Codex *** Begin Patch patches.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -937,7 +937,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -988,7 +988,7 @@
         },
         "expected_sha256": {
           "type": "string",
-          "description": "Optional sha256 from cccc_repo(action=read); rejects stale writes/replaces."
+          "description": "Optional sha256 from niuma_repo(action=read); rejects stale writes/replaces."
         },
         "expected_replacements": {
           "type": "integer",
@@ -1016,8 +1016,8 @@
     }
   },
   {
-    "name": "cccc_apply_patch",
-    "description": "Codex-style file patch tool for structural or multi-file edits: *** Begin Patch, Add/Update/Delete File, optional Move to, @@ exact context anchors, End of File, End Patch. Paths are workspace-relative; new parent directories are supported. Exact whole-line matching, ordered hunks, preserved line endings and file permissions. Unanchored ambiguous hunks and existing move destinations are rejected. All sections are validated before writes; OS failures can still leave partial multi-file changes, which the error reports. For small edits, use cccc_repo_edit with expected_sha256.",
+    "name": "niuma_apply_patch",
+    "description": "Codex-style file patch tool for structural or multi-file edits: *** Begin Patch, Add/Update/Delete File, optional Move to, @@ exact context anchors, End of File, End Patch. Paths are workspace-relative; new parent directories are supported. Exact whole-line matching, ordered hunks, preserved line endings and file permissions. Unanchored ambiguous hunks and existing move destinations are rejected. All sections are validated before writes; OS failures can still leave partial multi-file changes, which the error reports. For small edits, use niuma_repo_edit with expected_sha256.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -1029,7 +1029,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "patch": {
           "type": "string",
@@ -1044,8 +1044,8 @@
     }
   },
   {
-    "name": "cccc_shell",
-    "description": "Short one-shot process execution in your effective workspace (running managed launch, otherwise Actor default or Group active). Uses the host process's OS permissions; cwd is not a filesystem/network sandbox. The command is split into program/arguments using shell-style quoting and executed directly: shell operators, redirection, variables, and wildcards are not expanded. For shell syntax, explicitly invoke an installed shell, e.g. sh -c 'pwd && git status --short' on Unix or powershell.exe -NoProfile -Command 'Get-Location; Get-ChildItem' on Windows. Returns exit_code, stdout, stderr, and output-truncation flags. For long-running or interactive commands use cccc_exec_command plus cccc_write_stdin.",
+    "name": "niuma_shell",
+    "description": "Short one-shot process execution in your effective workspace (running managed launch, otherwise Actor default or Group active). Uses the host process's OS permissions; cwd is not a filesystem/network sandbox. The command is split into program/arguments using shell-style quoting and executed directly: shell operators, redirection, variables, and wildcards are not expanded. For shell syntax, explicitly invoke an installed shell, e.g. sh -c 'pwd && git status --short' on Unix or powershell.exe -NoProfile -Command 'Get-Location; Get-ChildItem' on Windows. Returns exit_code, stdout, stderr, and output-truncation flags. For long-running or interactive commands use niuma_exec_command plus niuma_write_stdin.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -1057,7 +1057,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "command": {
           "type": "string",
@@ -1094,8 +1094,8 @@
     }
   },
   {
-    "name": "cccc_exec_command",
-    "description": "Start a long-running or interactive foreground process in your effective workspace (running managed launch, otherwise Actor default or Group active). Runs in a PTY; output can contain colors and CRLF. On Unix, PAGER, GIT_PAGER, GH_PAGER and MANPAGER default to cat; on Windows only GIT_PAGER and GH_PAGER do; PAGER and MANPAGER remain inherited. Set pager variables in this call's env to override these defaults. Like cccc_shell, command strings use shell-style quoting but execute the program directly; operators and expansions require an explicit installed shell (e.g. sh -c on Unix or powershell.exe -NoProfile -Command on Windows). Returns session_id, status, initial output, cursor, has_more, cursor_expired, timed_out and closed. Waits up to yield_time_ms for output or exit. timeout_s is a hard lifetime limit (default/max 600 seconds), enforced without polling. Use cccc_write_stdin for incremental output/input/termination until closed=true, even when status.running=false but has_more=true. Output is bounded; max_output_bytes may extend by up to 3 bytes to finish a UTF-8 character. At most 64 sessions per host/Home; abandoned results expire 10 minutes after the command deadline. Use cccc_shell for short one-shot commands. Commands retain the host process's OS file/network permissions; workspace scope is not a sandbox.",
+    "name": "niuma_exec_command",
+    "description": "Start a long-running or interactive foreground process in your effective workspace (running managed launch, otherwise Actor default or Group active). Runs in a PTY; output can contain colors and CRLF. On Unix, PAGER, GIT_PAGER, GH_PAGER and MANPAGER default to cat; on Windows only GIT_PAGER and GH_PAGER do; PAGER and MANPAGER remain inherited. Set pager variables in this call's env to override these defaults. Like niuma_shell, command strings use shell-style quoting but execute the program directly; operators and expansions require an explicit installed shell (e.g. sh -c on Unix or powershell.exe -NoProfile -Command on Windows). Returns session_id, status, initial output, cursor, has_more, cursor_expired, timed_out and closed. Waits up to yield_time_ms for output or exit. timeout_s is a hard lifetime limit (default/max 600 seconds), enforced without polling. Use niuma_write_stdin for incremental output/input/termination until closed=true, even when status.running=false but has_more=true. Output is bounded; max_output_bytes may extend by up to 3 bytes to finish a UTF-8 character. At most 64 sessions per host/Home; abandoned results expire 10 minutes after the command deadline. Use niuma_shell for short one-shot commands. Commands retain the host process's OS file/network permissions; workspace scope is not a sandbox.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -1107,7 +1107,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "command": {
           "type": "string",
@@ -1155,8 +1155,8 @@
     }
   },
   {
-    "name": "cccc_write_stdin",
-    "description": "Write input or poll a cccc_exec_command session for new output only, waiting up to yield_time_ms. Returns status, output, cursor, has_more, cursor_expired, timed_out and closed. Continue polling until closed=true; stopped commands may still have unread pages. cursor_expired=true means older bytes exceeded the 2 MB retained buffer. max_output_bytes may extend by up to 3 bytes to finish a UTF-8 character. terminate=true stops the process tree and returns remaining output; input is ignored when terminating. Calls do not extend the original timeout_s. Do not automatically replay input after an uncertain transport failure.",
+    "name": "niuma_write_stdin",
+    "description": "Write input or poll a niuma_exec_command session for new output only, waiting up to yield_time_ms. Returns status, output, cursor, has_more, cursor_expired, timed_out and closed. Continue polling until closed=true; stopped commands may still have unread pages. cursor_expired=true means older bytes exceeded the 2 MB retained buffer. max_output_bytes may extend by up to 3 bytes to finish a UTF-8 character. terminate=true stops the process tree and returns remaining output; input is ignored when terminating. Calls do not extend the original timeout_s. Do not automatically replay input after an uncertain transport failure.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -1197,8 +1197,8 @@
     }
   },
   {
-    "name": "cccc_git",
-    "description": "Local git operations in your effective workspace (running managed launch, otherwise Actor default or Group active): action=status|diff|log|add|commit. Returns exit_code, stdout, stderr and output-truncation flags. Use cccc_shell for unusual git commands. Commands retain the host process's OS file/network permissions; workspace scope is not a sandbox.",
+    "name": "niuma_git",
+    "description": "Local git operations in your effective workspace (running managed launch, otherwise Actor default or Group active): action=status|diff|log|add|commit. Returns exit_code, stdout, stderr and output-truncation flags. Use niuma_shell for unusual git commands. Commands retain the host process's OS file/network permissions; workspace scope is not a sandbox.",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": true,
@@ -1210,7 +1210,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -1266,18 +1266,18 @@
     }
   },
   {
-    "name": "cccc_presentation",
+    "name": "niuma_presentation",
     "description": "Group Presentation surface tool: action=get|publish|clear. Use it to put a persistent report/preview/file on the Chat-tab Presentation rail. When publishing with path, keep the file linked to the group's active workspace; blob_rel_path is for snapshot-style uploaded assets.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -1345,18 +1345,18 @@
     }
   },
   {
-    "name": "cccc_group",
+    "name": "niuma_group",
     "description": "Group operations: action=info|list|resolve|set_state. Use resolve to turn natural #group/title tokens into a real group_id before cross-group messaging.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -1393,14 +1393,14 @@
     }
   },
   {
-    "name": "cccc_actor",
+    "name": "niuma_actor",
     "description": "Actor operations: list/profile_list/add/remove/start/stop/restart. Actor creation follows the caller's allowed Runtime/Profile surface.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -1474,7 +1474,7 @@
     }
   },
   {
-    "name": "cccc_runtime_list",
+    "name": "niuma_runtime_list",
     "description": "List available runtimes and runtime pool configuration.",
     "annotations": {
       "readOnlyHint": true,
@@ -1489,18 +1489,18 @@
     }
   },
   {
-    "name": "cccc_runtime_wait_next_turn",
+    "name": "niuma_runtime_wait_next_turn",
     "description": "Accept one coalesced pending direct-delivery turn for a website-model runtime actor when no turn was browser-delivered into the web chat. A second call while a turn is active returns turn_in_progress. This records runtime delivery and never changes the separate Mail cursor.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "limit": {
           "type": "integer",
@@ -1519,18 +1519,18 @@
     }
   },
   {
-    "name": "cccc_runtime_complete_turn",
-    "description": "Close the actor's exact active website-model runtime turn after processing. Completion records runtime progress only and never advances the separate Mail cursor; call cccc_inbox_read only when you intend to consume Mail.",
+    "name": "niuma_runtime_complete_turn",
+    "description": "Close the actor's exact active website-model runtime turn after processing. Completion records runtime progress only and never advances the separate Mail cursor; call niuma_inbox_read only when you intend to consume Mail.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "turn_id": {
           "type": "string"
@@ -1567,18 +1567,18 @@
     }
   },
   {
-    "name": "cccc_capability_search",
+    "name": "niuma_capability_search",
     "description": "Search the configured local and built-in capability registry. Returns matching capabilities without enabling, installing or executing them.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "query": {
           "type": "string",
@@ -1622,14 +1622,14 @@
     }
   },
   {
-    "name": "cccc_capability_enable",
+    "name": "niuma_capability_enable",
     "description": "Enable or disable an existing capability for session/actor/group scope. Peers can mutate only their own session/actor scope; group scope requires foreman.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -1681,14 +1681,14 @@
     }
   },
   {
-    "name": "cccc_capability_block",
+    "name": "niuma_capability_block",
     "description": "Foreman/admin governance tool to block or unblock a capability at group/global scope.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -1735,7 +1735,7 @@
     }
   },
   {
-    "name": "cccc_capability_state",
+    "name": "niuma_capability_state",
     "description": "Get caller-effective capability state and visible/dynamic tools.",
     "annotations": {
       "readOnlyHint": true,
@@ -1748,25 +1748,25 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         }
       },
       "required": []
     }
   },
   {
-    "name": "cccc_capability_install",
-    "description": "Install a target through the CCCC capability lifecycle: resolve the target to capability record(s), import into the registry, enable for the selected actor by default, and return use-ready capability ids. This is the preferred /install path; future use should go through cccc_capability_use/capability_state.",
+    "name": "niuma_capability_install",
+    "description": "Install a target through the 牛马Agent capability lifecycle: resolve the target to capability record(s), import into the registry, enable for the selected actor by default, and return use-ready capability ids. This is the preferred /install path; future use should go through niuma_capability_use/capability_state.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -1811,14 +1811,14 @@
     }
   },
   {
-    "name": "cccc_capability_import",
-    "description": "Foreman/admin governance tool to import an agent-prepared normalized capability record (mcp_toolpack or skill). Alternatively pass source_uri for a GitHub skill repository; repositories containing multiple skills/*/SKILL.md files are expanded into one CCCC skill capability per SKILL.md and may be enabled together. Use source_id=agent_self_proposed and capability_id=skill:agent_self_proposed:<stable-slug> for low-risk autonomous capsule skill proposals. Self-proposed skills must include When to use, Avoid when, Procedure, Pitfalls, and Verification sections; reuse the same capability_id for updates instead of duplicating. record.source_id is optional; empty/unknown values are normalized to manual_import. Use dry_run before unclear-risk records or immediate enablement; reuse the same capability_id to update stale/incomplete/wrong self-proposed skills instead of duplicating; import results report scope/import_action/record_changed/already_active/active_after_import; import_action is the primary create/update/unchanged signal, while record_changed only compares an existing record; already_active is the pre-import binding and active_after_import is the post-import runnable binding; when active/readiness_preview.active, do not enable again; verify full active capsule updates via capability_state.active_capsule_skills[].capsule_text; use scope=session for a temporary trial, scope=actor for cross-session reusable self-proposed skills, and scope=group only for shared team-wide behavior. Dry runs return readiness_preview; external capability actionability follows external capability safety mode.",
+    "name": "niuma_capability_import",
+    "description": "Foreman/admin governance tool to import an agent-prepared normalized capability record (mcp_toolpack or skill). Alternatively pass source_uri for a GitHub skill repository; repositories containing multiple skills/*/SKILL.md files are expanded into one 牛马Agent skill capability per SKILL.md and may be enabled together. Use source_id=agent_self_proposed and capability_id=skill:agent_self_proposed:<stable-slug> for low-risk autonomous capsule skill proposals. Self-proposed skills must include When to use, Avoid when, Procedure, Pitfalls, and Verification sections; reuse the same capability_id for updates instead of duplicating. record.source_id is optional; empty/unknown values are normalized to manual_import. Use dry_run before unclear-risk records or immediate enablement; reuse the same capability_id to update stale/incomplete/wrong self-proposed skills instead of duplicating; import results report scope/import_action/record_changed/already_active/active_after_import; import_action is the primary create/update/unchanged signal, while record_changed only compares an existing record; already_active is the pre-import binding and active_after_import is the post-import runnable binding; when active/readiness_preview.active, do not enable again; verify full active capsule updates via capability_state.active_capsule_skills[].capsule_text; use scope=session for a temporary trial, scope=actor for cross-session reusable self-proposed skills, and scope=group only for shared team-wide behavior. Dry runs return readiness_preview; external capability actionability follows external capability safety mode.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -2029,14 +2029,14 @@
     }
   },
   {
-    "name": "cccc_capability_uninstall",
+    "name": "niuma_capability_uninstall",
     "description": "Foreman/admin governance tool to uninstall a capability from the target group: revoke that group's bindings/runtime cache, hide it from that group's catalog view, and remove current-group actor autoload references. Catalog records, other groups, block policy, and profile defaults are preserved; global deletion uses capability_source_delete.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -2062,14 +2062,14 @@
     }
   },
   {
-    "name": "cccc_capability_use",
+    "name": "niuma_capability_use",
     "description": "Use an existing capability: enable it and optionally call one target tool. This is the preferred path for built-in capability pack tools that may be hidden from tools/list. For skill:* capabilities this activates the runtime capsule, not a local package install. Use scope=session for temporary activation and scope=actor for reuse by the selected actor; group scope requires foreman. If enable returns activation_pending, relist/reconnect before claiming success; inspect diagnostics/resolution_plan for blockers.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -2120,14 +2120,14 @@
     }
   },
   {
-    "name": "cccc_space",
+    "name": "niuma_space",
     "description": "Group Space hub tool. NotebookLM has two lanes: work and memory. action: status|capabilities|bind|ingest|query|sources|artifact|jobs|sync|provider_auth|provider_credential_status|provider_credential_update. provider_auth sub_action: status|start|cancel|disconnect; use force_reauth=true with provider_auth/start to switch Google account. For artifact runs with wait=false, accepted=true plus status=pending|queued means background accepted: do not poll in a loop; wait for the later system.notify.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -2268,14 +2268,14 @@
     }
   },
   {
-    "name": "cccc_automation",
+    "name": "niuma_automation",
     "description": "Scheduled reminders for this Group: action=state|manage. state lists the rules you can see, their timing status, fired_count and the version. manage applies actions in order and saves all of them or none. A peer manages only its own reminders (scope personal, owner_actor_id and to set to itself; these are the defaults when it leaves them out). The foreman manages every notify rule. Scheduled group_state and actor_control rules belong to the user; a request that would change, remove or reorder them is refused.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "by": {
           "type": "string",
@@ -2311,7 +2311,7 @@
     }
   },
   {
-    "name": "cccc_context_get",
+    "name": "niuma_context_get",
     "description": "Get the context control-plane snapshot (coordination, agent states, attention, board). Tasks come in pages of at most 100 tasks and 256 KiB; when truncated is true, call again with cursor=next_cursor.",
     "annotations": {
       "readOnlyHint": true,
@@ -2324,7 +2324,7 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "include_archived": {
           "type": "boolean",
@@ -2363,18 +2363,18 @@
     }
   },
   {
-    "name": "cccc_context_sync",
+    "name": "niuma_context_sync",
     "description": "Low-level ordered batch sync for context ops. All operations are validated and authorized before writing. Prefer coordination/task/agent_state for normal updates; reload context after a storage error before retrying.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "ops": {
           "type": "array",
@@ -2402,18 +2402,18 @@
     }
   },
   {
-    "name": "cccc_coordination",
-    "description": "Shared control-plane tool: action=get|update_brief|add_decision|add_handoff. get returns the brief, decisions, handoffs and task counts, with the tasks needing attention as summary rows, at most 10 per list; a longer list adds <list>_total. For blocked, waiting_user or pending_handoffs, use cccc_task with attention=blocked, waiting_user or handoff respectively and page through the results.",
+    "name": "niuma_coordination",
+    "description": "Shared control-plane tool: action=get|update_brief|add_decision|add_handoff. get returns the brief, decisions, handoffs and task counts, with the tasks needing attention as summary rows, at most 10 per list; a longer list adds <list>_total. For blocked, waiting_user or pending_handoffs, use niuma_task with attention=blocked, waiting_user or handoff respectively and page through the results.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -2461,18 +2461,18 @@
     }
   },
   {
-    "name": "cccc_task",
+    "name": "niuma_task",
     "description": "Shared collaboration task hub (not runtime todo): action=list|create|update|move|restore|delete. Use for multi-actor, long-horizon, or user-tracked work. Lifecycle transitions are canonical via move; update with status auto-applies the matching lifecycle move. list returns planned and active tasks as one summary row each, with counts per status; pass task_id to read one task in full.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -2636,14 +2636,14 @@
     }
   },
   {
-    "name": "cccc_agent_state",
+    "name": "niuma_agent_state",
     "description": "Per-actor working-memory tool: action=get|update|clear. Keep hot fields fresh; use warm fields only when they improve recovery, recall, or signal quality. update returns the write confirmation and context version; use get when you need the current stored state.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string"
@@ -2714,14 +2714,14 @@
     }
   },
   {
-    "name": "cccc_actor_notes",
-    "description": "Manage actor-scoped notes in CCCC_HELP.md (`## @actor: <actor_id>` blocks): action=get|set|clear. Foreman can read/write any actor's notes; other actors can only read their own notes.",
+    "name": "niuma_actor_notes",
+    "description": "Manage actor-scoped notes in NIUMA_HELP.md (`## @actor: <actor_id>` blocks): action=get|set|clear. Foreman can read/write any actor's notes; other actors can only read their own notes.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -2755,14 +2755,14 @@
     }
   },
   {
-    "name": "cccc_memory",
+    "name": "niuma_memory",
     "description": "Local shared Markdown memory: action=layout_get|search|get|write. Search uses lexical matching, not embeddings; use get to read the matching source lines.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -2888,14 +2888,14 @@
     }
   },
   {
-    "name": "cccc_memory_admin",
-    "description": "Local memory helpers: index_sync scans file counts without building a persistent index; context_check estimates tokens; compact returns a bounded excerpt or a summarization prompt, not an LLM summary. daily_flush writes a bounded daily-memory extract from supplied messages, or returns a prompt. Use cccc_memory for normal search/read/write.",
+    "name": "niuma_memory_admin",
+    "description": "Local memory helpers: index_sync scans file counts without building a persistent index; context_check estimates tokens; compact returns a bounded excerpt or a summarization prompt, not an LLM summary. daily_flush writes a bounded daily-memory extract from supplied messages, or returns a prompt. Use niuma_memory for normal search/read/write.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "action": {
           "type": "string",
@@ -3001,18 +3001,18 @@
     }
   },
   {
-    "name": "cccc_headless",
+    "name": "niuma_headless",
     "description": "Headless runner control: action=status|set_status.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -3048,18 +3048,18 @@
     }
   },
   {
-    "name": "cccc_notify",
+    "name": "niuma_notify",
     "description": "Send an internal system notification. This does not create a generic acknowledgement obligation.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -3103,18 +3103,18 @@
     }
   },
   {
-    "name": "cccc_terminal",
+    "name": "niuma_terminal",
     "description": "Terminal diagnostics: action=tail.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -3149,7 +3149,7 @@
     }
   },
   {
-    "name": "cccc_debug",
+    "name": "niuma_debug",
     "description": "Developer diagnostics: action=snapshot|tail_logs.",
     "annotations": {
       "readOnlyHint": true,
@@ -3162,11 +3162,11 @@
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "actor_id": {
           "type": "string",
-          "description": "Actor ID (optional if CCCC_ACTOR_ID is set)"
+          "description": "Actor ID (optional if NIUMA_ACTOR_ID is set)"
         },
         "action": {
           "type": "string",
@@ -3190,14 +3190,14 @@
     }
   },
   {
-    "name": "cccc_im_bind",
+    "name": "niuma_im_bind",
     "description": "Bind IM integration key for current group.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "Working group ID (optional if CCCC_GROUP_ID is set)"
+          "description": "Working group ID (optional if NIUMA_GROUP_ID is set)"
         },
         "key": {
           "type": "string"
@@ -3215,7 +3215,7 @@
     }
   },
   {
-    "name": "cccc_voice_secretary_task",
+    "name": "niuma_voice_secretary_task",
     "description": "Voice Secretary task operations. Always supply the exact task_id from the current host turn. The host fixes the Group, scope and result target; this tool cannot choose another target.",
     "inputSchema": {
       "type": "object",
@@ -3318,7 +3318,7 @@
     }
   },
   {
-    "name": "cccc_session",
+    "name": "niuma_session",
     "description": "Communicate with independently started, opted-in native Codex, Claude, Pi and OpenCode V2 sessions without pairwise invitations. List receive-ready sources and self_memberships (existing Group IDs/titles, your Actor ID/role, enabled access and Group state); use that read-only list after a context reset, then bootstrap the chosen explicit Group. Use action=send with source_ids and text to contact selected sessions, creating or reusing a Group. action=conversation only creates a Group and accepts source_ids and optional title; it does not send a message and rejects nonempty message fields or non-default delivery modes. action=list only lists; action=leave accepts group_id. Unused optional fields with null/empty values and the default mode=send are ignored on these non-send actions. Only available in the native-session MCP integration.",
     "annotations": {
       "readOnlyHint": false,
@@ -3387,8 +3387,8 @@
     }
   },
   {
-    "name": "cccc_actor_leave",
-    "description": "办理成员离岗交接和返岗同步。get 查询真实记录及最新任务；summary 由离岗成员或项目经理整理真实进展，缺失工作先用 cccc_task 创建 planned 任务并归属离岗成员，client_request_id 以离岗 ID 加冒号为前缀；assign 仅项目经理可按任务指定在岗接手人；accept 必须由指定接手员工本人携带 assignment_ids 确认读懂交接，确认前不执行，等系统正式移交后继续；ready 仅召回成员同步最新进展后调用，不收回已交接任务；retry 由经理在待处理状态下继续协调。不得把口头回复当作接手回执。用户通过界面发起离岗、立即离岗、召回或撤销。",
+    "name": "niuma_actor_leave",
+    "description": "办理成员离岗交接和返岗同步。get 查询真实记录及最新任务；summary 由离岗成员或项目经理整理真实进展，缺失工作先用 niuma_task 创建 planned 任务并归属离岗成员，client_request_id 以离岗 ID 加冒号为前缀；assign 仅项目经理可按任务指定在岗接手人；accept 必须由指定接手员工本人携带 assignment_ids 确认读懂交接，确认前不执行，等系统正式移交后继续；ready 仅召回成员同步最新进展后调用，不收回已交接任务；retry 由经理在待处理状态下继续协调。不得把口头回复当作接手回执。用户通过界面发起离岗、立即离岗、召回或撤销。",
     "annotations": {
       "readOnlyHint": false,
       "destructiveHint": false,

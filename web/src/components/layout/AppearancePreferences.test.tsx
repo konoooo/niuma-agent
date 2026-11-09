@@ -39,7 +39,7 @@ describe("appearance choices inside their real hosts", () => {
     });
     container.remove();
     useUIStore.setState({ showPendingPrompts: true });
-    localStorage.removeItem("cccc-pending-prompts");
+    localStorage.removeItem("niuma-pending-prompts");
   });
   async function renderHost(host: "desktop" | "sheet", initialTheme: Theme) {
     function Host() {
@@ -151,7 +151,7 @@ describe("appearance choices inside their real hosts", () => {
       expect(radios[0].getAttribute("aria-checked")).toBe("true");
       await click(radios[1]);
       expect(useUIStore.getState().showPendingPrompts).toBe(false);
-      expect(localStorage.getItem("cccc-pending-prompts")).toBe("false");
+      expect(localStorage.getItem("niuma-pending-prompts")).toBe("false");
       expect(outerOpen(host)).toBe(true);
       await click(radios[0]);
       expect(useUIStore.getState().showPendingPrompts).toBe(true);

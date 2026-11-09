@@ -16,7 +16,7 @@ afterEach(async () => {
   document.body.innerHTML = "";
 });
 
-it("describes CCCC's own skills in the reader's language, and any other skill as it comes", async () => {
+it("describes 牛马Agent's own skills in the reader's language, and any other skill as it comes", async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const i18n = createInstance();
   await i18n.init({
@@ -30,10 +30,10 @@ it("describes CCCC's own skills in the reader's language, and any other skill as
   const suggestions: SlashCommandItem[] = [
     BUILTIN_SLASH_COMMANDS[0],
     {
-      name: "cccc-self-evolution",
-      command: "/cccc-self-evolution",
+      name: "niuma-self-evolution",
+      command: "/niuma-self-evolution",
       description: selfEvolution,
-      capabilityId: "skill:cccc:self-evolution",
+      capabilityId: "skill:niuma-agent:self-evolution",
       sourceType: "capsule_skill",
     },
     // A skill imported under a built-in id, with a description of its own, keeps it.
@@ -41,7 +41,7 @@ it("describes CCCC's own skills in the reader's language, and any other skill as
       name: "retro",
       command: "/retro",
       description: "Our team's retro checklist.",
-      capabilityId: "skill:cccc:self-evolution",
+      capabilityId: "skill:niuma-agent:self-evolution",
       sourceType: "capsule_skill",
     },
     {

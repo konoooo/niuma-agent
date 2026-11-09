@@ -73,7 +73,7 @@ export class VoicePcmCapture {
           );
         }),
       ]);
-      const node = new AudioWorkletNode(context, "cccc-secretary-pcm-capture", {
+      const node = new AudioWorkletNode(context, "niuma-secretary-pcm-capture", {
         channelCount: 1,
         channelCountMode: "explicit",
         outputChannelCount: [1],

@@ -51,7 +51,7 @@ export function AcpRuntimeMode({
             <>
               <br />
               <code className="break-all">
-                cccc setup --runtime antigravity --runtime-mode acp --login
+                niuma-agent setup --runtime antigravity --runtime-mode acp --login
               </code>
             </>
           )}

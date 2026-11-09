@@ -1,0 +1,133 @@
+use niuma_core::{GroupDoc, HomeLayout};
+use serde_json::{Map, Value};
+use std::path::{Path, PathBuf};
+
+use crate::dispatch::OpError;
+
+pub(super) fn normalize(
+    home: &HomeLayout,
+    group: &GroupDoc,
+    by: &str,
+    data: &mut Map<String, Value>,
+) -> Result<(), OpError> {
+    // Captured port authority is checked before dispatch, never message content.
+    data.remove("_niuma_web_binding");
+    data.remove("_niuma_native_binding");
+    normalize_destination(data)?;
+    normalize_scoped_path(group, Some(by), data)?;
+    normalize_attachments(home, group, data)?;
+    super::install_command::prepare(data);
+    Ok(())
+}
+
+pub(super) fn normalize_destination(data: &mut Map<String, Value>) -> Result<(), OpError> {
+    match data.get("dst_group_id") {
+        None => {}
+        Some(Value::Null) => {
+            // An omitted optional destination is a local message, including
+            // when a caller supplies null or an empty string. Do not persist
+            // a relay marker or suppress Chet's host-authored provenance.
+            data.remove("dst_group_id");
+        }
+        Some(Value::String(value)) if value.trim().is_empty() => {
+            data.remove("dst_group_id");
+        }
+        Some(Value::String(_)) => {}
+        Some(_) => {
+            return Err(OpError::new(
+                "invalid_args",
+                "dst_group_id must be a string",
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn normalize_scope(
+    group: &GroupDoc,
+    data: &mut Map<String, Value>,
+) -> Result<(), OpError> {
+    normalize_scoped_path(group, None, data)
+}
+
+fn normalize_scoped_path(
+    group: &GroupDoc,
+    by: Option<&str>,
+    data: &mut Map<String, Value>,
+) -> Result<(), OpError> {
+    // A scope comes only from a path checked here, never from the caller.
+    data.remove("scope_key");
+    let Some(raw) = data
+        .get("path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(());
+    };
+    let requested = absolute(Path::new(raw)).map_err(|_| {
+        OpError::new(
+            "scope_not_attached",
+            "path does not belong to an attached group scope",
+        )
+    })?;
+    // A live caller can still send from its own launch root after detach or an
+    // explicit same-key rebind. Attribute that origin before consulting current
+    // configuration. Destination-only validation has no caller and stays strict.
+    if let Some(by) = by
+        && let Some(scope) = crate::ops::actor_runtime::caller_scope(group, by)?
+        && scope.source == "runtime_launch"
+        && requested.starts_with(&scope.path)
+    {
+        data.insert("scope_key".into(), Value::String(scope.scope_key));
+        return Ok(());
+    }
+    let scope = group.scopes.iter().find(|scope| {
+        absolute(Path::new(&scope.url))
+            .is_ok_and(|root| requested == root || requested.starts_with(root))
+    });
+    let Some(scope) = scope else {
+        return Err(OpError::new(
+            "scope_not_attached",
+            "path does not belong to an attached group scope",
+        ));
+    };
+    data.insert("scope_key".into(), Value::String(scope.scope_key.clone()));
+    Ok(())
+}
+
+fn normalize_attachments(
+    home: &HomeLayout,
+    group: &GroupDoc,
+    data: &mut Map<String, Value>,
+) -> Result<(), OpError> {
+    let Some(raw) = data.get("attachments") else {
+        return Ok(());
+    };
+    let items = raw
+        .as_array()
+        .ok_or_else(|| OpError::new("invalid_attachments", "attachments must be an array"))?;
+    for item in items {
+        let object = item.as_object().ok_or_else(|| {
+            OpError::new("invalid_attachments", "each attachment must be an object")
+        })?;
+        let path = object
+            .get("path")
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| OpError::new("invalid_attachments", "attachment path is required"))?;
+        niuma_core::blobs::resolve(home, &group.group_id, path)
+            .map_err(|error| OpError::new("invalid_attachments", error.to_string()))?;
+    }
+    Ok(())
+}
+
+fn absolute(path: &Path) -> std::io::Result<PathBuf> {
+    let path = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()?.join(path)
+    };
+    path.canonicalize()
+}

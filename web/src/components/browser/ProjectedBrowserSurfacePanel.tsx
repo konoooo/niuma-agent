@@ -180,7 +180,7 @@ function formatVncFallbackReason(raw: string, texts: { [key: string]: string }):
   if (lower.includes("x11vnc_not_found")) return texts.viewerReasonX11vncNotFound;
   if (lower.includes("wayland")) return texts.viewerReasonWaylandEnv;
   if (lower.includes("missing_display")) return texts.viewerReasonMissingDisplay;
-  if (lower.includes("display_not_cccc_owned")) return texts.viewerReasonDisplayNotOwned;
+  if (lower.includes("display_not_niuma_owned")) return texts.viewerReasonDisplayNotOwned;
   if (lower.includes("disabled")) return texts.viewerReasonDisabled;
   if (lower.includes("unsupported_platform")) return texts.viewerReasonUnsupportedPlatform;
   if (lower.includes("endpoint did not become ready") || lower.includes("startup_timeout")) {
@@ -338,7 +338,7 @@ export function ProjectedBrowserSurfacePanel({
     viewerReasonDisplayNotOwned:
       labels?.viewerReasonDisplayNotOwned ||
       t("presentationBrowserViewerReasonDisplayNotOwned", {
-        defaultValue: "Display is not CCCC-owned",
+        defaultValue: "Display is not 牛马Agent-owned",
       }),
     viewerReasonDisabled:
       labels?.viewerReasonDisabled ||
@@ -358,7 +358,7 @@ export function ProjectedBrowserSurfacePanel({
       labels?.viewerTooltipIsolationXvfb ||
       t("presentationBrowserViewerTooltipIsolationXvfb", {
         defaultValue:
-          "The browser is running on a CCCC-owned virtual display, not the host desktop.",
+          "The browser is running on a 牛马Agent-owned virtual display, not the host desktop.",
       }),
   };
 
@@ -738,7 +738,7 @@ export function ProjectedBrowserSurfacePanel({
   const vncAvailable = viewerMode === "browser" && browserViewAvailable && !vncFailed;
   const displayIsolated =
     !!sessionState.metadata?.display_owned &&
-    String(sessionState.metadata?.display_owner || "").trim() === "cccc_xvfb";
+    String(sessionState.metadata?.display_owner || "").trim() === "niuma_xvfb";
   const vncFallbackReason = String(sessionState.viewer?.vnc?.error || "").trim();
   const vncFallbackReasonLabel = browserViewAvailable
     ? ""

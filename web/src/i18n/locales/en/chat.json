@@ -153,7 +153,7 @@
   "filterWaitingForYouShort": "Waiting",
   "pendingReply": {
     "loadFailed": "Could not refresh waiting replies. Their status is unknown.",
-    "daemonUnsupported": "The running CCCC daemon does not support Waiting for you; the versions may differ. Finish current work, then run cccc daemon stop on the CCCC host with the same CCCC_HOME and start CCCC again. Remote users should contact an administrator.",
+    "daemonUnsupported": "The running 牛马Agent daemon does not support Waiting for you; the versions may differ. Finish current work, then run niuma-agent daemon stop on the 牛马Agent host with the same NIUMA_HOME and start 牛马Agent again. Remote users should contact an administrator.",
     "empty": "No matching requests are waiting for your reply.",
     "choose": "Choose an answer",
     "recommended": "Recommended",
@@ -279,7 +279,7 @@
     "ambiguous": "Delivery unverified",
     "failed": "Web Model delivery failed",
     "modeTitle": "ChatGPT delivery mode",
-    "modeDescription": "Stored for this agent. Changes apply to the next delivery; CCCC does not switch your ChatGPT model.",
+    "modeDescription": "Stored for this agent. Changes apply to the next delivery; 牛马Agent does not switch your ChatGPT model.",
     "modeStandard": "Standard",
     "modeStandardDescription": "Text-only delivery.",
     "modeImageCompat": "GPT Pro",
@@ -298,13 +298,13 @@
     "mcpStartFirstHint": "Start this Web Model agent before copying its MCP URL.",
     "actorStoppedSurface": "The interactive conversation is unavailable while this agent or its Group is stopped.",
     "browserReadOnly": "The Web Model browser is unavailable in read-only mode.",
-    "permissionHint": "ChatGPT may be waiting for you to approve CCCC app access. Switch to ChatGPT and click Allow; choose Always allow if it is available. After approving, return here to continue.",
+    "permissionHint": "ChatGPT may be waiting for you to approve 牛马Agent app access. Switch to ChatGPT and click Allow; choose Always allow if it is available. After approving, return here to continue.",
     "permissionHintDismiss": "Don't show again",
     "recovery": {
       "open": "Check and resume",
       "title": "Web Model delivery · {{actor}}",
       "instructions": "Check the conversation below. If the message is still in the input box, send it or clear it, then wait for Web Model to finish responding.",
-      "noReplay": "CCCC checks whether this batch was sent and resumes automatically when confirmed. Continuing manually only releases later queued messages; it does not resend this batch or clear the conversation.",
+      "noReplay": "牛马Agent checks whether this batch was sent and resumes automatically when confirmed. Continuing manually only releases later queued messages; it does not resend this batch or clear the conversation.",
       "observing": "Checking for delivery confirmation…",
       "resolved": "The queue can continue. This batch will not be resent.",
       "changed": "The current delivery has changed. This message cannot release a different delivery.",
@@ -824,7 +824,7 @@
   "presentationSnapshotTabLabel": "Snapshot",
   "presentationQuotedSnapshotAlt": "Quoted snapshot",
   "presentationEmbeddedModeHelp": "Standard mode is lightweight. If links jump out or the page cannot load, switch to enhanced mode.",
-  "presentationInteractiveModeHelp": "Enhanced mode works better for local or private pages and tries to keep navigation inside CCCC.",
+  "presentationInteractiveModeHelp": "Enhanced mode works better for local or private pages and tries to keep navigation inside 牛马Agent.",
   "presentationBrowserStarting": "Preparing interactive view...",
   "presentationBrowserReconnecting": "Reconnecting interactive view...",
   "presentationBrowserConnectionFailed": "The interactive connection was rejected. Check the Web session and reverse-proxy Origin headers.",
@@ -851,12 +851,12 @@
   "presentationBrowserViewerReasonX11vncNotFound": "x11vnc not installed",
   "presentationBrowserViewerReasonWaylandEnv": "Wayland env inherited",
   "presentationBrowserViewerReasonMissingDisplay": "No X display",
-  "presentationBrowserViewerReasonDisplayNotOwned": "Display is not CCCC-owned",
+  "presentationBrowserViewerReasonDisplayNotOwned": "Display is not 牛马Agent-owned",
   "presentationBrowserViewerReasonDisabled": "VNC disabled",
   "presentationBrowserViewerReasonUnsupportedPlatform": "Unsupported platform",
   "presentationBrowserViewerReasonStartupTimeout": "VNC startup timeout",
   "presentationBrowserViewerIsolationXvfb": "Xvfb isolated",
-  "presentationBrowserViewerTooltipIsolationXvfb": "The browser is running on a CCCC-owned virtual display, not the host desktop.",
+  "presentationBrowserViewerTooltipIsolationXvfb": "The browser is running on a 牛马Agent-owned virtual display, not the host desktop.",
   "animationOffice": {
     "title": "Agent office",
     "subtitle": "Live group activity and messages",
@@ -1181,6 +1181,6 @@
   "presentation": "Presentation",
   "slashDescriptions": {
     "install": "Install or enable a skill, MCP toolpack, capability, URL, repo, or local path.",
-    "selfEvolution": "Review complete visible CCCC group history and propose confirmed improvements at the prompt, structured-context, workflow, Harness, or optimizer level."
+    "selfEvolution": "Review complete visible 牛马Agent group history and propose confirmed improvements at the prompt, structured-context, workflow, Harness, or optimizer level."
   }
 }

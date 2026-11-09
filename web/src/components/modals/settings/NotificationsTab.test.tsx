@@ -186,9 +186,9 @@ it("subscribes in one gesture when permission, key and manager are already avail
 it("does not prepare a key or subscribe when permission is denied", async () => {
   requestPermission.mockResolvedValue("denied");
   const announced = vi.fn();
-  window.addEventListener("cccc:push-status", announced);
+  window.addEventListener("niuma-agent:push-status", announced);
   await act(async () => button("notifications.enable").click());
-  window.removeEventListener("cccc:push-status", announced);
+  window.removeEventListener("niuma-agent:push-status", announced);
   expect(push.preparePush).not.toHaveBeenCalled();
   expect(push.subscribeFromGesture).not.toHaveBeenCalled();
   expect(status()).toBe("notifications.status.blocked");

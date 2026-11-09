@@ -14,10 +14,10 @@ export type ChetPendingRequest = {
 };
 
 /** The unsent text, kept only in this browser. Its tabs share one draft. */
-export const CHET_DRAFT_KEY = "cccc.chet.draft.v1";
-export const CHET_PENDING_PREFIX = "cccc.chet.pending.";
+export const CHET_DRAFT_KEY = "niuma-agent.chet.draft.v1";
+export const CHET_PENDING_PREFIX = "niuma-agent.chet.pending.";
 /** Where this browser had read history to with the conversation open: the host's cursor. */
-export const CHET_SEEN_KEY = "cccc.chet.seen.v2";
+export const CHET_SEEN_KEY = "niuma-agent.chet.seen.v2";
 
 /** Null when nothing was seen here, or this browser gives no storage access. */
 export function loadChetSeen(): string | null {

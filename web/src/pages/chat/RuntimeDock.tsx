@@ -252,7 +252,7 @@ function RuntimeDockActorButtonView({
   }, [item.actorId, onToneChange, ringTone]);
   useLayoutEffect(() => () => onToneChange?.(item.actorId, null), [item.actorId, onToneChange]);
   const useRuntimeStatus = hasManagedRuntimeOutput(item.actor) || workingState === "error";
-  // A native session runs outside CCCC: name whether it can receive, as the
+  // A native session runs outside 牛马Agent: name whether it can receive, as the
   // Actor tab does, never "Stopped".
   const nativeStatusKey = item.actor.external_session_id
     ? nativeSessionStatusKey(item.actor, groupState)

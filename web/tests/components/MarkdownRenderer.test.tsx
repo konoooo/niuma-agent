@@ -45,11 +45,11 @@ describe("MarkdownRenderer Mermaid contract", () => {
     expect(ordinary).not.toContain("data-mermaid-block");
     expect(ordinary).toContain('class="language-mermaid"');
     expect(enabled).toContain("data-mermaid-block");
-    expect(enabled).toContain("data-cccc-mermaid-toggle");
-    expect(enabled).toContain("data-cccc-mermaid-expand");
-    expect(enabled).toContain("data-cccc-markdown-copy");
-    expect(enabled).toContain("data-cccc-mermaid-target");
-    expect(enabled).toContain("data-cccc-mermaid-source");
+    expect(enabled).toContain("data-niuma-mermaid-toggle");
+    expect(enabled).toContain("data-niuma-mermaid-expand");
+    expect(enabled).toContain("data-niuma-markdown-copy");
+    expect(enabled).toContain("data-niuma-mermaid-target");
+    expect(enabled).toContain("data-niuma-mermaid-source");
     expect(enabled).toContain("Rendering diagram…");
     expect(enabled).toContain("View source");
   });
@@ -85,7 +85,7 @@ describe("MarkdownRenderer Mermaid contract", () => {
     });
 
     const collision = host.querySelector<SVGGElement>("[data-svg-collision=true]")!;
-    const source = host.querySelector<HTMLElement>("[data-cccc-mermaid-source]")!;
+    const source = host.querySelector<HTMLElement>("[data-niuma-mermaid-source]")!;
     const click = new MouseEvent("click", { bubbles: true, cancelable: true });
     let dispatched = true;
     await act(async () => {
@@ -150,9 +150,9 @@ describe("MarkdownRenderer Mermaid contract", () => {
       expect(host.querySelector("[data-preview-diagram=true]")).not.toBeNull();
     });
 
-    const expand = host.querySelector<HTMLButtonElement>("[data-cccc-mermaid-expand]")!;
+    const expand = host.querySelector<HTMLButtonElement>("[data-niuma-mermaid-expand]")!;
     expect(expand.hidden).toBe(false);
-    const target = host.querySelector<HTMLElement>("[data-cccc-mermaid-target]")!;
+    const target = host.querySelector<HTMLElement>("[data-niuma-mermaid-target]")!;
     await act(async () => target.click());
 
     const dialog = document.body.querySelector<HTMLElement>('[role="dialog"]')!;

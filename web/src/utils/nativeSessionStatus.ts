@@ -4,8 +4,8 @@ export const NATIVE_SESSION_AVAILABLE = "nativeSession.available";
 
 /**
  * Status label key, in the actors namespace unless qualified, for an Actor
- * bound to a native session. CCCC does not run that session, so `running`
- * only says whether CCCC can hand it messages; it never means the session or
+ * bound to a native session. 牛马Agent does not run that session, so `running`
+ * only says whether 牛马Agent can hand it messages; it never means the session or
  * its model stopped. Every surface that shows the state uses these keys.
  */
 export function nativeSessionStatusKey(

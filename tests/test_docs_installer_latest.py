@@ -24,7 +24,7 @@ def website(tmp_path):
     (tmp_path / "Cargo.toml").write_text('[workspace.package]\nversion = "0.1.0"\n')
     subprocess.run(
         ["node", str(scripts / "prepare_docs_installers.mjs")], check=True,
-        env={**os.environ, "CCCC_DOCS_INSTALL_VERSION": "0.2.0"},
+        env={**os.environ, "NIUMA_DOCS_INSTALL_VERSION": "0.2.0"},
     )
     targets = {
         ("Darwin", "arm64"): "aarch64-apple-darwin",
@@ -34,11 +34,11 @@ def website(tmp_path):
     if target is None:
         pytest.skip("Unix installer requires a supported host")
     for version in ("1.0.0", "1.1.0", "1.2.0-rc1"):
-        package = f"cccc-v{version}-{target}"
-        binary = tmp_path / package / "cccc"
+        package = f"niuma-v{version}-{target}"
+        binary = tmp_path / package / "niuma-agent"
         binary.parent.mkdir()
         binary.write_text(
-            f'#!/bin/sh\n[ "$1" = "--version" ] || exit 1\necho "cccc {version}"\n'
+            f'#!/bin/sh\n[ "$1" = "--version" ] || exit 1\necho "niuma-agent {version}"\n'
         )
         binary.chmod(0o755)
         release = tmp_path / "releases" / "download" / f"v{version}"
@@ -50,7 +50,7 @@ def website(tmp_path):
         entries = []
         for other in (*targets.values(), "x86_64-pc-windows-msvc"):
             ext = "zip" if other.endswith("msvc") else "tar.gz"
-            entries.append(f'{digest if other == target else "0" * 64}  cccc-v{version}-{other}.{ext}\n')
+            entries.append(f'{digest if other == target else "0" * 64}  niuma-v{version}-{other}.{ext}\n')
         (release / "SHA256SUMS").write_text("".join(entries))
     state = {"latest": "1.0.0", "requests": []}
 
@@ -80,15 +80,15 @@ def website(tmp_path):
         return subprocess.run(
             ["sh", str(tmp_path / "docs/public/install.sh")],
             env={**os.environ, "HOME": str(tmp_path / "home"),
-                 "CCCC_HOME": str(tmp_path / "state"),
-                 "CCCC_INSTALL_DIR": str(tmp_path / "bin"), "CCCC_VERSION": version,
-                 "CCCC_RELEASE_BASE_URL": f"http://127.0.0.1:{server.server_port}/releases",
-                 "CCCC_NO_MODIFY_PATH": "1"},
+                 "NIUMA_HOME": str(tmp_path / "state"),
+                 "NIUMA_INSTALL_DIR": str(tmp_path / "bin"), "NIUMA_VERSION": version,
+                 "NIUMA_RELEASE_BASE_URL": f"http://127.0.0.1:{server.server_port}/releases",
+                 "NIUMA_NO_MODIFY_PATH": "1"},
             capture_output=True, text=True,
         )
 
     try:
-        yield state, install, tmp_path / "bin/cccc"
+        yield state, install, tmp_path / "bin/niuma-agent"
     finally:
         server.shutdown()
         server.server_close()
@@ -101,7 +101,7 @@ def test_website_installer_follows_latest_without_rebuilding(website):
         state["latest"] = version
         result = install()
         assert result.returncode == 0, result.stderr
-        assert subprocess.check_output([str(binary), "--version"], text=True).strip() == f"cccc {version}"
+        assert subprocess.check_output([str(binary), "--version"], text=True).strip() == f"niuma-agent {version}"
     assert state["requests"].count("/releases/latest") == 2
 
 
@@ -111,7 +111,7 @@ def test_explicit_version_bypasses_latest(website, version):
     state["latest"] = None
     result = install(version)
     assert result.returncode == 0, result.stderr
-    assert subprocess.check_output([str(binary), "--version"], text=True).strip() == f"cccc {version.removeprefix('v')}"
+    assert subprocess.check_output([str(binary), "--version"], text=True).strip() == f"niuma-agent {version.removeprefix('v')}"
     assert "/releases/latest" not in state["requests"]
 
 
@@ -132,7 +132,7 @@ def test_failed_latest_resolution_preserves_installed_version(website):
 def test_failed_latest_download_preserves_installation_without_downgrading(website, tmp_path, failure):
     state, install, binary = website
     assert install("1.0.0").returncode == 0
-    marker = binary.with_name(".cccc-standalone")
+    marker = binary.with_name(".niuma-agent-standalone")
     previous = binary.read_bytes(), marker.read_bytes()
     release = tmp_path / "releases/download/v1.1.0"
     archive = next(release.glob("*.tar.gz"))
@@ -152,4 +152,4 @@ def test_failed_latest_download_preserves_installation_without_downgrading(websi
     assert any(path.startswith("/releases/download/v1.1.0/") for path in state["requests"])
     assert not any(path.startswith("/releases/download/v1.0.0/") for path in state["requests"])
     assert (binary.read_bytes(), marker.read_bytes()) == previous
-    assert not binary.with_name(".cccc-install.lock").exists()
+    assert not binary.with_name(".niuma-agent-install.lock").exists()

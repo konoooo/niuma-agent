@@ -11,8 +11,8 @@
 
 [package]
 edition = "2021"
-name = "cccc-pair-sherpa-onnx"
-version = "1.13.4-cccc.1"
+name = "niuma-agent-sherpa-onnx"
+version = "1.13.4-niuma.1"
 build = false
 include = [
     "src/**",
@@ -25,7 +25,7 @@ autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "CCCC-maintained safe wrapper for verified sherpa-onnx native archives"
+description = "牛马Agent-maintained safe wrapper for verified sherpa-onnx native archives"
 readme = "README.md"
 keywords = [
     "speech",
@@ -39,7 +39,7 @@ categories = [
     "multimedia::audio",
 ]
 license = "Apache-2.0"
-repository = "https://github.com/ChesterRa/cccc"
+repository = "https://github.com/konoooo/niuma-agent"
 publish = ["crates-io"]
 
 [package.metadata.docs.rs]
@@ -63,7 +63,7 @@ features = ["derive"]
 version = "1.0"
 
 [dependencies.sherpa-onnx-sys]
-package = "cccc-pair-sherpa-onnx-sys"
-version = "=1.13.4-cccc.1"
+package = "niuma-agent-sherpa-onnx-sys"
+version = "=1.13.4-niuma.1"
 path = "../sherpa-onnx-sys"
 default-features = false

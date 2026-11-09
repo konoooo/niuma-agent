@@ -41,7 +41,7 @@ describe("composer message mode preference", () => {
   });
 
   it("restores the last valid browser preference and rejects malformed values", async () => {
-    storage.setItem("cccc-composer-message-mode", "mail");
+    storage.setItem("niuma-composer-message-mode", "mail");
     let mod = await import("../../src/stores/useComposerStore");
     expect(mod.useComposerStore.getState()).toMatchObject({
       preferredMessageMode: "mail",

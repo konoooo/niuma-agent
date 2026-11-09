@@ -1,6 +1,6 @@
 # IM Bridge Overview
 
-Bridge your CCCC working group to popular IM platforms for mobile access.
+Bridge your 牛马Agent working group to popular IM platforms for mobile access.
 
 ## What is IM Bridge?
 
@@ -56,11 +56,11 @@ the same setting. Each chat or thread keeps its own delivery preference.
 ::: tip Implicit Send
 On platforms that support group chats, @mentioning the bot, or sending a direct message with plain text, is automatically treated as `/send` to the **foreman**. You only need the explicit `/send` command when targeting specific agents.
 
-A recognized CCCC slash command is itself an explicit bot address and may be sent without an @mention on group providers that deliver it. Ordinary group text and attachments still require an explicit @mention. The native worker applies this rule consistently, including for Feishu, to avoid a provider-specific command policy.
+A recognized 牛马Agent slash command is itself an explicit bot address and may be sent without an @mention on group providers that deliver it. Ordinary group text and attachments still require an explicit @mention. The native worker applies this rule consistently, including for Feishu, to avoid a provider-specific command policy.
 :::
 
 The legacy `/context`, `/launch`, and `/quit` commands are retired; use Web or
-the CCCC CLI for lifecycle control. The low-level
+the 牛马Agent CLI for lifecycle control. The low-level
 `skip_pending_on_start=false` backlog-replay policy is also outside the product
 contract. A legacy value is normalized away and the native worker starts at the
 current ledger boundary, so an old setting cannot prevent IM startup after
@@ -77,7 +77,7 @@ On platforms using explicit chat authorization, plain text is not forwarded befo
 Telegram topics, Slack threads, Feishu reply threads, and Discord thread channels retain their native target when a subscription is approved. `system.notify` is fail-closed: it never leaves the group unless its producer explicitly sets `im_visibility: "public"`, and actor-targeted notifications remain internal regardless of that flag.
 
 Progressive output is an optimization, not the durability boundary. If a
-provider cannot start or finalize an editable message, CCCC sends the completed
+provider cannot start or finalize an editable message, 牛马Agent sends the completed
 response normally. If the completed response exceeds the provider's
 single-message limit, the final fallback is split on Unicode-safe boundaries
 and every chunk is delivered; a truncated progressive preview never suppresses
@@ -86,7 +86,7 @@ limits while the final frame is always sent.
 
 ::: warning One active worker per bot credential
 Do not leave a 0.4.35 worker running during an upgrade, or assign the same bot
-credential to multiple CCCC groups. Providers may distribute callbacks between
+credential to multiple 牛马Agent groups. Providers may distribute callbacks between
 those workers, so a command can be answered by one group while the next
 plain-text message reaches another. If the reply names the wrong group, stop the
 stale worker or correct the credential assignment before approving access.
@@ -98,25 +98,25 @@ Reserve `/send @all <message>` for true broadcasts, announcements, or urgent sha
 
 ```bash
 # Configure (platform-specific, see each guide)
-cccc im set <platform> --token-env <ENV_VAR>
+niuma-agent im set <platform> --token-env <ENV_VAR>
 
 # Control
-cccc im start        # Start IM bridge
-cccc im stop         # Stop IM bridge
-cccc im status       # Check bridge status
-cccc im logs         # View logs
-cccc im logs -f      # Follow logs
+niuma-agent im start        # Start IM bridge
+niuma-agent im stop         # Stop IM bridge
+niuma-agent im status       # Check bridge status
+niuma-agent im logs         # View logs
+niuma-agent im logs -f      # Follow logs
 ```
 
 ::: tip WeCom Note
-WeCom currently uses the same start/stop/status CLI controls, but credentials are configured through the Web UI rather than `cccc im set`.
+WeCom currently uses the same start/stop/status CLI controls, but credentials are configured through the Web UI rather than `niuma-agent im set`.
 :::
 
 ## Quick Start
 
 1. Choose a platform from the list above
 2. Follow the setup guide to create a bot
-3. Configure CCCC with the bot credentials
+3. Configure 牛马Agent with the bot credentials
 4. Start the bridge and authorize the chat: confirm the QR login for Weixin, or run `/subscribe` and approve the binding request on other platforms
 
 ## Next Steps

@@ -64,7 +64,7 @@ function sameEnvelope(left: unknown, right: unknown): boolean {
   return (
     a?.type === b?.type &&
     a?.delegation_item_id === b?.delegation_item_id &&
-    a?._cccc_result_id === b?._cccc_result_id
+    a?._niuma_result_id === b?._niuma_result_id
   );
 }
 
@@ -127,7 +127,7 @@ export class CodexVoiceProviderChannel {
 
   send(command: unknown, resultId?: string): void {
     if (this.stopping()) return;
-    if (resultId) command = { ...asRecord(command), _cccc_result_id: resultId };
+    if (resultId) command = { ...asRecord(command), _niuma_result_id: resultId };
     if (speakableText(command) !== null) {
       if (this.output.length >= MAX_UNCONFIRMED_CONTEXTS) {
         this.rejectOverflow(command);
@@ -158,9 +158,9 @@ export class CodexVoiceProviderChannel {
       const contextCommand =
         type === "session.context.append" || type === "delegation.context.append";
       const envelope = asRecord(command);
-      const resultId = envelope?._cccc_result_id;
+      const resultId = envelope?._niuma_result_id;
       const wireCommand = envelope ? { ...envelope } : command;
-      if (asRecord(wireCommand)) delete (wireCommand as Record<string, unknown>)._cccc_result_id;
+      if (asRecord(wireCommand)) delete (wireCommand as Record<string, unknown>)._niuma_result_id;
       const frames = contextFrames(wireCommand);
       // Reserve receipt capacity for the entire output before sending any part.
       if (contextCommand && this.unconfirmed.length + frames.length > MAX_UNCONFIRMED_CONTEXTS) {
@@ -193,7 +193,7 @@ export class CodexVoiceProviderChannel {
   private rejectOverflow(command: unknown): void {
     // Failure synchronously initiates orderly stop. Retain the rejected ID for
     // that report without growing the bounded queue or retaining its payload.
-    const id = asRecord(command)?._cccc_result_id;
+    const id = asRecord(command)?._niuma_result_id;
     this.rejectedResultId = typeof id === "string" ? id : null;
     this.fail("provider_command_overflow");
   }
@@ -259,7 +259,7 @@ export class CodexVoiceProviderChannel {
       ...new Set(
         [
           ...[...this.output, this.preparingOutput].map(
-            (command) => asRecord(command)?._cccc_result_id,
+            (command) => asRecord(command)?._niuma_result_id,
           ),
           this.rejectedResultId,
         ].filter((id): id is string => typeof id === "string"),
@@ -296,7 +296,7 @@ export class CodexVoiceProviderChannel {
         this.output.shift();
       }
       let command: unknown = { ...asRecord(first), content: [{ type: "input_text", text }] };
-      const resultId = asRecord(first)?._cccc_result_id;
+      const resultId = asRecord(first)?._niuma_result_id;
       const channel = this.channel;
       if (typeof resultId === "string" && this.prepareOutput) {
         this.preparingOutput = command;
@@ -325,7 +325,7 @@ export class CodexVoiceProviderChannel {
             return;
           }
           if (speakableText(prepared) === null) throw new Error("invalid prepared Voice output");
-          command = { ...asRecord(prepared), _cccc_result_id: resultId };
+          command = { ...asRecord(prepared), _niuma_result_id: resultId };
         } catch (error) {
           if (this.channel === channel && !this.stopping()) {
             this.output.unshift(command);

@@ -1,0 +1,225 @@
+use axum::extract::ws::{Message, WebSocket};
+use axum::extract::{Request, State};
+use axum::http::{Method, StatusCode};
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use serde_json::json;
+
+use crate::AppState;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum WebMode {
+    #[default]
+    Normal,
+    Exhibit,
+}
+
+impl WebMode {
+    pub fn from_env() -> Self {
+        let mode = std::env::var("NIUMA_WEB_MODE").unwrap_or_default();
+        let read_only = std::env::var("NIUMA_WEB_READONLY").unwrap_or_default();
+        Self::from_values(&mode, &read_only)
+    }
+
+    fn from_values(mode: &str, read_only: &str) -> Self {
+        if matches!(
+            mode.trim().to_ascii_lowercase().as_str(),
+            "exhibit" | "readonly" | "read-only" | "ro"
+        ) || truthy(read_only)
+        {
+            Self::Exhibit
+        } else {
+            Self::Normal
+        }
+    }
+
+    pub(crate) fn is_read_only(self) -> bool {
+        self == Self::Exhibit
+    }
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Normal => "normal",
+            Self::Exhibit => "exhibit",
+        }
+    }
+}
+
+pub(crate) fn exhibit_allow_terminal_from_env() -> bool {
+    truthy(&std::env::var("NIUMA_WEB_EXHIBIT_ALLOW_TERMINAL").unwrap_or_default())
+}
+
+pub(crate) async fn reject_socket(mut socket: WebSocket, code: &str, message: &str) {
+    let _ = socket
+        .send(Message::Text(
+            json!({
+                "ok": false,
+                "error": {"code": code, "message": message, "details": {}}
+            })
+            .to_string()
+            .into(),
+        ))
+        .await;
+    let _ = socket.send(Message::Close(None)).await;
+}
+
+pub async fn guard(State(state): State<AppState>, request: Request, next: Next) -> Response {
+    if state.web_mode.is_read_only() && !is_read_only_safe(request.method(), request.uri().path()) {
+        return read_only_response();
+    }
+    next.run(request).await
+}
+
+fn is_read_only_safe(method: &Method, path: &str) -> bool {
+    match *method {
+        Method::GET | Method::HEAD => !is_mutating_get(path) && !is_user_obligation_get(path),
+        Method::OPTIONS => true,
+        _ => false,
+    }
+}
+
+fn is_mutating_get(path: &str) -> bool {
+    matches!(path, "/api/v1/registry/reconcile" | "/api/v1/fs/scope_root")
+        || (path.contains("/codex_voice/calls/") && path.ends_with("/events"))
+        || path
+            .strip_prefix("/nomcp/s/")
+            .and_then(|rest| rest.strip_suffix("/send"))
+            .is_some_and(|session_id| !session_id.is_empty() && !session_id.contains('/'))
+        // The Voice Secretary's socket upgrade is a GET, but the session saves
+        // recordings and appends transcripts.
+        || path
+            .strip_prefix("/api/v1/groups/")
+            .and_then(|rest| rest.split_once('/'))
+            .is_some_and(|(group_id, tail)| {
+                !group_id.is_empty() && tail == "assistants/voice_secretary/transcriptions/ws"
+            })
+}
+
+/// The user's open reply requests, message pins and notification subscriptions.
+/// An exhibit's viewers are spectators, not the Group's user, so these reads
+/// are refused there, not only the changes.
+fn is_user_obligation_get(path: &str) -> bool {
+    path.starts_with("/api/v1/process-recovery/")
+        || path.starts_with("/api/v1/chet/")
+        || path == "/api/v1/reply-requests/summary"
+        || path == "/api/v1/push/config"
+        || path
+            .strip_prefix("/api/v1/groups/")
+            .and_then(|rest| rest.split_once('/'))
+            .is_some_and(|(group_id, tail)| {
+                !group_id.is_empty() && matches!(tail, "reply-requests/pending" | "pins")
+            })
+}
+
+fn read_only_response() -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        axum::Json(json!({
+            "ok": false,
+            "error": {
+                "code": "read_only",
+                "message": "牛马Agent Web is running in read-only (exhibit) mode.",
+                "details": {}
+            }
+        })),
+    )
+        .into_response()
+}
+
+fn truthy(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "y" | "on"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truthy_values_match_legacy_web() {
+        for value in ["1", "true", "YES", "y", "on"] {
+            assert!(truthy(value));
+        }
+        assert!(!truthy("false"));
+        assert_eq!(WebMode::from_values("exhibit", ""), WebMode::Exhibit);
+        assert_eq!(WebMode::from_values("normal", "yes"), WebMode::Exhibit);
+        assert_eq!(WebMode::from_values("normal", "0"), WebMode::Normal);
+        assert_eq!(WebMode::Normal.as_str(), "normal");
+        assert_eq!(WebMode::Exhibit.as_str(), "exhibit");
+    }
+
+    #[test]
+    fn read_only_safety_blocks_mutating_get_routes() {
+        for path in [
+            "/api/v1/registry/reconcile",
+            "/nomcp/s/session-1/send",
+            "/api/v1/codex_voice/calls/generation/events",
+            "/api/v1/groups/g_1/assistants/voice_secretary/transcriptions/ws",
+        ] {
+            assert!(!is_read_only_safe(&Method::GET, path), "{path}");
+        }
+        for path in [
+            "/api/v1/groups//assistants/voice_secretary/transcriptions/ws",
+            "/api/v1/groups/g_1/assistants/voice_secretary/transcriptions",
+        ] {
+            assert!(is_read_only_safe(&Method::GET, path), "{path}");
+        }
+        assert!(!is_read_only_safe(
+            &Method::HEAD,
+            "/api/v1/registry/reconcile"
+        ));
+        assert!(is_read_only_safe(&Method::GET, "/api/v1/ping"));
+        assert!(is_read_only_safe(
+            &Method::GET,
+            "/nomcp/s/session-1/context"
+        ));
+    }
+
+    #[test]
+    fn read_only_refuses_the_users_reply_requests() {
+        for path in [
+            "/api/v1/reply-requests/summary",
+            "/api/v1/groups/g_1/reply-requests/pending",
+        ] {
+            assert!(!is_read_only_safe(&Method::GET, path), "{path}");
+        }
+        assert!(is_read_only_safe(
+            &Method::GET,
+            "/api/v1/groups/g_1/ledger/tail"
+        ));
+    }
+
+    #[test]
+    fn read_only_refuses_message_pins_for_reads_and_writes() {
+        for method in [Method::GET, Method::HEAD, Method::POST] {
+            assert!(!is_read_only_safe(&method, "/api/v1/groups/g_1/pins"));
+        }
+    }
+
+    #[test]
+    fn read_only_refuses_private_recovery_records_even_for_reads() {
+        for method in [Method::GET, Method::HEAD, Method::POST] {
+            for suffix in ["daemon", "web", "web/retry", "web/accept"] {
+                assert!(!is_read_only_safe(
+                    &method,
+                    &format!("/api/v1/process-recovery/{suffix}")
+                ));
+            }
+        }
+    }
+
+    #[test]
+    fn read_only_refuses_chet_history_and_inputs() {
+        for method in [Method::GET, Method::HEAD, Method::POST] {
+            for path in [
+                "/api/v1/chet/history",
+                "/api/v1/chet/status",
+                "/api/v1/chet/inputs",
+            ] {
+                assert!(!is_read_only_safe(&method, path), "{path}");
+            }
+        }
+    }
+}

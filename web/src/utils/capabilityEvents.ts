@@ -1,5 +1,5 @@
-export const CAPABILITY_CHANGED_EVENT = "cccc:capability-changed";
-export const CAPABILITY_CHANGED_STORAGE_KEY = "cccc:capability-changed";
+export const CAPABILITY_CHANGED_EVENT = "niuma-agent:capability-changed";
+export const CAPABILITY_CHANGED_STORAGE_KEY = "niuma-agent:capability-changed";
 
 type CapabilityChangedPayload = { group_id: string; nonce?: string };
 

@@ -1,0 +1,59 @@
+[package]
+name = "niuma-agent-daemon"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Native daemon and control-plane operations for 牛马Agent"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+niuma-client = { package = "niuma-agent-client", version = "=0.4.49", path = "../niuma-client" }
+niuma-contracts = { package = "niuma-agent-contracts", version = "=0.4.49", path = "../niuma-contracts" }
+niuma-core = { package = "niuma-agent-core", version = "=0.4.49", path = "../niuma-core" }
+niuma-notebooklm = { package = "niuma-agent-notebooklm", version = "=0.4.49", path = "../niuma-notebooklm" }
+niuma-runtime = { package = "niuma-agent-runtime", version = "=0.4.49", path = "../niuma-runtime" }
+chrono.workspace = true
+fs2.workspace = true
+futures-util.workspace = true
+mime_guess.workspace = true
+nix = { workspace = true, features = ["hostname", "signal", "process", "feature"] }
+percent-encoding.workspace = true
+regex.workspace = true
+same-file.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+sha2.workspace = true
+sha1.workspace = true
+shell-words.workspace = true
+tempfile.workspace = true
+tokio.workspace = true
+tokio-tungstenite.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+unicode-width.workspace = true
+url.workspace = true
+uuid.workspace = true
+zip.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+win32job.workspace = true
+
+[dev-dependencies]
+axum.workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1.1.4", features = ["event", "process"] }
+
+[lints]
+workspace = true
+
+[lib]
+name = "niuma_daemon"

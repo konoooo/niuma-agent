@@ -114,7 +114,7 @@ describe("useUIStore sidebar width", () => {
 
   it("ignores legacy persisted scroll snapshots on reload", async () => {
     localStorageMock.setItem(
-      "cccc-chat-sessions",
+      "niuma-chat-sessions",
       JSON.stringify({
         "g-demo": {
           chatFilter: "all",
@@ -131,7 +131,7 @@ describe("useUIStore sidebar width", () => {
 
   it("ignores obsolete runtime dock payloads on reload", async () => {
     localStorageMock.setItem(
-      "cccc-chat-sessions",
+      "niuma-chat-sessions",
       JSON.stringify({
         "g-demo": { runtimeDockExpanded: 1, runtimeDockFocusedActorId: { actor: "coder" } },
       }),
@@ -172,7 +172,7 @@ describe("Group work view preferences", () => {
   });
   it("ignores malformed preferences and never treats hidden messages as visible", async () => {
     localStorageMock.setItem(
-      "cccc-chat-sessions",
+      "niuma-chat-sessions",
       JSON.stringify({
         g1: { workView: {}, terminalPage: -8 },
         g2: { workView: "terminals", terminalPage: 1.5 },
@@ -266,12 +266,12 @@ describe("Group voice preferences", () => {
     expect(effective("A", "ja-JP")).toBe("auto");
     expect(effective("B", "ja-JP")).toBe("ja-JP");
     expect(effective("B", "en-US")).toBe("en-US");
-    expect(localStorageMock.getItem("cccc-chat-sessions")).not.toContain('"B"');
+    expect(localStorageMock.getItem("niuma-chat-sessions")).not.toContain('"B"');
   });
 
   it("uses safe defaults for malformed persisted preferences and keeps unrelated UI state", async () => {
     localStorageMock.setItem(
-      "cccc-chat-sessions",
+      "niuma-chat-sessions",
       JSON.stringify({
         A: {
           voiceCaptureMode: "invalid",

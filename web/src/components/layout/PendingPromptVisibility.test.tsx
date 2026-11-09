@@ -97,7 +97,7 @@ it("hides pending summaries on the sidebar, collapsed rail and phone entry witho
   } finally {
     await act(async () => root.unmount());
     useUIStore.setState({ showPendingPrompts: true });
-    localStorage.removeItem("cccc-pending-prompts");
+    localStorage.removeItem("niuma-pending-prompts");
     host.remove();
   }
 });

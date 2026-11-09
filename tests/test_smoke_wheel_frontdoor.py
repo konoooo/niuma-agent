@@ -23,7 +23,7 @@ def test_run_captures_combined_output_without_a_pipe() -> None:
 
 
 def test_linux_zombie_is_treated_as_exited() -> None:
-    stat = "9659 (cccc daemon) Z 1 9659 9659 0 -1 4227084"
+    stat = "9659 (niuma-agent daemon) Z 1 9659 9659 0 -1 4227084"
 
     with (
         patch("scripts.tests.smoke_wheel_frontdoor.os.name", "posix"),

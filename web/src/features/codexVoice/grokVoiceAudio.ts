@@ -4,7 +4,7 @@ const SAMPLE_RATE = 24_000;
 const MAX_QUEUED_SECONDS = 120;
 const PLAYBACK_BUFFER_SECONDS = 0.06;
 
-/** Browser-owned capture and playback. Generated audio is never sent to CCCC. */
+/** Browser-owned capture and playback. Generated audio is never sent to 牛马Agent. */
 export class GrokVoiceAudio {
   private readonly context: AudioContext;
   private readonly destination: MediaStreamAudioDestinationNode;
@@ -39,7 +39,7 @@ export class GrokVoiceAudio {
     await this.ready;
     if (this.closed) return;
     this.source = this.context.createMediaStreamSource(stream);
-    this.capture = new AudioWorkletNode(this.context, "cccc-grok-voice-capture", {
+    this.capture = new AudioWorkletNode(this.context, "niuma-grok-voice-capture", {
       channelCount: 1,
       channelCountMode: "explicit",
       outputChannelCount: [1],

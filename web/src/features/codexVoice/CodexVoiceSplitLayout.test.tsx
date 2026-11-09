@@ -7,7 +7,7 @@ import { CodexVoiceSplitLayout } from "./CodexVoiceSplitLayout";
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
   true;
-const storageKey = "cccc.codexVoice.splitRatio.v1";
+const storageKey = "niuma-agent.codexVoice.splitRatio.v1";
 let root: Root;
 let host: HTMLDivElement;
 let resize: () => void;

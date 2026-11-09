@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { Actor } from "../../types";
 
-/** What to do while Claude's prompt waits in this terminal, or after it closed before CCCC
+/** What to do while Claude's prompt waits in this terminal, or after it closed before 牛马Agent
  *  connected; the header already names the state. The terminal stays the user's own control
  *  surface. A read-only viewer has no Launch control, so the paused case says nothing more. */
 export function ActorRuntimeConfirmationNotice({

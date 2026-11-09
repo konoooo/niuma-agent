@@ -17,7 +17,7 @@ _REPOSITORIES = {
     "pypi": ("https://pypi.org/pypi", "https://upload.pypi.org/legacy/"),
     "testpypi": ("https://test.pypi.org/pypi", "https://test.pypi.org/legacy/"),
 }
-_PROJECT = "cccc-pair"
+_PROJECT = "niuma-agent"
 
 
 def existing_hashes(repository: str) -> dict[str, str]:

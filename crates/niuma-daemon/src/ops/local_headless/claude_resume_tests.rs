@@ -1,0 +1,882 @@
+//! Exercise real Actor lifecycle/delivery against a local Agent View fixture, no provider tasks.
+use niuma_contracts::{Actor, ActorRuntime, DaemonRequest, Event};
+use niuma_core::{GroupDoc, GroupStore, HomeLayout, ledger};
+use serde_json::{Value, json};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    process::Child,
+    sync::atomic::AtomicBool,
+    time::{Duration, Instant},
+};
+
+const SAVED: &str = "52b41c61-e23c-4b7c-8b60-809c347451b5";
+const PRIVATE_AUTH: &str = "synthetic-private-confirmation-token-3598";
+const PRIVATE_ROUTE: &str = "https://synthetic-provider.invalid/v1";
+
+#[path = "claude_confirmation_tests.rs"]
+mod confirmation;
+
+fn isolated(test: &str) -> bool {
+    isolated_with_config_dir(test, true)
+}
+
+fn isolated_with_config_dir(test: &str, configured: bool) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    const CHILD: &str = "NIUMA_TEST_CLAUDE_RESUME";
+    if std::env::var(CHILD).ok().as_deref() == Some(test) {
+        return false;
+    }
+    let temp = tempfile::tempdir().expect("isolated test process");
+    // The fixture never invokes MCP. Supply a private public-launcher path so
+    // native launch setup does not depend on a user's installed 牛马Agent executable.
+    let launcher = temp.path().join("niuma-agent");
+    std::fs::write(&launcher, "#!/bin/sh\nexit 0\n").expect("fixture 牛马Agent launcher");
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755))
+        .expect("launcher permissions");
+    let mut command = std::process::Command::new(std::env::current_exe().expect("test executable"));
+    command
+        .args([
+            &format!("ops::local_headless::claude_resume_tests::{test}"),
+            "--exact",
+            "--nocapture",
+        ])
+        .env(CHILD, test)
+        .env("NIUMA_LAUNCHER_PATH", &launcher)
+        .env("NIUMA_HOME", temp.path().join("home"))
+        .env("CODEX_HOME", temp.path().join("codex"))
+        .env("CLAUDE_CODE_CUSTOM_OAUTH_URL", "https://synthetic.invalid");
+    if configured {
+        command.env("CLAUDE_CONFIG_DIR", temp.path().join("claude"));
+    } else {
+        command.env_remove("CLAUDE_CONFIG_DIR");
+    }
+    let output = command.output().expect("isolated fixture test");
+    crate::ops::isolated_test::assert_one_passed(output, test);
+    true
+}
+
+struct Fixture {
+    _temp: tempfile::TempDir,
+    home: HomeLayout,
+    group: GroupDoc,
+    actor: Actor,
+    config: PathBuf,
+    server: Child,
+    control: PathBuf,
+}
+
+impl Fixture {
+    fn new(mode: &str) -> Self {
+        Self::with_config_dir(mode, true)
+    }
+
+    fn with_config_dir(mode: &str, configured: bool) -> Self {
+        use sha2::{Digest, Sha256};
+        use std::os::unix::{fs::MetadataExt, fs::PermissionsExt};
+        let temp = tempfile::tempdir().expect("fixture");
+        let config = temp.path().join(if configured {
+            "claude-config"
+        } else {
+            "provider-home/.claude"
+        });
+        let workspace = temp.path().join("workspace");
+        std::fs::create_dir_all(&config).expect("isolated provider config");
+        std::fs::create_dir(&workspace).expect("workspace");
+        let executable = temp.path().join("claude");
+        std::fs::write(&executable, include_str!("../fixtures/claude_resume.py"))
+            .expect("fixture CLI");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755))
+            .expect("executable");
+        std::fs::write(config.join("mode"), mode).expect("mode");
+        if mode != "missing_history" {
+            let history = config
+                .join("projects/workspace")
+                .join(format!("{SAVED}.jsonl"));
+            std::fs::create_dir_all(history.parent().expect("history parent"))
+                .expect("history store");
+            std::fs::write(history, format!("{}\n", json!({"type":"user","uuid":"original-history","sessionId":SAVED,"message":{"content":"original history"}}))).expect("saved history");
+        }
+        let home = HomeLayout::from_path(temp.path().join("home")).expect("home");
+        let store = GroupStore::new(home.clone()).expect("store");
+        let mut group = store.create("Claude resume fixture", "").expect("group");
+        group = niuma_core::group_scope::attach(
+            &store,
+            &group.group_id,
+            niuma_core::scope::detect(&workspace).expect("fixture scope"),
+        )
+        .expect("attach workspace");
+        let mut actor = Actor::new("claude-1");
+        actor.runtime = ActorRuntime::Claude;
+        actor.command = vec![executable.to_string_lossy().into_owned()];
+        actor.env = BTreeMap::from([
+            (
+                "HOME".into(),
+                temp.path()
+                    .join("provider-home")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            ("PATH".into(), std::env::var("PATH").unwrap_or_default()),
+        ]);
+        if configured {
+            actor.env.insert(
+                "CLAUDE_CONFIG_DIR".into(),
+                config.to_string_lossy().into_owned(),
+            );
+        }
+        group.actors.push(actor.clone());
+        group.running = true;
+        store.save(&group).expect("save group");
+        let private = BTreeMap::from([
+            ("ANTHROPIC_AUTH_TOKEN".into(), PRIVATE_AUTH.into()),
+            ("ANTHROPIC_BASE_URL".into(), PRIVATE_ROUTE.into()),
+        ]);
+        super::super::actor_secrets::replace(&home, &group.group_id, &actor.id, private.clone())
+            .expect("isolated private provider environment");
+        let mut environment = actor.env.clone();
+        environment.extend(private);
+        super::super::codex_mcp::configure_actor_cli(&mut environment);
+        environment.insert(
+            "NIUMA_HOME".into(),
+            home.root().to_string_lossy().into_owned(),
+        );
+        environment.insert("NIUMA_GROUP_ID".into(), group.group_id.clone());
+        environment.insert("NIUMA_ACTOR_ID".into(), actor.id.clone());
+        super::super::runtime_session::record_claude_managed_session(
+            &home,
+            &group.group_id,
+            &actor.id,
+            &workspace,
+            &actor.command,
+            &environment,
+            SAVED,
+            false,
+        )
+        .expect("saved receipt");
+        let canonical = config.canonicalize().expect("canonical config");
+        let digest = format!(
+            "{:x}",
+            Sha256::digest(canonical.to_string_lossy().as_bytes())
+        );
+        let control = PathBuf::from("/tmp")
+            .join(format!(
+                "cc-daemon-{}",
+                canonical.metadata().expect("metadata").uid()
+            ))
+            .join(&digest[..8]);
+        let server = std::process::Command::new("python3")
+            .arg(&executable)
+            .arg("server")
+            .arg(&config)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("fixture control server");
+        let fixture = Self {
+            _temp: temp,
+            home,
+            group,
+            actor,
+            config,
+            server,
+            control,
+        };
+        fixture.wait(|| fixture.config.join("ready").exists());
+        fixture
+    }
+
+    #[track_caller]
+    fn wait(&self, mut ready: impl FnMut() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        while !ready() {
+            assert!(
+                Instant::now() < deadline,
+                "fixture deadline elapsed: mode={:?}, prompt={:?}, launches={}, managed={}, waiting={:?}, terminal={:?}, contexts={:?}",
+                std::fs::read_to_string(self.config.join("mode")),
+                std::fs::read_to_string(self.config.join("prompt_stage")),
+                self.launches(),
+                super::running(&self.group.group_id, &self.actor.id),
+                super::waiting_for_workspace_trust(&self.group.group_id, &self.actor.id),
+                niuma_runtime::status(&self.group.group_id, &self.actor.id),
+                std::fs::read_to_string(self.config.join("launch_contexts"))
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+
+    fn receipt(&self) -> Value {
+        niuma_core::fs::read_json(&self.receipt_path()).expect("receipt")
+    }
+
+    fn receipt_path(&self) -> PathBuf {
+        self.home
+            .groups_dir()
+            .join(&self.group.group_id)
+            .join("state/runtime_sessions/claude-1.json")
+    }
+
+    fn assert_launch_contexts_match(&self) {
+        let prompt: Value = niuma_core::fs::read_json(&self.config.join("prompt_launch.json"))
+            .expect("read confirmation launch");
+        self.assert_private_settings(&prompt);
+        assert!(
+            prompt["host_oauth_url"].is_null(),
+            "confirmation inherited the synthetic host OAuth override"
+        );
+        for line in std::fs::read_to_string(self.config.join("launch_contexts"))
+            .expect("read fixture launch contexts")
+            .lines()
+        {
+            let background: Value = serde_json::from_str(line).expect("parse launch context");
+            if background["settings_arg"] == true {
+                self.assert_private_settings(&background);
+            }
+            assert!(
+                background["host_oauth_url"].is_null(),
+                "background inherited the synthetic host OAuth override"
+            );
+            for key in [
+                "executable",
+                "cwd",
+                "config_dir",
+                "config_dir_env",
+                "home",
+                "userprofile",
+            ] {
+                assert_eq!(
+                    background[key], prompt[key],
+                    "background and PTY differ at {key}"
+                );
+            }
+        }
+    }
+
+    fn delivery_state(&self, event_id: &str) -> Option<String> {
+        super::super::runtime_delivery::latest_state(
+            &self.home,
+            &self.group.group_id,
+            &self.actor.id,
+            event_id,
+        )
+        .expect("delivery projection")
+        .map(|(state, _)| state)
+    }
+
+    fn assert_private_settings(&self, context: &Value) {
+        use sha2::Digest;
+        assert_eq!(context["settings_arg"], true);
+        assert_eq!(context["private_settings"], true);
+        for (key, value) in [
+            ("auth_digest", PRIVATE_AUTH),
+            ("routing_digest", PRIVATE_ROUTE),
+        ] {
+            let digest = format!("{:x}", sha2::Sha256::digest(value.as_bytes()));
+            assert_eq!(
+                context[key].as_str(),
+                Some(digest.as_str()),
+                "private {key} did not reach the provider"
+            );
+        }
+    }
+
+    fn assert_no_private_output(&self, response: &niuma_contracts::DaemonResponse) {
+        let listing = self.lifecycle("actor_list");
+        assert!(listing.ok, "actor_list failed");
+        let store = GroupStore::new(self.home.clone()).expect("store");
+        let events = ledger::read_all(
+            &store
+                .ledger_path(&self.group.group_id)
+                .expect("fixture ledger path"),
+        )
+        .expect("read fixture ledger");
+        for (surface, text) in [
+            (
+                "response",
+                serde_json::to_string(response).expect("serialize response"),
+            ),
+            (
+                "actor_list",
+                serde_json::to_string(&listing).expect("serialize actor list"),
+            ),
+            (
+                "ledger",
+                serde_json::to_string(&events).expect("serialize ledger"),
+            ),
+        ] {
+            for secret in [PRIVATE_AUTH, PRIVATE_ROUTE] {
+                assert!(
+                    !text.contains(secret),
+                    "private fixture environment leaked through {surface}"
+                );
+            }
+        }
+    }
+
+    fn lifecycle(&self, op: &str) -> niuma_contracts::DaemonResponse {
+        crate::handle_request(
+            &self.home,
+            &DaemonRequest {
+                v: 1,
+                op: op.into(),
+                args: json!({"group_id":self.group.group_id,"actor_id":self.actor.id,"by":"user"})
+                    .as_object()
+                    .expect("arguments")
+                    .clone(),
+            },
+        )
+    }
+
+    fn launches(&self) -> usize {
+        std::fs::read_to_string(self.config.join("launches"))
+            .unwrap_or_default()
+            .lines()
+            .count()
+    }
+
+    fn delivery(&self) -> crate::ops::actor_delivery::DeliveryJob {
+        let mut event = Event::new("chat.message", &self.group.group_id);
+        event.by = "user".into();
+        event.data = json!({"to":[self.actor.id],"text":"PENDING_TASK","message_mode":"send"})
+            .as_object()
+            .expect("data")
+            .clone();
+        let store = GroupStore::new(self.home.clone()).expect("store");
+        ledger::append(
+            &store
+                .ledger_path(&self.group.group_id)
+                .expect("ledger path"),
+            &event,
+        )
+        .expect("pending message");
+        crate::ops::actor_delivery::DeliveryJob {
+            home: self.home.clone(),
+            group: self.group.clone(),
+            actor: self.actor.clone(),
+            event,
+            claimed: true,
+            transport: "managed_session",
+        }
+    }
+}
+
+impl Drop for Fixture {
+    fn drop(&mut self) {
+        super::super::actor_delivery::shutdown_actor(&self.group.group_id, &self.actor.id);
+        let _ = super::super::actor_runtime::apply(
+            &self.home,
+            &self.group,
+            &self.actor.id,
+            "actor.stop",
+        );
+        let _ = self.server.kill();
+        let _ = self.server.wait();
+        let _ = std::fs::remove_dir_all(&self.control);
+    }
+}
+
+#[test]
+fn copied_claude_resume_stops_auto_wake_and_explicit_retry_delivers_the_original_message() {
+    if isolated(
+        "copied_claude_resume_stops_auto_wake_and_explicit_retry_delivers_the_original_message",
+    ) {
+        return;
+    }
+    let f = Fixture::new("copied");
+    let job = f.delivery();
+    let handled = super::super::actor_delivery_worker::process_batch(
+        &mut vec![job.clone()],
+        &mut String::new(),
+        &AtomicBool::new(false),
+    );
+    assert_eq!(
+        handled,
+        crate::ops::actor_delivery_worker::BatchOutcome::Delivered,
+        "blocked startup leaves the automatic retry lane"
+    );
+    assert_eq!(f.launches(), 1);
+    let failed = f.receipt();
+    assert_eq!(failed["status"], "resume_failed");
+    assert_eq!(failed["provider_session_id"], SAVED);
+    assert_eq!(failed["failure_count"], 1);
+    assert!(
+        failed["last_resume_error"]
+            .as_str()
+            .expect("diagnostic")
+            .contains("different session ID")
+    );
+    assert!(
+        !f.config.join("active").exists(),
+        "copied job must be stopped"
+    );
+    for _ in 0..4 {
+        assert!(matches!(
+            super::super::actor_delivery_worker::process_batch(
+                &mut vec![job.clone()],
+                &mut String::new(),
+                &AtomicBool::new(false)
+            ),
+            crate::ops::actor_delivery_worker::BatchOutcome::Delivered
+        ));
+    }
+    assert_eq!(f.launches(), 1, "no repeated provider launch");
+    assert_eq!(f.receipt(), failed);
+    assert!(
+        !f.config.join("received").exists(),
+        "pending task was not sent"
+    );
+    assert_eq!(
+        super::super::runtime_delivery::latest_state(
+            &f.home,
+            &f.group.group_id,
+            &f.actor.id,
+            &job.event.id
+        )
+        .expect("delivery state")
+        .expect("failed delivery")
+        .0,
+        "failed"
+    );
+
+    std::fs::write(f.config.join("mode"), "healthy").expect("correct provider behavior");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    // The fixture creates `received` before writing the line into it; wait for
+    // the delivered text rather than the file's existence.
+    f.wait(|| {
+        std::fs::read_to_string(f.config.join("received"))
+            .is_ok_and(|received| received.contains("PENDING_TASK"))
+    });
+    assert_eq!(f.launches(), 2);
+    assert_eq!(f.receipt()["provider_session_id"], SAVED);
+    assert_eq!(f.receipt()["failure_count"], 0);
+    assert_eq!(f.receipt()["last_resume_error"], "");
+    let messages = std::fs::read_to_string(f.config.join("received")).expect("native input");
+    assert_eq!(messages.matches("PENDING_TASK").count(), 1);
+    assert!(
+        f.config
+            .join("projects/workspace")
+            .join(format!("{SAVED}.jsonl"))
+            .exists()
+    );
+}
+
+#[test]
+fn member_model_changes_preserve_claude_history_and_do_not_interrupt_on_save() {
+    if isolated("member_model_changes_preserve_claude_history_and_do_not_interrupt_on_save") {
+        return;
+    }
+    let fixture = Fixture::new("model_change");
+    assert!(fixture.lifecycle("actor_start").ok);
+    let update = |config: Value| {
+        crate::handle_request(&fixture.home, &DaemonRequest {
+        v: 1, op: "actor_update".into(), args: json!({"group_id":fixture.group.group_id,"actor_id":fixture.actor.id,"model_config":config,"by":"user"}).as_object().unwrap().clone(),
+    })
+    };
+    let desired = json!({"runtime":"claude","model":"opus","reasoning_effort":"high"});
+    let saved = update(desired.clone());
+    assert!(saved.ok, "保存配置失败：{:?}", saved.error);
+    assert!(super::running(&fixture.group.group_id, &fixture.actor.id));
+    assert_eq!(fixture.launches(), 1, "仅保存不能重新启动成员");
+    assert_eq!(fixture.receipt()["provider_session_id"], SAVED);
+    let restarted = fixture.lifecycle("actor_restart");
+    assert!(restarted.ok, "切换模型失败：{:?}", restarted.error);
+    let applied = fixture.receipt();
+    assert_ne!(applied["provider_session_id"], SAVED);
+    assert_eq!(applied["continued_from_session_id"], SAVED);
+    assert_eq!(applied["applied_model_config"], desired);
+    let args = std::fs::read_to_string(fixture.config.join("inference_args")).unwrap();
+    let last: Value = serde_json::from_str(args.lines().last().unwrap()).unwrap();
+    assert_eq!(last, json!({"--model":"opus","--effort":"high"}));
+    let session = applied["provider_session_id"].clone();
+    assert!(fixture.lifecycle("actor_restart").ok);
+    assert_eq!(
+        fixture.receipt()["provider_session_id"],
+        session,
+        "未改配置时应恢复同一会话"
+    );
+    let cleared = update(Value::Null);
+    assert!(cleared.ok);
+    assert!(fixture.lifecycle("actor_restart").ok);
+    assert!(fixture.receipt()["applied_model_config"].is_null());
+    assert_eq!(fixture.receipt()["continued_from_session_id"], session);
+    fixture.assert_no_private_output(&restarted);
+}
+
+#[test]
+fn temporary_claude_resume_failures_stop_auto_wake_at_the_limit_and_keep_the_conversation() {
+    if isolated(
+        "temporary_claude_resume_failures_stop_auto_wake_at_the_limit_and_keep_the_conversation",
+    ) {
+        return;
+    }
+    // A resumed job that never settles fails with a retryable WouldBlock.
+    let f = Fixture::new("busy");
+    // Nine earlier automatic attempts at this conversation already failed.
+    let mut receipt = f.receipt();
+    receipt["failure_count"] = json!(9);
+    niuma_core::fs::write_json(
+        &f.home
+            .groups_dir()
+            .join(&f.group.group_id)
+            .join("state/runtime_sessions/claude-1.json"),
+        &receipt,
+    )
+    .expect("receipt after nine failures");
+    let job = f.delivery();
+    let handled = super::super::actor_delivery_worker::process_batch(
+        &mut vec![job.clone()],
+        &mut String::new(),
+        &AtomicBool::new(false),
+    );
+    assert_eq!(
+        handled,
+        crate::ops::actor_delivery_worker::BatchOutcome::Delivered,
+        "the tenth consecutive failure leaves the automatic retry lane"
+    );
+    assert_eq!(f.launches(), 1);
+    let failed = f.receipt();
+    assert_eq!(failed["status"], "resume_failed");
+    assert_eq!(failed["resume_eligible"], true);
+    assert_eq!(failed["provider_session_id"], SAVED);
+    assert_eq!(failed["failure_count"], 10);
+    let diagnostic = failed["last_resume_error"].as_str().expect("diagnostic");
+    assert!(
+        diagnostic.contains("temporary control or startup failure"),
+        "{diagnostic}"
+    );
+    assert!(
+        diagnostic.contains("after 10 consecutive failed resumes"),
+        "{diagnostic}"
+    );
+    for _ in 0..4 {
+        assert!(matches!(
+            super::super::actor_delivery_worker::process_batch(
+                &mut vec![job.clone()],
+                &mut String::new(),
+                &AtomicBool::new(false)
+            ),
+            crate::ops::actor_delivery_worker::BatchOutcome::Delivered
+        ));
+    }
+    assert_eq!(f.launches(), 1, "no repeated provider launch");
+    assert_eq!(f.receipt(), failed);
+
+    std::fs::write(f.config.join("mode"), "healthy").expect("provider recovers");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    f.wait(|| {
+        std::fs::read_to_string(f.config.join("received"))
+            .is_ok_and(|received| received.contains("PENDING_TASK"))
+    });
+    assert_eq!(f.launches(), 2);
+    assert_eq!(f.receipt()["provider_session_id"], SAVED);
+    assert_eq!(f.receipt()["failure_count"], 0);
+    assert_eq!(f.receipt()["last_resume_error"], "");
+}
+
+#[test]
+fn missing_claude_history_does_not_become_a_fresh_session_on_the_second_start() {
+    if isolated("missing_claude_history_does_not_become_a_fresh_session_on_the_second_start") {
+        return;
+    }
+    let f = Fixture::new("missing_history");
+    let error = super::super::actor_runtime::apply(&f.home, &f.group, &f.actor.id, "actor.start")
+        .expect_err("missing history");
+    assert_eq!(
+        error.code,
+        super::super::actor_runtime::CLAUDE_RESUME_FAILED,
+        "{}",
+        error.message
+    );
+    assert_eq!(f.receipt()["status"], "resume_failed");
+    assert_eq!(f.receipt()["provider_session_id"], SAVED);
+    assert!(
+        f.receipt()["last_resume_error"]
+            .as_str()
+            .expect("diagnostic")
+            .contains("durable transcript")
+    );
+    assert!(
+        super::super::actor_runtime::apply(&f.home, &f.group, &f.actor.id, "actor.start").is_err()
+    );
+    assert_eq!(f.launches(), 1);
+    std::fs::write(f.config.join("mode"), "healthy").expect("allow a fresh session");
+    let reset = f.lifecycle("actor_new_session");
+    assert!(reset.ok, "{:?}", reset.error);
+    assert_ne!(f.receipt()["provider_session_id"], SAVED);
+}
+
+#[test]
+fn claude_trust_prompt_never_receives_tasks_and_stops_after_nontrust_resume_failure() {
+    if isolated("claude_trust_prompt_never_receives_tasks_and_stops_after_nontrust_resume_failure")
+    {
+        return;
+    }
+    let f = Fixture::new("untrusted");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    f.wait(|| f.config.join("terminal_ready").exists());
+    let job = f.delivery();
+    assert!(matches!(
+        super::super::actor_delivery_worker::process_batch(
+            &mut vec![job.clone()],
+            &mut String::new(),
+            &AtomicBool::new(false)
+        ),
+        crate::ops::actor_delivery_worker::BatchOutcome::Retry
+    ));
+    assert!(
+        !f.config.join("received").exists(),
+        "trust PTY is not the managed input path"
+    );
+    let store = GroupStore::new(f.home.clone()).expect("store");
+    let mut pending = f.group.clone();
+    pending.actors[0].runtime = ActorRuntime::Antigravity;
+    pending.actors[0].normalize_runtime_constraints();
+    store
+        .save(&pending)
+        .expect("save next-launch native settings");
+    assert!(matches!(
+        super::super::actor_delivery_worker::process_batch(
+            &mut vec![job.clone()],
+            &mut String::new(),
+            &AtomicBool::new(false)
+        ),
+        crate::ops::actor_delivery_worker::BatchOutcome::Retry
+    ));
+    assert!(
+        !f.config.join("received").exists(),
+        "saved native settings must not turn the trust PTY into a task surface"
+    );
+    store.save(&f.group).expect("restore next-launch settings");
+    std::fs::write(f.config.join("mode"), "copied").expect("trust accepted, bad resume");
+    std::fs::write(f.config.join(".claude.json"), "fixture approval")
+        .expect("trust record changed");
+    f.wait(|| {
+        f.receipt()["status"] == "resume_failed"
+            && !niuma_runtime::status(&f.group.group_id, &f.actor.id)
+                .is_ok_and(|status| status.running)
+    });
+    for change in 0..3 {
+        std::fs::write(
+            f.config.join(".claude.json"),
+            format!("later config write {change}"),
+        )
+        .expect("config rewrite");
+    }
+    assert_eq!(
+        f.launches(),
+        2,
+        "watcher must stop on the non-trust failure"
+    );
+    assert!(matches!(
+        super::super::actor_delivery_worker::process_batch(
+            &mut vec![job.clone()],
+            &mut String::new(),
+            &AtomicBool::new(false)
+        ),
+        crate::ops::actor_delivery_worker::BatchOutcome::Delivered
+    ));
+    assert!(!f.config.join("received").exists());
+}
+
+#[test]
+fn explicit_start_retries_only_the_registered_claude_trust_owner() {
+    if isolated("explicit_start_retries_only_the_registered_claude_trust_owner") {
+        return;
+    }
+    let f = Fixture::new("untrusted");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    f.wait(|| f.config.join("terminal_ready").exists());
+    assert!(
+        super::waiting_for_workspace_trust(&f.group.group_id, &f.actor.id)
+            .expect("registered trust owner")
+    );
+    let trust_pid = niuma_runtime::status(&f.group.group_id, &f.actor.id)
+        .expect("trust terminal")
+        .pid;
+    let receipt = f
+        .home
+        .groups_dir()
+        .join(&f.group.group_id)
+        .join("state/runtime_sessions/claude-1.json");
+    let mut failed = f.receipt();
+    failed["status"] = json!("resume_failed");
+    failed["resume_eligible"] = json!(false);
+    niuma_core::fs::write_json(&receipt, &failed).expect("retained failure gate");
+    let retained = std::fs::read(&receipt).expect("retained conversation receipt");
+    let history = f
+        .config
+        .join("projects/workspace")
+        .join(format!("{SAVED}.jsonl"));
+    let history_bytes = std::fs::read(&history).expect("original history");
+    let store = GroupStore::new(f.home.clone()).expect("store");
+    let mut pending = f.group.clone();
+    pending.actors[0].runtime = ActorRuntime::Kiro;
+    pending.actors[0].runtime_mode = niuma_contracts::RuntimeMode::Acp;
+    pending.actors[0].normalize_runtime_constraints();
+    store.save(&pending).expect("save next-launch ACP settings");
+
+    let preserved = f.lifecycle("actor_start");
+    assert!(preserved.ok, "{:?}", preserved.error);
+    assert_eq!(
+        niuma_runtime::status(&f.group.group_id, &f.actor.id)
+            .expect("same pending trust terminal")
+            .pid,
+        trust_pid,
+        "Start with saved ACP settings must not replace the pending trust owner"
+    );
+    assert_eq!(
+        std::fs::read(&receipt).expect("old receipt retained"),
+        retained
+    );
+    assert_eq!(f.launches(), 1);
+    assert!(!f.config.join("received").exists());
+
+    store
+        .save(&f.group)
+        .expect("restore matching Claude configuration");
+    std::fs::write(f.config.join("mode"), "healthy").expect("allow explicit provider retry");
+    let retried = f.lifecycle("actor_start");
+    assert!(retried.ok, "{:?}", retried.error);
+    assert!(super::running(&f.group.group_id, &f.actor.id));
+    f.wait(|| {
+        !super::waiting_for_workspace_trust(&f.group.group_id, &f.actor.id)
+            .expect("trust owner retirement")
+    });
+    assert!(
+        !super::waiting_for_workspace_trust(&f.group.group_id, &f.actor.id)
+            .expect("trust owner retired")
+    );
+    assert_ne!(
+        niuma_runtime::status(&f.group.group_id, &f.actor.id)
+            .expect("managed native attachment")
+            .pid,
+        trust_pid
+    );
+    assert_eq!(f.launches(), 2);
+    assert_eq!(f.receipt()["provider_session_id"], SAVED);
+    assert_eq!(f.receipt()["status"], "usable");
+    assert_eq!(
+        std::fs::read(&history).expect("history retained"),
+        history_bytes
+    );
+}
+
+#[test]
+fn new_claude_session_retires_pending_trust_recovery_before_removing_the_receipt() {
+    if isolated("new_claude_session_retires_pending_trust_recovery_before_removing_the_receipt") {
+        return;
+    }
+    let f = Fixture::new("untrusted");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    f.wait(|| f.config.join("terminal_ready").exists());
+    let prompt_pid = niuma_runtime::status(&f.group.group_id, &f.actor.id)
+        .expect("confirmation terminal status")
+        .pid;
+    let receipt_path = f.receipt_path();
+    let receipt = std::fs::read(&receipt_path).expect("saved receipt");
+    std::fs::remove_file(&receipt_path).expect("replace synthetic receipt");
+    std::fs::create_dir(&receipt_path).expect("make snapshot unreadable");
+    let rejected = f.lifecycle("actor_new_session");
+    assert!(!rejected.ok, "snapshot failure must reject the new session");
+    assert!(
+        super::confirmation_pending_active(&f.group.group_id, &f.actor.id)
+            .expect("check confirmation ownership"),
+        "failed preparation must not cancel the live confirmation owner"
+    );
+    assert_eq!(
+        niuma_runtime::status(&f.group.group_id, &f.actor.id)
+            .expect("confirmation terminal status")
+            .pid,
+        prompt_pid
+    );
+    assert_eq!(f.launches(), 1);
+    std::fs::remove_dir(&receipt_path).expect("remove synthetic snapshot failure");
+    std::fs::write(&receipt_path, receipt).expect("restore original receipt");
+    std::fs::write(f.config.join("mode"), "delayed_resume").expect("pending resume");
+    std::fs::write(f.config.join(".claude.json"), "fixture trust approval").expect("trust changed");
+    f.wait(|| f.config.join("resume_pending").exists());
+    let home = f.home.clone();
+    let group_id = f.group.group_id.clone();
+    let reset = std::thread::spawn(move || {
+        crate::handle_request(
+            &home,
+            &DaemonRequest {
+                v: 1,
+                op: "actor_new_session".into(),
+                args: json!({"group_id":group_id,"actor_id":"claude-1","by":"user"})
+                    .as_object()
+                    .expect("args")
+                    .clone(),
+            },
+        )
+    });
+    std::thread::sleep(Duration::from_millis(100));
+    // An in-flight old launch can still write its result until cleanup joins it.
+    // Its receipt must not be removed before that ownership boundary.
+    let kept_until_cleanup = f.receipt()["provider_session_id"] == SAVED;
+    std::fs::write(f.config.join("release_resume"), "released").expect("complete pending launch");
+    let result = reset.join().expect("reset thread");
+    assert!(
+        kept_until_cleanup,
+        "receipt retirement must follow pending recovery cleanup"
+    );
+    assert!(result.ok, "{:?}", result.error);
+    assert_ne!(f.receipt()["provider_session_id"], SAVED);
+    assert_eq!(f.receipt()["status"], "usable");
+    assert!(
+        f.config
+            .join("projects/workspace")
+            .join(format!("{SAVED}.jsonl"))
+            .exists(),
+        "reset retains provider history"
+    );
+}
+
+#[test]
+fn mail_sent_to_an_idle_managed_actor_is_announced_without_waiting_for_the_unread_tick() {
+    if isolated(
+        "mail_sent_to_an_idle_managed_actor_is_announced_without_waiting_for_the_unread_tick",
+    ) {
+        return;
+    }
+    let f = Fixture::new("healthy");
+    let store = GroupStore::new(f.home.clone()).expect("store");
+    store
+        .mutate(&f.group.group_id, |group| {
+            group.state = niuma_contracts::GroupState::Active;
+            niuma_core::actors::add(group, Actor::new("lead"))
+        })
+        .expect("sender");
+    let started = f.lifecycle("actor_start");
+    assert!(started.ok, "{:?}", started.error);
+    f.wait(|| super::ready_for_mail_notice(&f.group.group_id, &f.actor.id));
+
+    // No automation scheduler runs here: only the send itself can announce it.
+    let sent = crate::handle_request(
+        &f.home,
+        &DaemonRequest {
+            v: 1,
+            op: "send".into(),
+            args: json!({"group_id":f.group.group_id,"by":"lead","to":[f.actor.id],
+                "text":"please review","message_mode":"mail"})
+            .as_object()
+            .expect("arguments")
+            .clone(),
+        },
+    );
+    assert!(sent.ok, "{:?}", sent.error);
+    let mail_id = sent.result["event"]["id"].as_str().expect("Mail id");
+    let events =
+        ledger::read_all(&store.ledger_path(&f.group.group_id).expect("ledger")).expect("ledger");
+    let notice = events
+        .iter()
+        .find(|event| event.kind == "system.notify" && event.data["kind"] == "mail_notice")
+        .expect("Mail notice issued by the send");
+    assert_eq!(notice.data["context"]["actor_id"], f.actor.id);
+    assert_eq!(notice.data["context"]["source_event_ids"], json!([mail_id]));
+}

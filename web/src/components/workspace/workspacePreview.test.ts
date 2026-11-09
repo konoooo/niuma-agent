@@ -55,7 +55,7 @@ it("prepares static HTML with scoped resources and no active document navigation
   const html = staticWorkspaceHtml(
     '<html><head></head><body style="margin:24px"><base href="https://example.com/"><meta http-equiv="refresh" content="0;url=/"><link rel="stylesheet" href="style.css"><style>h1{color:red}</style><script>parent.compromised=true</script><iframe src="/"></iframe><form action="/"><button formaction="/">Send</button></form><h1 onclick="alert(1)">Report</h1><img src="plot.png" srcset="other.png 2x" onerror="alert(1)"><a href="next.md" ping="/" target="_top">Next</a>',
     (url) => "/scoped?path=" + encodeURIComponent(url),
-    "https://cccc.test/scoped",
+    "https://niuma-agent.test/scoped",
   );
   expect(html).toContain('style="margin:24px"');
   const template = document.createElement("template");
@@ -73,7 +73,7 @@ it("prepares static HTML with scoped resources and no active document navigation
 });
 
 it("keeps empty HTML drafts previewable", () => {
-  expect(staticWorkspaceHtml("", (url) => url, "https://cccc.test/scoped")).toContain(
+  expect(staticWorkspaceHtml("", (url) => url, "https://niuma-agent.test/scoped")).toContain(
     "Content-Security-Policy",
   );
 });
@@ -83,7 +83,7 @@ it("adds native controls independently of media source syntax and never restores
   template.innerHTML = staticWorkspaceHtml(
     '<audio autoplay><source src="tone.wav" type="audio/wav"></audio><video autoplay><source src="clip.mp4" type="video/mp4"></video><audio src="direct.wav"></audio><video poster="poster.png"><source src="another.mp4"></video>',
     (url) => "/scoped?file=" + encodeURIComponent(url),
-    "https://cccc.test/scoped",
+    "https://niuma-agent.test/scoped",
   );
   const media = template.content.querySelectorAll("audio, video");
   expect(media).toHaveLength(4);

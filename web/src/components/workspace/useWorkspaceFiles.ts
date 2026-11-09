@@ -43,7 +43,7 @@ export function useWorkspaceFiles(
   const [tree, setTree] = useState<TreeState>(emptyTreeState);
   const [showIgnored, updateShowIgnored] = useState(() => {
     try {
-      return localStorage.getItem("cccc-workspace-show-ignored") !== "false";
+      return localStorage.getItem("niuma-workspace-show-ignored") !== "false";
     } catch {
       return true;
     }
@@ -51,7 +51,7 @@ export function useWorkspaceFiles(
   const setShowIgnored = useCallback((value: boolean) => {
     updateShowIgnored(value);
     try {
-      localStorage.setItem("cccc-workspace-show-ignored", String(value));
+      localStorage.setItem("niuma-workspace-show-ignored", String(value));
     } catch {
       // Browsing still works when the browser disallows preference storage.
     }

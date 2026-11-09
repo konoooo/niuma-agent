@@ -8,7 +8,7 @@ import { useVoiceAudioStore } from "../../stores/useVoiceAudioStore";
 let host: HTMLDivElement;
 let root: Root;
 let current: ReturnType<typeof useCodexVoicePreferencesState>;
-const storageKey = "cccc.codexVoice.preferences.v1";
+const storageKey = "niuma-agent.codexVoice.preferences.v1";
 
 function Probe() {
   current = useCodexVoicePreferencesState();

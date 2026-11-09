@@ -67,7 +67,7 @@ it.each([
       cwd: "/synthetic/original workspace",
       shell: "posix",
       command:
-        "cd -- '/synthetic/original workspace' && CCCC_HOME='/synthetic/cccc' CODEX_HOME='/synthetic/codex' codex resume 'native-thread'",
+        "cd -- '/synthetic/original workspace' && NIUMA_HOME='/synthetic/niuma-agent' CODEX_HOME='/synthetic/codex' codex resume 'native-thread'",
     },
   },
   {
@@ -76,7 +76,7 @@ it.each([
       state: "unknown",
       cwd: null,
       shell: "posix",
-      command: "CCCC_HOME='/synthetic/cccc' claude --resume",
+      command: "NIUMA_HOME='/synthetic/niuma-agent' claude --resume",
     },
   },
 ])("reads Actor-bound recovery with both path segments encoded for $source_id", async (result) => {

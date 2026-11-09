@@ -1,5 +1,5 @@
 {
-  "name": "cccc-docs",
+  "name": "niuma-docs",
   "type": "module",
   "scripts": {
     "prepare:installers": "node ../scripts/prepare_docs_installers.mjs",

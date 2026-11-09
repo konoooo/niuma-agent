@@ -1,5 +1,5 @@
 /** Browser-native folder traversal, bounded before any server-side changes. */
-export const WORKSPACE_DRAG_TYPE = "application/x-cccc-workspace-entry";
+export const WORKSPACE_DRAG_TYPE = "application/x-niuma-workspace-entry";
 export const MAX_UPLOAD_ENTRIES = 1000;
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 export type UploadEntry = { path: string; file?: File };

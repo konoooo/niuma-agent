@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the native dependency boundary promised by standalone CCCC artifacts."""
+"""Verify the native dependency boundary promised by standalone 牛马Agent artifacts."""
 
 from __future__ import annotations
 

@@ -24,7 +24,7 @@ WHEEL_VERSION = "0.4.36rc1"
 
 
 def _archive(path: Path, *, package: str, binary: bytes, windows: bool) -> None:
-    member = f"{package}/{'cccc.exe' if windows else 'cccc'}"
+    member = f"{package}/{'niuma-agent.exe' if windows else 'niuma-agent'}"
     files = {
         member: binary,
         f"{package}/LICENSE": b"license\n",
@@ -52,7 +52,7 @@ def _archive(path: Path, *, package: str, binary: bytes, windows: bool) -> None:
 def _complete_set(directory: Path) -> None:
     directory.joinpath("pyproject.toml").write_text(
         f'''[project]
-name = "cccc-pair"
+name = "niuma-agent"
 version = "{WHEEL_VERSION}"
 description = "release fixture"
 readme = {{ file = "README.md", content-type = "text/markdown" }}
@@ -65,12 +65,12 @@ readme = {{ file = "README.md", content-type = "text/markdown" }}
     )
     payloads: list[Path] = []
     for index, (platform, target) in enumerate(WHEEL_TARGETS.items()):
-        executable = "cccc.exe" if platform == "win_amd64" else "cccc"
+        executable = "niuma-agent.exe" if platform == "win_amd64" else "niuma-agent"
         binary = directory / f"binary-{index}-{executable}"
         binary.write_bytes(f"{target}-binary".encode())
         wheel = build(binary, directory, platform_tag=platform, root=directory)
         payloads.append(wheel)
-        package = f"cccc-v{CARGO_VERSION}-{target}"
+        package = f"niuma-v{CARGO_VERSION}-{target}"
         archive = directory / f"{package}{ARCHIVE_SUFFIXES[target]}"
         _archive(
             archive,
@@ -106,7 +106,7 @@ def test_accepts_three_wheels_and_three_byte_identical_archives(tmp_path: Path) 
 
 def test_rejects_an_incomplete_distribution_set(tmp_path: Path) -> None:
     _complete_set(tmp_path)
-    tmp_path.joinpath(f"cccc_pair-{WHEEL_VERSION}-py3-none-win_amd64.whl").unlink()
+    tmp_path.joinpath(f"niuma_pair-{WHEEL_VERSION}-py3-none-win_amd64.whl").unlink()
 
     with pytest.raises(ValueError, match="exactly three wheels"):
         verify(tmp_path, cargo_version=CARGO_VERSION, wheel_version=WHEEL_VERSION)
@@ -115,7 +115,7 @@ def test_rejects_an_incomplete_distribution_set(tmp_path: Path) -> None:
 def test_rejects_different_wheel_and_archive_binaries(tmp_path: Path) -> None:
     _complete_set(tmp_path)
     target = "x86_64-pc-windows-msvc"
-    package = f"cccc-v{CARGO_VERSION}-{target}"
+    package = f"niuma-v{CARGO_VERSION}-{target}"
     archive = tmp_path / f"{package}.zip"
     _archive(archive, package=package, binary=b"different", windows=True)
     lines = []
@@ -125,7 +125,7 @@ def test_rejects_different_wheel_and_archive_binaries(tmp_path: Path) -> None:
         lines.append(name)
     (tmp_path / "SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="different CCCC executable bytes"):
+    with pytest.raises(ValueError, match="different 牛马Agent executable bytes"):
         verify(tmp_path, cargo_version=CARGO_VERSION, wheel_version=WHEEL_VERSION)
 
 
@@ -145,7 +145,7 @@ def test_rejects_a_checksum_mismatch(tmp_path: Path) -> None:
 def test_rejects_an_archive_with_an_unexpected_member(tmp_path: Path) -> None:
     _complete_set(tmp_path)
     target = "x86_64-pc-windows-msvc"
-    package = f"cccc-v{CARGO_VERSION}-{target}"
+    package = f"niuma-v{CARGO_VERSION}-{target}"
     archive_path = tmp_path / f"{package}.zip"
     with zipfile.ZipFile(archive_path, "a") as archive:
         archive.writestr(f"{package}/unexpected.dll", b"foreign")
@@ -163,13 +163,13 @@ def test_rejects_an_archive_with_an_unexpected_member(tmp_path: Path) -> None:
 def test_rejects_a_windows_archive_symlink_member(tmp_path: Path) -> None:
     _complete_set(tmp_path)
     target = "x86_64-pc-windows-msvc"
-    package = f"cccc-v{CARGO_VERSION}-{target}"
+    package = f"niuma-v{CARGO_VERSION}-{target}"
     archive_path = tmp_path / f"{package}.zip"
     with zipfile.ZipFile(archive_path) as archive:
         entries = [(item, archive.read(item.filename)) for item in archive.infolist()]
     with zipfile.ZipFile(archive_path, "w") as archive:
         for item, data in entries:
-            if item.filename == f"{package}/cccc.exe":
+            if item.filename == f"{package}/niuma-agent.exe":
                 item.create_system = 3
                 item.external_attr = (stat.S_IFLNK | 0o777) << 16
             archive.writestr(item, data)
@@ -189,7 +189,7 @@ def test_rejects_a_windows_archive_symlink_member(tmp_path: Path) -> None:
 
 def test_rejects_an_oversized_wheel_before_opening_it(tmp_path: Path) -> None:
     _complete_set(tmp_path)
-    wheel = tmp_path / f"cccc_pair-{WHEEL_VERSION}-py3-none-win_amd64.whl"
+    wheel = tmp_path / f"niuma_pair-{WHEEL_VERSION}-py3-none-win_amd64.whl"
     with wheel.open("ab") as stream:
         stream.truncate(MAX_WHEEL_BYTES)
 

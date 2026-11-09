@@ -3,7 +3,7 @@ import { CHET_SELECTOR } from "../utils/chetIdentity";
 export type ComposerMessageMode = "send" | "request_reply" | "mail";
 export type ReplyMessageMode = "send" | "mail";
 
-export const COMPOSER_MESSAGE_MODE_STORAGE_KEY = "cccc-composer-message-mode";
+export const COMPOSER_MESSAGE_MODE_STORAGE_KEY = "niuma-composer-message-mode";
 export const DEFAULT_COMPOSER_MESSAGE_MODE: ComposerMessageMode = "send";
 
 export function normalizeComposerMessageMode(value: unknown): ComposerMessageMode {

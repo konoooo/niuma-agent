@@ -1,7 +1,7 @@
 # Manual Group Bridge retired
 
-CCCC Connect replaces manual Group Bridge for collaboration between instances
-linked to the same account. See the [CCCC Connect guide](/guide/connect).
+牛马Agent Connect replaces manual Group Bridge for collaboration between instances
+linked to the same account. See the [牛马Agent Connect guide](/guide/connect).
 
 The old invitation, pairing, message/read/full grants and remote tool endpoints
 are removed. Existing grants are not imported as account permissions. Original

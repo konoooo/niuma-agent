@@ -35,4 +35,4 @@ class GrokVoiceCapture extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor("cccc-grok-voice-capture", GrokVoiceCapture);
+registerProcessor("niuma-grok-voice-capture", GrokVoiceCapture);

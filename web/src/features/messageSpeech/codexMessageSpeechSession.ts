@@ -150,7 +150,7 @@ class CodexMessageSpeechSession implements MessageSpeechSession {
       offerSdp: peer.localDescription?.sdp,
       voice: "cove",
       applicationContext: {
-        id: "cccc-message-read-aloud",
+        id: "niuma-message-read-aloud",
         mode: "persona",
         instructions: `${READ_INSTRUCTIONS}\nRequested spoken language: ${this.language}.`,
       },

@@ -367,7 +367,7 @@ describe("Voice Secretary recording startup ownership", () => {
         leaseId: "late-lease",
       });
       expect(api.microphone).not.toHaveBeenCalled();
-      expect(window.localStorage.getItem("cccc.voiceSecretary.activeCapture")).toBeNull();
+      expect(window.localStorage.getItem("niuma-agent.voiceSecretary.activeCapture")).toBeNull();
     },
   );
 
@@ -390,7 +390,7 @@ describe("Voice Secretary recording startup ownership", () => {
       // The leave warning shows after every beforeunload listener has run.
       await act(async () => window.dispatchEvent(new Event("beforeunload", { cancelable: true })));
       expect(released()).toBe(0);
-      expect(window.localStorage.getItem("cccc.voiceSecretary.activeCapture")).not.toBeNull();
+      expect(window.localStorage.getItem("niuma-agent.voiceSecretary.activeCapture")).not.toBeNull();
       expect(recordButton().getAttribute("aria-pressed")).toBe("true");
       await act(async () => window.dispatchEvent(new Event("pagehide")));
       expect(api.lease).toHaveBeenCalledWith("A", {
@@ -398,7 +398,7 @@ describe("Voice Secretary recording startup ownership", () => {
         ownerId: expect.any(String),
         leaseId: "fixture-lease",
       });
-      expect(window.localStorage.getItem("cccc.voiceSecretary.activeCapture")).toBeNull();
+      expect(window.localStorage.getItem("niuma-agent.voiceSecretary.activeCapture")).toBeNull();
     },
   );
 
@@ -423,7 +423,7 @@ describe("Voice Secretary recording startup ownership", () => {
         },
       );
       window.localStorage.setItem(
-        "cccc.voiceSecretary.activeCapture",
+        "niuma-agent.voiceSecretary.activeCapture",
         JSON.stringify({ ownerId: "old-tab", groupId: "B", updatedAt: Date.now() }),
       );
       await render("A");
@@ -431,7 +431,7 @@ describe("Voice Secretary recording startup ownership", () => {
       await act(async () => root.unmount());
       rootMounted = false;
       await act(async () => vi.advanceTimersByTimeAsync(300));
-      expect(window.localStorage.getItem("cccc.voiceSecretary.activeCapture")).toBeNull();
+      expect(window.localStorage.getItem("niuma-agent.voiceSecretary.activeCapture")).toBeNull();
       expect(api.lease).not.toHaveBeenCalled();
       expect(api.microphone).not.toHaveBeenCalled();
     },
@@ -555,7 +555,7 @@ describe("Voice Secretary recording startup ownership", () => {
         result: state(group, backend),
       }));
       window.sessionStorage.setItem(
-        "cccc_voice_ask_notice:A",
+        "niuma_voice_ask_notice:A",
         JSON.stringify({ requestId: "earlier-ask", hidden: false }),
       );
       await act(async () =>

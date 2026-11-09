@@ -2,13 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-BINARY=${1:?usage: install_real_unix.sh PATH_TO_CCCC}
+BINARY=${1:?usage: install_real_unix.sh PATH_TO_NIUMA}
 BINARY_DIR="$(cd "$(dirname "$BINARY")" && pwd)"
 BINARY="$BINARY_DIR/$(basename "$BINARY")"
 test -x "$BINARY"
 
 VERSION="$(sed -n 's/^version = "\([^"]*\)"/\1/p' "$ROOT_DIR/Cargo.toml" | head -1)"
-test "$("$BINARY" --version)" = "cccc $VERSION"
+test "$("$BINARY" --version)" = "niuma-agent $VERSION"
 
 case "$(uname -s):$(uname -m)" in
   Linux:x86_64|Linux:amd64) target=x86_64-unknown-linux-gnu ;;
@@ -24,17 +24,17 @@ checksum() {
   fi
 }
 
-TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/cccc-real-install-test.XXXXXX")"
+TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/niuma-real-install-test.XXXXXX")"
 trap 'rm -rf "$TMP_ROOT"' EXIT
-package="cccc-v${VERSION}-${target}"
+package="niuma-v${VERSION}-${target}"
 release_dir="$TMP_ROOT/releases/download/v${VERSION}"
 mkdir -p "$release_dir" "$TMP_ROOT/package/$package"
-cp "$BINARY" "$TMP_ROOT/package/$package/cccc"
+cp "$BINARY" "$TMP_ROOT/package/$package/niuma-agent"
 tar -C "$TMP_ROOT/package" -czf "$release_dir/$package.tar.gz" "$package"
 
 : > "$release_dir/SHA256SUMS"
 for fixture_target in x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-pc-windows-msvc; do
-  fixture_name="cccc-v${VERSION}-${fixture_target}"
+  fixture_name="niuma-v${VERSION}-${fixture_target}"
   fixture_ext=tar.gz
   [[ "$fixture_target" == x86_64-pc-windows-msvc ]] && fixture_ext=zip
   fixture_checksum=$(printf '0%.0s' {1..64})
@@ -44,12 +44,12 @@ for fixture_target in x86_64-unknown-linux-gnu aarch64-apple-darwin x86_64-pc-wi
   printf '%s  %s.%s\n' "$fixture_checksum" "$fixture_name" "$fixture_ext" >> "$release_dir/SHA256SUMS"
 done
 
-CCCC_VERSION="$VERSION" \
-CCCC_RELEASE_BASE_URL="file://$TMP_ROOT/releases" \
-CCCC_INSTALL_DIR="$TMP_ROOT/installed" \
-CCCC_NO_MODIFY_PATH=1 \
+NIUMA_VERSION="$VERSION" \
+NIUMA_RELEASE_BASE_URL="file://$TMP_ROOT/releases" \
+NIUMA_INSTALL_DIR="$TMP_ROOT/installed" \
+NIUMA_NO_MODIFY_PATH=1 \
 sh "$ROOT_DIR/scripts/install.sh"
 
-cmp "$BINARY" "$TMP_ROOT/installed/cccc"
-test "$("$TMP_ROOT/installed/cccc" --version)" = "cccc $VERSION"
-echo "OK: real Unix cccc installer"
+cmp "$BINARY" "$TMP_ROOT/installed/niuma-agent"
+test "$("$TMP_ROOT/installed/niuma-agent" --version)" = "niuma-agent $VERSION"
+echo "OK: real Unix niuma-agent installer"

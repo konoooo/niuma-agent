@@ -8,14 +8,14 @@
     "params": {
       "protocolVersion": 1,
       "clientCapabilities": {},
-      "clientInfo": {"name": "cccc", "version": "0.4.34"}
+      "clientInfo": {"name": "niuma-agent", "version": "0.4.34"}
     }
   },
   "session_new": {
     "jsonrpc": "2.0",
     "id": 2,
     "method": "session/new",
-    "params": {"cwd": "/tmp/cccc", "mcpServers": [], "additionalDirectories": []}
+    "params": {"cwd": "/tmp/niuma-agent", "mcpServers": [], "additionalDirectories": []}
   },
   "cancelled_terminal": {
     "frame": {"jsonrpc": "2.0", "id": 3, "result": {"stopReason": "cancelled"}},

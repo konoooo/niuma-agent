@@ -41,7 +41,7 @@ async function renderMermaidNow(source: string, theme: MermaidColorTheme): Promi
   const { default: mermaid } = await import("mermaid");
   mermaid.initialize(buildMermaidConfig(theme));
   renderSequence += 1;
-  const { svg } = await mermaid.render(`cccc-mermaid-${renderSequence}`, source);
+  const { svg } = await mermaid.render(`niuma-mermaid-${renderSequence}`, source);
   return svg;
 }
 
@@ -60,12 +60,12 @@ function renderMermaidDiagram(
 }
 
 function showSourceFallback(block: HTMLElement, message: string): void {
-  const target = block.querySelector<HTMLElement>("[data-cccc-mermaid-target]");
-  const source = block.querySelector<HTMLElement>("[data-cccc-mermaid-source]");
-  const status = block.querySelector<HTMLElement>("[data-cccc-mermaid-status]");
-  const error = block.querySelector<HTMLElement>("[data-cccc-mermaid-error]");
-  const toggle = block.querySelector<HTMLButtonElement>("button[data-cccc-mermaid-toggle]");
-  const expand = block.querySelector<HTMLButtonElement>("button[data-cccc-mermaid-expand]");
+  const target = block.querySelector<HTMLElement>("[data-niuma-mermaid-target]");
+  const source = block.querySelector<HTMLElement>("[data-niuma-mermaid-source]");
+  const status = block.querySelector<HTMLElement>("[data-niuma-mermaid-status]");
+  const error = block.querySelector<HTMLElement>("[data-niuma-mermaid-error]");
+  const toggle = block.querySelector<HTMLButtonElement>("button[data-niuma-mermaid-toggle]");
+  const expand = block.querySelector<HTMLButtonElement>("button[data-niuma-mermaid-expand]");
   if (target) target.hidden = true;
   if (source) source.hidden = false;
   if (status) status.hidden = true;
@@ -85,8 +85,8 @@ export function activateMermaidBlocks(
   let cancelled = false;
 
   for (const block of container.querySelectorAll<HTMLElement>("[data-mermaid-block]")) {
-    const error = block.querySelector<HTMLElement>("[data-cccc-mermaid-error]");
-    const copyButton = block.querySelector<HTMLButtonElement>("button[data-cccc-markdown-copy]");
+    const error = block.querySelector<HTMLElement>("[data-niuma-mermaid-error]");
+    const copyButton = block.querySelector<HTMLButtonElement>("button[data-niuma-markdown-copy]");
     let source = "";
     try {
       source = decodeURIComponent(copyButton?.dataset.code || "");
@@ -109,9 +109,9 @@ export function activateMermaidBlocks(
     void renderMermaidDiagram(source, options.theme, () => !cancelled && block.isConnected)
       .then((svg) => {
         if (!svg || cancelled || !block.isConnected) return;
-        const target = block.querySelector<HTMLElement>("[data-cccc-mermaid-target]");
-        const status = block.querySelector<HTMLElement>("[data-cccc-mermaid-status]");
-        const expand = block.querySelector<HTMLButtonElement>("button[data-cccc-mermaid-expand]");
+        const target = block.querySelector<HTMLElement>("[data-niuma-mermaid-target]");
+        const status = block.querySelector<HTMLElement>("[data-niuma-mermaid-status]");
+        const expand = block.querySelector<HTMLButtonElement>("button[data-niuma-mermaid-expand]");
         if (!target) return;
         target.innerHTML = svg;
         if (status) status.hidden = true;
@@ -134,10 +134,10 @@ export function activateMermaidBlocks(
 
 export function toggleMermaidView(toggle: HTMLButtonElement): boolean {
   const block = toggle.closest<HTMLElement>("[data-mermaid-block]");
-  const target = block?.querySelector<HTMLElement>("[data-cccc-mermaid-target]");
-  const source = block?.querySelector<HTMLElement>("[data-cccc-mermaid-source]");
-  const status = block?.querySelector<HTMLElement>("[data-cccc-mermaid-status]");
-  const expand = block?.querySelector<HTMLButtonElement>("button[data-cccc-mermaid-expand]");
+  const target = block?.querySelector<HTMLElement>("[data-niuma-mermaid-target]");
+  const source = block?.querySelector<HTMLElement>("[data-niuma-mermaid-source]");
+  const status = block?.querySelector<HTMLElement>("[data-niuma-mermaid-status]");
+  const expand = block?.querySelector<HTMLButtonElement>("button[data-niuma-mermaid-expand]");
   if (!block || !target || !source) return false;
 
   const showSource = block.dataset.mermaidView !== "source";

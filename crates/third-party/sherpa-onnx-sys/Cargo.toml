@@ -11,8 +11,8 @@
 
 [package]
 edition = "2021"
-name = "cccc-pair-sherpa-onnx-sys"
-version = "1.13.4-cccc.1"
+name = "niuma-agent-sherpa-onnx-sys"
+version = "1.13.4-niuma.1"
 build = "build.rs"
 links = "sherpa-onnx"
 include = [
@@ -27,7 +27,7 @@ autobins = false
 autoexamples = false
 autotests = false
 autobenches = false
-description = "CCCC-maintained sherpa-onnx FFI bindings with verified native archives"
+description = "牛马Agent-maintained sherpa-onnx FFI bindings with verified native archives"
 readme = "README.md"
 keywords = [
     "ffi",
@@ -37,7 +37,7 @@ keywords = [
 ]
 categories = ["external-ffi-bindings"]
 license = "Apache-2.0"
-repository = "https://github.com/ChesterRa/cccc"
+repository = "https://github.com/konoooo/niuma-agent"
 publish = ["crates-io"]
 
 [package.metadata.docs.rs]

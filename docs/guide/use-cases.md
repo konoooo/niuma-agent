@@ -1,6 +1,6 @@
 # Use Cases
 
-This page focuses on high-ROI, real-world CCCC workflows.
+This page focuses on high-ROI, real-world 牛马Agent workflows.
 
 ## How to Read This Page
 
@@ -21,12 +21,12 @@ Increase delivery quality without adding human review bottlenecks.
 
 ```bash
 cd /path/to/repo
-cccc attach .
-cccc setup --runtime claude
-cccc setup --runtime codex
-cccc actor add builder --runtime claude
-cccc actor add reviewer --runtime codex
-cccc group start
+niuma-agent attach .
+niuma-agent setup --runtime claude
+niuma-agent setup --runtime codex
+niuma-agent actor add builder --runtime claude
+niuma-agent actor add reviewer --runtime codex
+niuma-agent group start
 ```
 
 ### Execution Flow
@@ -59,11 +59,11 @@ Split one medium project into parallel tracks while keeping alignment.
 ### Minimal Setup
 
 ```bash
-cccc actor add lead --runtime claude
-cccc actor add frontend --runtime codex
-cccc actor add backend --runtime grok
-cccc actor add qa --runtime kimi
-cccc group start
+niuma-agent actor add lead --runtime claude
+niuma-agent actor add frontend --runtime codex
+niuma-agent actor add backend --runtime grok
+niuma-agent actor add qa --runtime kimi
+niuma-agent group start
 ```
 
 ### Execution Flow
@@ -95,8 +95,8 @@ Operate long-running groups from phone while keeping a reliable audit trail.
 ### Minimal Setup
 
 ```bash
-cccc im set telegram --token-env TELEGRAM_BOT_TOKEN
-cccc im start
+niuma-agent im set telegram --token-env TELEGRAM_BOT_TOKEN
+niuma-agent im start
 ```
 
 Then `/subscribe` in your IM chat.
@@ -106,7 +106,7 @@ Then `/subscribe` in your IM chat.
 1. Receive progress/error notifications in IM.
 2. Send escalation commands to `@foreman` from mobile.
 3. Switch to Web UI for deep debugging only when needed.
-4. Keep all critical decisions in CCCC messages (not only in IM thread).
+4. Keep all critical decisions in 牛马Agent messages (not only in IM thread).
 
 ### Success Criteria
 

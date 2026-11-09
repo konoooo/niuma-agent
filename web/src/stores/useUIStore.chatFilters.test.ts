@@ -23,7 +23,7 @@ it("remembers multiple sender identities and message types independently per Gro
 
 it("opens a Group saved under the retired Mail or Requests filter as All", async () => {
   localStorage.setItem(
-    "cccc-chat-sessions",
+    "niuma-chat-sessions",
     JSON.stringify({
       mail: { chatFilter: "mail", chatSenderFilter: ["peer"] },
       requests: { chatFilter: "request_reply" },
@@ -37,7 +37,7 @@ it("opens a Group saved under the retired Mail or Requests filter as All", async
 
 it("retains old person selections and removes obsolete role selectors", async () => {
   localStorage.setItem(
-    "cccc-chat-sessions",
+    "niuma-chat-sessions",
     JSON.stringify({
       old: { chatFilter: "user" },
       invalid: { chatSenderFilter: "actor:" },

@@ -60,14 +60,14 @@ beforeEach(() => {
     ok: true,
     result: {
       connectors: [{ connector_id: "shared", provider: "chatgpt_web" }],
-      connector_base_url: "https://cccc.example.test",
+      connector_base_url: "https://niuma-agent.example.test",
     },
   });
   mocks.update.mockResolvedValue({
     ok: true,
     result: {
       connected: true,
-      instructions: "Create a native Work event task: cccc.dots.ready; actor_token=synthetic-only",
+      instructions: "Create a native Work event task: niuma-agent.dots.ready; actor_token=synthetic-only",
     },
   });
   vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
@@ -880,14 +880,14 @@ it("does not ask an administrator to connect a read-only Actor whose first statu
 it("creates the missing shared connector from step 1 and hands over its private URL only by copy", async () => {
   mocks.connectors.mockResolvedValue({
     ok: true,
-    result: { connectors: [], connector_base_url: "https://cccc.example.test" },
+    result: { connectors: [], connector_base_url: "https://niuma-agent.example.test" },
   });
   mocks.create.mockResolvedValue({
     ok: true,
     result: {
       connector: {
         connector_id: "shared",
-        connector_url_path_token: "https://cccc.example.test/mcp/web-model/shared/token/test-only",
+        connector_url_path_token: "https://niuma-agent.example.test/mcp/web-model/shared/token/test-only",
       },
     },
   });
@@ -903,7 +903,7 @@ it("creates the missing shared connector from step 1 and hands over its private 
   expect(button("dotsActor.setup.createConnector")).toBeUndefined();
   await act(async () => button("webModelShared.copy").click());
   expect(mocks.copy).toHaveBeenLastCalledWith(
-    "https://cccc.example.test/mcp/web-model/shared/token/test-only",
+    "https://niuma-agent.example.test/mcp/web-model/shared/token/test-only",
   );
 });
 
@@ -925,7 +925,7 @@ it("offers no creation when a connector exists or the Web address is not public 
 it("leaves a connector created elsewhere untouched when the page was stale", async () => {
   mocks.connectors.mockResolvedValue({
     ok: true,
-    result: { connectors: [], connector_base_url: "https://cccc.example.test" },
+    result: { connectors: [], connector_base_url: "https://niuma-agent.example.test" },
   });
   mocks.create.mockResolvedValue({
     ok: false,
@@ -942,7 +942,7 @@ it("leaves a connector created elsewhere untouched when the page was stale", asy
 it("keeps a host dialog open while the one-time connector URL is being created", async () => {
   mocks.connectors.mockResolvedValue({
     ok: true,
-    result: { connectors: [], connector_base_url: "https://cccc.example.test" },
+    result: { connectors: [], connector_base_url: "https://niuma-agent.example.test" },
   });
   let finish!: (value: unknown) => void;
   mocks.create.mockReturnValue(new Promise((resolve) => (finish = resolve)));
@@ -958,7 +958,7 @@ it("keeps a host dialog open while the one-time connector URL is being created",
         connector: {
           connector_id: "shared",
           connector_url_path_token:
-            "https://cccc.example.test/mcp/web-model/shared/token/test-only",
+            "https://niuma-agent.example.test/mcp/web-model/shared/token/test-only",
         },
       },
     }),
@@ -970,7 +970,7 @@ it("keeps a host dialog open while the one-time connector URL is being created",
 it("blocks setup navigation and binding actions until the one-time connector response arrives", async () => {
   mocks.connectors.mockResolvedValue({
     ok: true,
-    result: { connectors: [], connector_base_url: "https://cccc.example.test" },
+    result: { connectors: [], connector_base_url: "https://niuma-agent.example.test" },
   });
   let finish!: (value: unknown) => void;
   mocks.create.mockReturnValue(new Promise((resolve) => (finish = resolve)));
@@ -988,7 +988,7 @@ it("blocks setup navigation and binding actions until the one-time connector res
         connector: {
           connector_id: "shared",
           connector_url_path_token:
-            "https://cccc.example.test/mcp/web-model/shared/token/probe-only",
+            "https://niuma-agent.example.test/mcp/web-model/shared/token/probe-only",
         },
       },
     }),
@@ -1002,7 +1002,7 @@ it.each(["network", "api"])(
   async (failure) => {
     mocks.connectors.mockResolvedValue({
       ok: true,
-      result: { connectors: [], connector_base_url: "https://cccc.example.test" },
+      result: { connectors: [], connector_base_url: "https://niuma-agent.example.test" },
     });
     if (failure === "network") mocks.connectors.mockRejectedValueOnce(new Error("offline"));
     else

@@ -96,9 +96,9 @@ export const EMPTY_CHAT_BUCKET: GroupChatBucket = {
 export const INITIAL_LEDGER_TAIL_LIMIT = 120;
 export const CACHED_TAIL_REFRESH_DELAY_MS = 1200;
 export const MAX_UI_EVENTS = 800;
-const GROUP_ORDER_KEY = "cccc-group-order";
-const ARCHIVED_GROUP_IDS_KEY = "cccc-archived-group-ids";
-const SELECTED_GROUP_ID_KEY = "cccc-selected-group-id";
+const GROUP_ORDER_KEY = "niuma-group-order";
+const ARCHIVED_GROUP_IDS_KEY = "niuma-archived-group-ids";
+const SELECTED_GROUP_ID_KEY = "niuma-selected-group-id";
 const RUNTIME_ONLY_UI_EVENT_KINDS = new Set(["actor.activity", "context.sync"]);
 export const HEADLESS_RAW_EVENT_LIMIT = 400;
 

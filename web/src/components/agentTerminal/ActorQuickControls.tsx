@@ -14,7 +14,7 @@ export function ActorQuickControls({
   connected,
   connectionFailed,
   canStartNewSession,
-  pauseCcccAccess = false,
+  pauseNiumaAccess = false,
   dotsConnected = true,
   unreadCount,
   onInterrupt,
@@ -42,7 +42,7 @@ export function ActorQuickControls({
   connected: boolean;
   connectionFailed: boolean;
   canStartNewSession: boolean;
-  pauseCcccAccess?: boolean;
+  pauseNiumaAccess?: boolean;
   dotsConnected?: boolean;
   unreadCount: number;
   onInterrupt: () => void;
@@ -62,7 +62,7 @@ export function ActorQuickControls({
   leaveLabel?: string;
 }) {
   const { t } = useTranslation("actors");
-  const startLabel = pauseCcccAccess
+  const startLabel = pauseNiumaAccess
     ? dotsConnected
       ? "dotsResume"
       : "dotsEnable"
@@ -202,7 +202,7 @@ export function ActorQuickControls({
                     {t("newSession")}
                   </button>
                 ) : null}
-                {running && !pauseCcccAccess && availability === "available" ? (
+                {running && !pauseNiumaAccess && availability === "available" ? (
                   <button className={item} disabled={busy} onClick={() => run(onRestart)}>
                     {t("relaunch")}
                   </button>
@@ -224,10 +224,10 @@ export function ActorQuickControls({
                   <button
                     className={item}
                     disabled={busy}
-                    title={pauseCcccAccess ? t("dotsPauseHint") : undefined}
+                    title={pauseNiumaAccess ? t("dotsPauseHint") : undefined}
                     onClick={() => run(onStop)}
                   >
-                    {t(pauseCcccAccess ? "dotsPause" : "quitAgent")}
+                    {t(pauseNiumaAccess ? "dotsPause" : "quitAgent")}
                   </button>
                 ) : null}
                 <button

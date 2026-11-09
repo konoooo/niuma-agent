@@ -228,7 +228,7 @@ it("shows a request without a question as an ordinary message while the prompts 
     expect(host.querySelector("button")?.textContent).toBe("pendingReply.retrySame");
   } finally {
     useUIStore.getState().setShowPendingPrompts(true);
-    localStorage.removeItem("cccc-pending-prompts");
+    localStorage.removeItem("niuma-pending-prompts");
     await act(async () => root.unmount());
     host.remove();
   }

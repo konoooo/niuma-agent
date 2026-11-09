@@ -1,6 +1,6 @@
 # DingTalk Setup
 
-Connect your CCCC working group to DingTalk for enterprise collaboration.
+Connect your 牛马Agent working group to DingTalk for enterprise collaboration.
 
 ## Overview
 
@@ -10,12 +10,12 @@ DingTalk (钉钉) is ideal for:
 - Alibaba ecosystem users
 - Teams already using DingTalk
 
-CCCC uses DingTalk Stream mode (persistent WebSocket connection) for inbound messages and DingTalk Open APIs for outbound messages. No public URL is required.
+牛马Agent uses DingTalk Stream mode (persistent WebSocket connection) for inbound messages and DingTalk Open APIs for outbound messages. No public URL is required.
 
 ## Prerequisites
 
 - DingTalk enterprise account with admin access
-- CCCC installed and running
+- 牛马Agent installed and running
 
 ## Step 1: Create an Application
 
@@ -24,7 +24,7 @@ CCCC uses DingTalk Stream mode (persistent WebSocket connection) for inbound mes
 3. Click **Application Development** → **Internal Development**
 4. Click **Create Application**
 5. Fill in:
-   - Application Name (e.g., "CCCC Bot")
+   - Application Name (e.g., "牛马Agent Bot")
    - Application Description
    - Application Icon
 6. Click **Confirm**
@@ -63,15 +63,15 @@ CCCC uses DingTalk Stream mode (persistent WebSocket connection) for inbound mes
    - Specific users
 4. Publish the version
 
-## Step 5: Configure & Start CCCC
+## Step 5: Configure & Start 牛马Agent
 
 1. In your application, go to **Credentials & Basic Info**
 2. Copy **AppKey** and **AppSecret**
-3. (Optional) Copy **RobotCode** if shown in your Robot settings (CCCC can sometimes learn it after the first inbound message, but configuring it upfront is more reliable for attachments)
+3. (Optional) Copy **RobotCode** if shown in your Robot settings (牛马Agent can sometimes learn it after the first inbound message, but configuring it upfront is more reliable for attachments)
 
 ### Option A: Via Web UI
 
-1. Open the CCCC Web UI at `http://127.0.0.1:8848/`
+1. Open the 牛马Agent Web UI at `http://127.0.0.1:8848/`
 2. Go to **Settings** (gear icon in header)
 3. Navigate to the **IM Bridge** tab
 4. Select **DingTalk** as the platform
@@ -93,18 +93,18 @@ export DINGTALK_ROBOT_CODE="your_robot_code"  # optional but recommended
 Then configure and start the bridge:
 
 ```bash
-cccc im set dingtalk \
+niuma-agent im set dingtalk \
   --app-key-env DINGTALK_APP_KEY \
   --app-secret-env DINGTALK_APP_SECRET \
   --robot-code-env DINGTALK_ROBOT_CODE
 
-cccc im start
+niuma-agent im start
 ```
 
 Verify it's running:
 
 ```bash
-cccc im status
+niuma-agent im status
 ```
 
 Both methods save to `group.yaml`:
@@ -122,7 +122,7 @@ im:
 1. Find the robot in your DingTalk application
 2. Add it to a group chat or start a direct conversation
 3. Send `/subscribe`
-4. Verify that the reply names the intended CCCC group
+4. Verify that the reply names the intended 牛马Agent group
 5. Approve the one-time key in **Settings → IM Bridge → Pending Requests**
 
 If ordinary text says the chat is not authorized, the message reached the Rust worker but has not passed the binding gate. After approval, a direct chat accepts plain text without `/send`; `/send` is only needed to choose an explicit recipient. If `/subscribe` names another group, the same DingTalk application credential is active in a stale or duplicate worker; stop that worker or correct the credential assignment before approving the request.
@@ -181,13 +181,13 @@ The native worker consumes `chat.stream` start/update/end frames, throttles inte
 
 ### File Sharing
 
-Attach files to your message. DingTalk files are downloaded and stored in CCCC's blob storage, then forwarded to agents.
+Attach files to your message. DingTalk files are downloaded and stored in 牛马Agent's blob storage, then forwarded to agents.
 
 ## Commands Reference
 
 | Command | Description |
 |---------|-------------|
-| `/subscribe` | Start receiving messages from CCCC |
+| `/subscribe` | Start receiving messages from 牛马Agent |
 | `/unsubscribe` | Stop receiving messages |
 | `/send <message>` | Send to foreman (default) |
 | `/send @<actor> <message>` | Send to a specific agent |
@@ -218,11 +218,11 @@ Attach files to your message. DingTalk files are downloaded and stored in CCCC's
 1. Check if the robot is added to the chat
 2. Verify the bridge is running:
    ```bash
-   cccc im status
+   niuma-agent im status
    ```
 3. Check logs:
    ```bash
-   cccc im logs -f
+   niuma-agent im logs -f
    ```
 
 ### Connection drops
@@ -232,8 +232,8 @@ If the connection drops unexpectedly:
 1. Check network connectivity
 2. Restart the bridge:
    ```bash
-   cccc im stop
-   cccc im start
+   niuma-agent im stop
+   niuma-agent im start
    ```
 
 ## Security Notes

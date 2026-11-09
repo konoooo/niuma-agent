@@ -255,7 +255,7 @@ export function MarkdownRenderer({
       }
     } else {
       // A web address (http:, https: or //) opens in a new tab rather than replacing
-      // CCCC, even one on CCCC's own origin. Relative paths, anchors and other schemes
+      // 牛马Agent, even one on 牛马Agent's own origin. Relative paths, anchors and other schemes
       // such as mailto: keep the browser's own handling.
       instance.renderer.rules.link_open = (tokens, index, options, _env, renderer) => {
         const token = tokens[index];
@@ -283,7 +283,7 @@ export function MarkdownRenderer({
       const escapedCopied = instance.utils.escapeHtml(labels.copied);
 
       const copyButton =
-        '<button type="button" class="copy-button flex items-center gap-1 select-none" data-cccc-markdown-copy data-code="' +
+        '<button type="button" class="copy-button flex items-center gap-1 select-none" data-niuma-markdown-copy data-code="' +
         encodedCode +
         '" aria-label="' +
         escapedCopy +
@@ -316,7 +316,7 @@ export function MarkdownRenderer({
           '<div class="code-block-header">' +
           '<span class="code-block-lang">MERMAID</span>' +
           '<span class="mermaid-block-actions">' +
-          '<button type="button" class="mermaid-expand-button" data-cccc-mermaid-expand aria-label="' +
+          '<button type="button" class="mermaid-expand-button" data-niuma-mermaid-expand aria-label="' +
           escapedExpandDiagram +
           '" title="' +
           escapedExpandDiagram +
@@ -326,7 +326,7 @@ export function MarkdownRenderer({
           '</span><span class="pointer-events-none hidden sm:inline">' +
           escapedExpand +
           "</span></button>" +
-          '<button type="button" class="mermaid-view-toggle" data-cccc-mermaid-toggle aria-pressed="false" data-view-source-label="' +
+          '<button type="button" class="mermaid-view-toggle" data-niuma-mermaid-toggle aria-pressed="false" data-view-source-label="' +
           escapedViewSource +
           '" data-view-diagram-label="' +
           escapedViewDiagram +
@@ -336,20 +336,20 @@ export function MarkdownRenderer({
           copyButton +
           "</span>" +
           "</div>" +
-          '<div class="mermaid-status" data-cccc-mermaid-status role="status">' +
+          '<div class="mermaid-status" data-niuma-mermaid-status role="status">' +
           escapedRendering +
           "</div>" +
-          '<div class="mermaid-render-target" data-cccc-mermaid-target role="button" tabindex="0" aria-label="' +
+          '<div class="mermaid-render-target" data-niuma-mermaid-target role="button" tabindex="0" aria-label="' +
           escapedExpandDiagram +
           '" title="' +
           escapedExpandDiagram +
           '"></div>' +
-          '<div class="mermaid-error" data-cccc-mermaid-error role="alert" hidden data-render-failed="' +
+          '<div class="mermaid-error" data-niuma-mermaid-error role="alert" hidden data-render-failed="' +
           escapedRenderFailed +
           '" data-too-large="' +
           escapedTooLarge +
           '"></div>' +
-          '<pre class="mermaid-source" data-cccc-mermaid-source hidden><code class="language-mermaid">' +
+          '<pre class="mermaid-source" data-niuma-mermaid-source hidden><code class="language-mermaid">' +
           escaped +
           "</code></pre>" +
           "</div>"
@@ -406,9 +406,9 @@ export function MarkdownRenderer({
   const openMermaidPreview = useCallback((trigger: HTMLElement) => {
     const block = trigger.closest<HTMLElement>("[data-mermaid-block]");
     if (!block || block.dataset.mermaidState !== "rendered") return;
-    const target = block.querySelector<HTMLElement>("[data-cccc-mermaid-target]");
+    const target = block.querySelector<HTMLElement>("[data-niuma-mermaid-target]");
     const svg = target?.querySelector<SVGSVGElement>("svg");
-    const copyButton = block.querySelector<HTMLButtonElement>("button[data-cccc-markdown-copy]");
+    const copyButton = block.querySelector<HTMLButtonElement>("button[data-niuma-markdown-copy]");
     if (!target || !svg || !copyButton) return;
 
     let source = "";
@@ -448,7 +448,7 @@ export function MarkdownRenderer({
 
     const handleClick = async (e: MouseEvent) => {
       const expand = (e.target as HTMLElement).closest<HTMLButtonElement>(
-        "button[data-cccc-mermaid-expand]",
+        "button[data-niuma-mermaid-expand]",
       );
       if (expand) {
         e.preventDefault();
@@ -458,7 +458,7 @@ export function MarkdownRenderer({
       }
 
       const toggle = (e.target as HTMLElement).closest<HTMLButtonElement>(
-        "button[data-cccc-mermaid-toggle]",
+        "button[data-niuma-mermaid-toggle]",
       );
       if (toggle) {
         e.preventDefault();
@@ -467,7 +467,7 @@ export function MarkdownRenderer({
         return;
       }
 
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-cccc-mermaid-target]");
+      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-niuma-mermaid-target]");
       if (target) {
         e.preventDefault();
         e.stopPropagation();
@@ -476,7 +476,7 @@ export function MarkdownRenderer({
       }
 
       const button = (e.target as HTMLElement).closest<HTMLButtonElement>(
-        "button[data-cccc-markdown-copy]",
+        "button[data-niuma-markdown-copy]",
       );
       if (!button) return;
 
@@ -516,7 +516,7 @@ export function MarkdownRenderer({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Enter" && e.key !== " ") return;
-      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-cccc-mermaid-target]");
+      const target = (e.target as HTMLElement).closest<HTMLElement>("[data-niuma-mermaid-target]");
       if (!target) return;
       e.preventDefault();
       e.stopPropagation();

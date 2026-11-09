@@ -10,18 +10,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _checkout(root: Path, name: str, *, packaged: bool) -> Path:
-    package = root / name / "crates/cccc-web"
+    package = root / name / "crates/niuma-web"
     (package / "src").mkdir(parents=True)
     (package / "Cargo.toml").write_text(
         '[package]\nname="web-assets-probe"\nversion="0.1.0"\nedition="2024"\n'
         "[workspace]\n",
         encoding="utf-8",
     )
-    shutil.copyfile(ROOT / "crates/cccc-web/build.rs", package / "build.rs")
+    shutil.copyfile(ROOT / "crates/niuma-web/build.rs", package / "build.rs")
     # Resolve relative paths from the package root, as RustEmbed does. Absolute
     # paths also work, so the previous cross-checkout bug fails on wrong content.
     (package / "embedded.rs").write_text(
-        'pub const PAGE: &str = include_str!(concat!(env!("CCCC_WEB_DIST_DIR"), '
+        'pub const PAGE: &str = include_str!(concat!(env!("NIUMA_WEB_DIST_DIR"), '
         '"/index.html"));\n',
         encoding="utf-8",
     )
@@ -66,7 +66,7 @@ def test_shared_cargo_cache_embeds_the_current_checkout(
         _checkout(tmp_path, name, packaged=packaged) for name in ("first", "second")
     ]
     env = {**os.environ, "CARGO_TARGET_DIR": str(tmp_path / "target")}
-    env.pop("CCCC_FORCE_WEB_BUILD", None)
+    env.pop("NIUMA_FORCE_WEB_BUILD", None)
 
     def build(package: Path) -> str:
         result = subprocess.run(

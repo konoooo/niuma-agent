@@ -1,6 +1,6 @@
 # Architecture
 
-> CCCC = Collaborative Code Coordination Center
+> 牛马Agent = Collaborative Code Coordination Center
 >
 > A global AI Agent collaboration hub: a single daemon manages multiple working groups, with Web/CLI/IM as entry points.
 
@@ -20,21 +20,21 @@
 
 ### Ledger
 
-- Authoritative message and collaboration event history: `~/.cccc/groups/<group_id>/ledger.jsonl`
+- Authoritative message and collaboration event history: `~/.niuma-agent/groups/<group_id>/ledger.jsonl`
 - Append-only events support history, delivery/read/reply projections, and audit
-- Group configuration lives in `group.yaml`; tasks and coordination state live in `context/`. The ledger alone is not a backup of all CCCC state.
+- Group configuration lives in `group.yaml`; tasks and coordination state live in `context/`. The ledger alone is not a backup of all 牛马Agent state.
 
 ## Directory Layout
 
-Default: `CCCC_HOME=~/.cccc`
+Default: `NIUMA_HOME=~/.niuma-agent`
 
 ```
-~/.cccc/
+~/.niuma-agent/
 ├── registry.json                 # Working group index
 ├── daemon/
-│   ├── ccccd.pid
-│   ├── ccccd.log
-│   └── ccccd.sock               # IPC socket
+│   ├── niumad.pid
+│   ├── niumad.log
+│   └── niumad.sock               # IPC socket
 └── groups/<group_id>/
     ├── group.yaml               # Metadata
     ├── ledger.jsonl             # Event stream (append-only)
@@ -73,7 +73,7 @@ the supported migration boundary, including group-copy packages.
 
 ## Architecture and Ownership
 
-CCCC is a modular native application. One daemon owns the shared collaboration
+牛马Agent is a modular native application. One daemon owns the shared collaboration
 control plane; entry points and integration hosts use its IPC contract. A Rust
 crate boundary is not necessarily a process boundary.
 
@@ -109,14 +109,14 @@ provider-owned service after the launcher exits.
 
 | Module | Responsibility | Boundary |
 |---|---|---|
-| `cccc-contracts` | Event, Actor, IPC envelope and shared wire types | No port or provider dependency |
-| `cccc-core` | Group, Context, ledger, permissions and durable stores | Shared semantics and persistence; no Web/CLI dependency |
-| `cccc-runtime` | Native process, PTY, terminal history, input and attachment ownership | OS and terminal mechanisms; not the managed provider protocol layer |
-| `cccc-client` | Daemon discovery and IPC transport | Distinguishes connection failure from an unknown result after submission |
-| `cccc-daemon` | Operation authorization, lifecycle, delivery, automation and managed provider adapters | Shared control-plane authority |
-| `cccc-web` | Web API, UI assets, browser/media/IM integration hosts | Uses daemon operations for shared mutations; retains its own live resources |
-| `cccc-mcp` | Agent tool surface and local tool execution | Collaboration tools map to daemon semantics |
-| `cccc-cli` | Public executable and process composition | Builds and launches the product entry points |
+| `niuma-contracts` | Event, Actor, IPC envelope and shared wire types | No port or provider dependency |
+| `niuma-core` | Group, Context, ledger, permissions and durable stores | Shared semantics and persistence; no Web/CLI dependency |
+| `niuma-runtime` | Native process, PTY, terminal history, input and attachment ownership | OS and terminal mechanisms; not the managed provider protocol layer |
+| `niuma-client` | Daemon discovery and IPC transport | Distinguishes connection failure from an unknown result after submission |
+| `niuma-daemon` | Operation authorization, lifecycle, delivery, automation and managed provider adapters | Shared control-plane authority |
+| `niuma-web` | Web API, UI assets, browser/media/IM integration hosts | Uses daemon operations for shared mutations; retains its own live resources |
+| `niuma-mcp` | Agent tool surface and local tool execution | Collaboration tools map to daemon semantics |
+| `niuma-cli` | Public executable and process composition | Builds and launches the product entry points |
 
 Managed provider protocols currently live under the daemon's
 `ops/codex_voice_analyst/` module and are shared by Actor and Voice Analyst
@@ -303,8 +303,8 @@ A message addresses either the human user or one or more actors, never both.
 
 ### Design Principles
 
-- **Ledger stores only references, not large binaries**: Large text/attachments go to `CCCC_HOME` blobs (e.g., `groups/<group_id>/state/blobs/`).
-- **No automatic writes to repo by default**: Attachments belong to the runtime domain (`CCCC_HOME`); if needed in scope/repo, user/agent explicitly copies/exports.
+- **Ledger stores only references, not large binaries**: Large text/attachments go to `NIUMA_HOME` blobs (e.g., `groups/<group_id>/state/blobs/`).
+- **No automatic writes to repo by default**: Attachments belong to the runtime domain (`NIUMA_HOME`); if needed in scope/repo, user/agent explicitly copies/exports.
 - **Content is portable**: Attachments use `sha256` as stable identity, allowing future cross-group/repo copy and reference rewriting.
 
 ## Roles and Permissions
@@ -337,9 +337,9 @@ MCP is exposed as an action-oriented surface. Tool count is intentionally not ha
 
 The surface is best understood as capability groups instead of a fixed namespace/tool count. Each group can expose one or more MCP tools, and some groups use action-style wrappers rather than one-tool-per-operation naming.
 
-Repository instruction loading belongs to each runtime. CCCC does not discover,
+Repository instruction loading belongs to each runtime. 牛马Agent does not discover,
 merge, or inject `AGENTS.md` into runtime prompts; Actors without local runtime
-file access can read it through the existing `cccc_file` tool. The Web editor
+file access can read it through the existing `niuma_file` tool. The Web editor
 reads and writes only the active workspace root's file through
 `GET/PUT /api/v1/groups/{group_id}/agents_md`. GET returns `content`, `path`, and
 `exists`; PUT takes `content` and the displayed `expected_path`, rejecting a
@@ -348,18 +348,18 @@ runtime sessions. The optional team notification is a separate chat send.
 
 ### Core Collaboration Capability Groups
 
-- Session and guidance: `cccc_bootstrap`, `cccc_help`
-- Messaging and files: `cccc_inbox_read`, `cccc_message_history`, `cccc_message_send`, `cccc_message_reply`, `cccc_file`, `cccc_file_send`
-- Group and actor control: `cccc_group`, `cccc_actor`
-- Coordination and state: `cccc_context_get`, `cccc_coordination`, `cccc_task`, `cccc_agent_state`, `cccc_context_sync`
-- Automation and memory: `cccc_automation`, `cccc_memory`, `cccc_memory_admin`
+- Session and guidance: `niuma_bootstrap`, `niuma_help`
+- Messaging and files: `niuma_inbox_read`, `niuma_message_history`, `niuma_message_send`, `niuma_message_reply`, `niuma_file`, `niuma_file_send`
+- Group and actor control: `niuma_group`, `niuma_actor`
+- Coordination and state: `niuma_context_get`, `niuma_coordination`, `niuma_task`, `niuma_agent_state`, `niuma_context_sync`
+- Automation and memory: `niuma_automation`, `niuma_memory`, `niuma_memory_admin`
 
 ### Capability-Managed and Optional Groups
 
-- These capability groups expand the surface without hardcoding a fixed namespace count. The current grouped tools include lifecycle and pack control (`cccc_capability_search`, `cccc_capability_enable`, `cccc_capability_block`, `cccc_capability_state`, `cccc_capability_import`, `cccc_capability_uninstall`, `cccc_capability_use`).
-- Space / notebook integrations: `cccc_space`
-- Terminal and diagnostics: `cccc_terminal`, `cccc_terminal_tail`, `cccc_debug_*`
-- IM binding: `cccc_im_bind`
+- These capability groups expand the surface without hardcoding a fixed namespace count. The current grouped tools include lifecycle and pack control (`niuma_capability_search`, `niuma_capability_enable`, `niuma_capability_block`, `niuma_capability_state`, `niuma_capability_import`, `niuma_capability_uninstall`, `niuma_capability_use`).
+- Space / notebook integrations: `niuma_space`
+- Terminal and diagnostics: `niuma_terminal`, `niuma_terminal_tail`, `niuma_debug_*`
+- IM binding: `niuma_im_bind`
 
 ## Tech Stack
 
@@ -374,12 +374,12 @@ runtime sessions. The optional team notification is a separate chat send.
 
 ```
 crates/
-├── cccc-contracts/        # Versioned wire types
-├── cccc-core/             # Durable state and kernel
-├── cccc-daemon/           # Control plane, delivery and managed provider adapters
-├── cccc-runtime/          # Native process and terminal mechanisms
-├── cccc-client/           # Daemon IPC transport
-├── cccc-web/              # Web API, embedded UI and integration hosts
-├── cccc-mcp/              # MCP server
-└── cccc-cli/              # Public cccc executable
+├── niuma-contracts/        # Versioned wire types
+├── niuma-core/             # Durable state and kernel
+├── niuma-daemon/           # Control plane, delivery and managed provider adapters
+├── niuma-runtime/          # Native process and terminal mechanisms
+├── niuma-client/           # Daemon IPC transport
+├── niuma-web/              # Web API, embedded UI and integration hosts
+├── niuma-mcp/              # MCP server
+└── niuma-cli/              # Public niuma-agent executable
 ```

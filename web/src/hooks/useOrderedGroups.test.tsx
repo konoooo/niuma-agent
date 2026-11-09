@@ -50,7 +50,7 @@ describe("useOrderedGroups", () => {
       await act(async () => useGroupStore.getState().reorderGroupsInSection(section, 0, 1));
       const expected = section === "working" ? ["c", "b", "a", "d"] : ["a", "d", "c", "b"];
       expect(host.textContent).toBe(expected.join(","));
-      expect(JSON.parse(localStorage.getItem("cccc-group-order")!)).toEqual(expected);
+      expect(JSON.parse(localStorage.getItem("niuma-group-order")!)).toEqual(expected);
       expect(useGroupStore.getState().groups).toBe(groups);
 
       await act(async () => useGroupStore.getState().reorderGroupsInSection(section, 1, 0));

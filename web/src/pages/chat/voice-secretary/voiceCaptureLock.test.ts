@@ -7,7 +7,7 @@ import {
   releaseVoiceCaptureLock,
 } from "./voiceCaptureLock";
 
-const LOCK_KEY = "cccc.voiceSecretary.activeCapture";
+const LOCK_KEY = "niuma-agent.voiceSecretary.activeCapture";
 
 afterEach(() => {
   window.localStorage.clear();

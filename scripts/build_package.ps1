@@ -11,7 +11,7 @@ foreach ($commandName in @('node', 'npm', 'cargo', 'rustc', 'python')) {
 
 $rootDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $target = ((& rustc -vV) | Select-String '^host: ').Line.Substring(6)
-$binary = Join-Path $rootDir 'target\release\cccc.exe'
+$binary = Join-Path $rootDir 'target\release\niuma-agent.exe'
 
 $prepareArgs = @(
   (Join-Path $rootDir 'scripts\prepare_rust_web_assets.mjs'),
@@ -22,9 +22,9 @@ if ($LASTEXITCODE -ne 0) {
   throw "Web asset build failed with exit code $LASTEXITCODE"
 }
 
-& cargo build --manifest-path (Join-Path $rootDir 'Cargo.toml') --release --locked --features standalone -p cccc --bin cccc
+& cargo build --manifest-path (Join-Path $rootDir 'Cargo.toml') --release --locked --features standalone -p niuma-agent --bin niuma-agent
 if ($LASTEXITCODE -ne 0) {
-  throw "CCCC build failed with exit code $LASTEXITCODE"
+  throw "牛马Agent build failed with exit code $LASTEXITCODE"
 }
 
 & python (Join-Path $rootDir 'scripts\build_standalone_archive.py') $binary --target $target --output-dir (Join-Path $rootDir 'dist')
@@ -34,8 +34,8 @@ if ($LASTEXITCODE -ne 0) {
 
 & $binary --version
 if ($LASTEXITCODE -ne 0) {
-  throw "Built CCCC executable failed with exit code $LASTEXITCODE"
+  throw "Built 牛马Agent executable failed with exit code $LASTEXITCODE"
 }
 
-Write-Host 'OK: built the native CCCC archive in dist/'
+Write-Host 'OK: built the native 牛马Agent archive in dist/'
 Write-Host "Run: $binary"

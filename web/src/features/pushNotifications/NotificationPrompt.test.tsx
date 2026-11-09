@@ -12,7 +12,7 @@ import { useNotificationPromptOffer } from "./useNotificationPromptOffer";
 
 const mocks = vi.hoisted(() => ({ supported: vi.fn(() => true), status: vi.fn(), open: vi.fn() }));
 vi.mock("./subscription", () => ({
-  PUSH_STATUS_EVENT: "cccc:push-status",
+  PUSH_STATUS_EVENT: "niuma-agent:push-status",
   pushSupported: mocks.supported,
   readPushSetupStatus: mocks.status,
 }));
@@ -95,7 +95,7 @@ it("follows settings when notifications are turned on there", async () => {
   await act(async () => root.render(<Offer waiting />));
   expect(buttons()).toHaveLength(2);
   mocks.status.mockResolvedValueOnce("enabled");
-  await act(async () => window.dispatchEvent(new Event("cccc:push-status")));
+  await act(async () => window.dispatchEvent(new Event("niuma-agent:push-status")));
   expect(host.innerHTML).toBe("");
 });
 
@@ -156,9 +156,9 @@ it("follows Not now from another tab of this browser", async () => {
   mocks.status.mockResolvedValue("disabled");
   await act(async () => root.render(<Offer waiting />));
   expect(buttons()).toHaveLength(2);
-  window.localStorage.setItem("cccc.notificationPrompt.dismissed", "1");
+  window.localStorage.setItem("niuma-agent.notificationPrompt.dismissed", "1");
   await act(async () =>
-    window.dispatchEvent(new StorageEvent("storage", { key: "cccc.notificationPrompt.dismissed" })),
+    window.dispatchEvent(new StorageEvent("storage", { key: "niuma-agent.notificationPrompt.dismissed" })),
   );
   expect(host.innerHTML).toBe("");
 });

@@ -99,7 +99,7 @@ it("leaves a reply to Chet without recipients, naming Chet only for this Group's
     id: "chet-event",
     kind: "chat.message",
     by: "svc:chet",
-    data: { text: "Please check the build.", to: ["user"], _cccc_chet_group_generation: marker },
+    data: { text: "Please check the build.", to: ["user"], _niuma_chet_group_generation: marker },
   });
   const reply = (marker: string) =>
     buildReplyComposerState(

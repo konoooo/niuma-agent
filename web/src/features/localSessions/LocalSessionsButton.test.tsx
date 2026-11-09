@@ -532,7 +532,7 @@ it("marks existing members and resumes only a paused source on an explicit user 
     source.source_id,
   );
   expect(row(source.title).textContent).toContain(enLayout.localSessions.memberJoined);
-  expect(document.body.textContent).toContain("CCCC access resumed for Original member.");
+  expect(document.body.textContent).toContain("牛马Agent access resumed for Original member.");
   expect(button(enActors.dotsResume)).toBeUndefined();
   expect(mocks.join).not.toHaveBeenCalled();
   expect(useGroupStore.getState().groupDoc?.state).toBe("paused");
@@ -889,18 +889,18 @@ it("offers the terminal /setup path, the enable commands and a collapsed trouble
   for (const text of [
     "message each other and join Groups",
     "Experimental",
-    "running cccc in a terminal, type /setup there",
+    "running niuma-agent in a terminal, type /setup there",
     "same OS user",
-    "CCCC_HOME",
-    "cccc sessions enable --runtime codex",
-    "approve the CCCC hooks when asked (/hooks)",
+    "NIUMA_HOME",
+    "niuma-agent sessions enable --runtime codex",
+    "approve the 牛马Agent hooks when asked (/hooks)",
   ]) {
     expect(setup).toContain(text);
   }
   expect(setup).not.toMatch(/\d+\.\d+\.\d+/);
   const example = setupDetails!.querySelector("blockquote")?.textContent || "";
   expect(example).toContain("/path/to/project");
-  expect(example).toContain("reply through CCCC using Send");
+  expect(example).toContain("reply through 牛马Agent using Send");
   expect(example).toContain("If several sessions match, ask me to choose");
   expect(setup).toContain("you do not need to create one first");
 
@@ -909,7 +909,7 @@ it("offers the terminal /setup path, the enable commands and a collapsed trouble
   const help = troubleshooting!.textContent!;
   for (const text of [
     "Troubleshooting",
-    "cccc sessions list",
+    "niuma-agent sessions list",
     "native prompt",
     "shared app-server",
     "daemon_auto_start = true",
@@ -920,7 +920,7 @@ it("offers the terminal /setup path, the enable commands and a collapsed trouble
     expect(help).toContain(text);
   }
   expect(setupDetails!.parentElement?.querySelector(":scope > a")?.getAttribute("href")).toBe(
-    "https://chesterra.github.io/cccc/guide/local-sessions",
+    "https://github.com/konoooo/niuma-agent/tree/main/docs/guide/local-sessions",
   );
 });
 
@@ -988,7 +988,7 @@ it.each([
     expect(document.body.textContent).toContain(count);
     await click(document.querySelector("summary"));
     const example = document.querySelector("details blockquote")?.textContent || "";
-    for (const text of ["CCCC", "Codex", "/path/to/project", "Send + Reply"]) {
+    for (const text of ["牛马Agent", "Codex", "/path/to/project", "Send + Reply"]) {
       expect(example).toContain(text);
     }
     await chooseTarget(existingGroup.group_id);

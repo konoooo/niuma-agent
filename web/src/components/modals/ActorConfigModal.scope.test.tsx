@@ -515,7 +515,7 @@ async function editActor(
         isDark={false}
         theme="light"
         textScale={100}
-        ccccHome="/fixture-only"
+        niumaHome="/fixture-only"
         composerRef={createRef()}
         onStartReply={vi.fn()}
         onThemeChange={vi.fn()}

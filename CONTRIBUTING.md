@@ -1,4 +1,4 @@
-# Contributing to CCCC
+# Contributing to 牛马Agent
 
 Contributions are welcome — bug reports, feature requests, code, and documentation.
 This page consolidates the conventions that are otherwise spread across the
@@ -7,8 +7,8 @@ README, [SUPPORT.md](SUPPORT.md), [SECURITY.md](SECURITY.md), and
 
 ## Ways to Contribute
 
-- **Bug reports**: search [existing issues](https://github.com/ChesterRa/cccc/issues)
-  first, then open a new one. Include `cccc --version`, your OS, the exact
+- **Bug reports**: search [existing issues](https://github.com/konoooo/niuma-agent/issues)
+  first, then open a new one. Include `niuma-agent --version`, your OS, the exact
   commands, and minimal reproduction steps. See [SUPPORT.md](SUPPORT.md) for the
   full checklist and daemon-log guidance.
 - **Feature requests**: describe the problem, the proposed behavior, and the
@@ -17,7 +17,7 @@ README, [SUPPORT.md](SUPPORT.md), [SECURITY.md](SECURITY.md), and
 - **Security issues**: report privately per [SECURITY.md](SECURITY.md). Never
   open a public issue for a vulnerability.
 
-Runtime state lives under `CCCC_HOME` (default `~/.cccc/`) — never commit it,
+Runtime state lives under `NIUMA_HOME` (default `~/.niuma-agent/`) — never commit it,
 and do not paste tokens, credentials, or provider transcripts into issues.
 
 ## Development Environment
@@ -34,12 +34,12 @@ Build and run from the repository root (Bash):
 ```bash
 npm ci --prefix web
 npm -C web run build
-CCCC_HOME="$HOME/.cccc-dev" cargo run --locked --features standalone -p cccc --bin cccc -- --port 0
+NIUMA_HOME="$HOME/.niuma-agent-dev" cargo run --locked --features standalone -p niuma-agent --bin niuma-agent -- --port 0
 ```
 
-Use a dedicated `CCCC_HOME` outside the checkout for development; `--port 0`
+Use a dedicated `NIUMA_HOME` outside the checkout for development; `--port 0`
 selects a free port but does not isolate runtime data from your daily instance.
-In PowerShell, set `$env:CCCC_HOME = Join-Path $HOME '.cccc-dev'` before running
+In PowerShell, set `$env:NIUMA_HOME = Join-Path $HOME '.niuma-agent-dev'` before running
 these commands, and omit the Bash assignment before `cargo run`.
 
 Release executables embed the frontend bundle, so rebuild the executable after
@@ -98,7 +98,7 @@ Notes:
   all Rust tests serially for simplicity; CI separates the affected tests.
   Plain `cargo test --workspace` does not inherit CI's serial settings.
 - Cargo checks invoked by the quality-gate scripts default to two build jobs.
-  Override with `CCCC_CARGO_JOBS=4 scripts/quality_gate.sh fast` on larger
+  Override with `NIUMA_CARGO_JOBS=4 scripts/quality_gate.sh fast` on larger
   machines. Direct Cargo commands use Cargo's own `--jobs` setting.
 - Repository-contract tests in `tests/` validate docs against code (for
   example, the MCP architecture surface). Editing the MCP tool list, IPC
@@ -117,10 +117,10 @@ Notes:
 When working on the areas changed in v0.4.44, preserve these boundaries:
 
 - **Repository instructions:** use `AGENTS.md` through the runtime's native
-  loading rules. CCCC does not inject it into prompts or reload sessions on save.
+  loading rules. 牛马Agent does not inject it into prompts or reload sessions on save.
   The Web editor uses `/api/v1/groups/{group_id}/agents_md` and sends the displayed
   `expected_path` when saving. The old `/project_md` endpoint,
-  `cccc_project_info` tool and PROJECT.md bootstrap metadata have been removed;
+  `niuma_project_info` tool and PROJECT.md bootstrap metadata have been removed;
   do not reintroduce them in integrations. Existing files are left untouched.
   See [Architecture](docs/reference/architecture.md#mcp-server).
 - **Async Web operations:** bind reads and UI updates to their originating

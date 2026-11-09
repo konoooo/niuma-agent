@@ -86,8 +86,8 @@ describe("dispatchSlashMessageOptimistically", () => {
     await expect(
       dispatchSlashMessageOptimistically({
         dispatchText: DEFAULT_CAPSULE_SKILL_TASK_TEXT,
-        command: "/cccc-self-evolution",
-        capabilityId: "skill:agent_self_proposed:cccc-self-evolution",
+        command: "/niuma-self-evolution",
+        capabilityId: "skill:agent_self_proposed:niuma-self-evolution",
         dispatchMessage,
         beginDispatch: () => ({ clientId: "fixture-id", restore: vi.fn() }),
       }),
@@ -95,8 +95,8 @@ describe("dispatchSlashMessageOptimistically", () => {
 
     expect(dispatchMessage).toHaveBeenCalledWith(DEFAULT_CAPSULE_SKILL_TASK_TEXT, {
       replyTarget: null,
-      command: "/cccc-self-evolution",
-      capabilityId: "skill:agent_self_proposed:cccc-self-evolution",
+      command: "/niuma-self-evolution",
+      capabilityId: "skill:agent_self_proposed:niuma-self-evolution",
       clientId: "fixture-id",
     });
   });

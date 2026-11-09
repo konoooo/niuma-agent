@@ -1,9 +1,6 @@
 # Contributor Quality Gates
 
-CCCC keeps the product implementation native while using small Python scripts
-only for release packaging and repository-contract checks. Pull requests cover
-source correctness; slower native-distribution checks run nightly and again on
-the exact release artifacts.
+以下命令可在本地验证源码、构建结果和分发包。
 
 ## Local Commands
 
@@ -20,14 +17,14 @@ It selects checks from changed files:
   `tests/suite/` map to the crate's `integration` target.
 - Web changes run format, lint, and TypeScript checks.
 - Release scripts, repository tests, workflows, and contract documentation run
-  the small Python tooling suite. This suite does not import or launch a CCCC
+  the small Python tooling suite. This suite does not import or launch a 牛马Agent
   Python product implementation.
 
 Local Cargo checks default to two build jobs to reduce memory pressure. Override
 the bound on machines with more memory:
 
 ```bash
-CCCC_CARGO_JOBS=4 scripts/quality_gate.sh fast
+NIUMA_CARGO_JOBS=4 scripts/quality_gate.sh fast
 ```
 
 Inspect selection without running it:
@@ -37,7 +34,7 @@ scripts/pre_commit_checks.sh --dry-run
 ```
 
 The impacted gate reports elapsed time against a 120-second feedback target.
-Override the reporting threshold with `CCCC_PRECOMMIT_BUDGET_SECONDS`. A warning
+Override the reporting threshold with `NIUMA_PRECOMMIT_BUDGET_SECONDS`. A warning
 does not hide a successful check.
 
 Before handing off a broad change, run:
@@ -72,7 +69,7 @@ npm -C web run check
 The native product embeds `web/dist`. `npm -C web run build` is sufficient before
 rebuilding the Rust executable; `scripts/build_web.sh` and
 `scripts/build_web.ps1` are convenience wrappers. `./scripts/build_package.sh`
-builds both the frontend and the native archive. Restart the running CCCC process
+builds both the frontend and the native archive. Restart the running 牛马Agent process
 with the resulting executable to load the new embedded UI.
 
 The Web build script tracks inputs and exports its asset directory relative to
@@ -96,63 +93,9 @@ appropriate. Record the observed behavior and any integration boundaries in the
 handoff. Do not describe unit tests or a successful bundle build as browser
 acceptance. Native Rust browser/session tests remain part of their crate tests.
 
-## Pull-Request Jobs
+## 手动验证
 
-| Job | Responsibility |
-| --- | --- |
-| `quality` | Ruff plus release-tool, workflow, documentation, and packaging contract tests |
-| `web` | Vite+ checks, TypeScript, all Web tests, and the production bundle |
-| `package` | Deterministic native wheel/archive tooling and exact Rust-only wheel layout checks |
-| `rust-linux` | Rust formatting, workspace Clippy/tests, Unix installer contracts, and serial combined-process lifecycle coverage |
-| `windows-smoke` | Focused native Windows process-lifecycle checks |
-| `ci-required` | Stable branch-protection aggregate; fails when any required job fails or is skipped |
-
-The Rust job installs no Python product runtime. Its formatting, linting, tests,
-and lifecycle checks reuse one checkout and Cargo target directory. Combined
-daemon/Web process tests run last with one test thread to avoid lifecycle races.
-
-Python in `quality` and `package` is a build/test interpreter only. There is no
-Python daemon job, engine matrix, or cross-engine interoperability job.
-
-## Nightly Native Verification
-
-| Job | Responsibility |
-| --- | --- |
-| `web-bundle` | Build the exact frontend embedded by native artifacts |
-| `rust-dist` | Release-build the Rust workspace and run Unix installation/replacement smoke |
-| `windows-installer` | Build the native Windows CLI and verify installer ownership and PATH handling |
-
-`rust-dist` runs `scripts/tests/smoke_rust_replacement.sh` against the built
-executable in a fresh `CCCC_HOME`. It verifies daemon lifecycle, a scoped Web
-Model actor, MCP initialization, a real `cccc_code_exec` cell, and clean stop.
-
-Release verification repeats installation and same-version replacement against
-the exact Linux, Apple Silicon macOS, and Windows artifacts. Linux artifacts
-must satisfy the manylinux 2.28 dependency boundary; the macOS artifact declares
-macOS 11.0; Windows builds target Server 2022. Publication requires three native
-wheels, three standalone archives, matching executable hashes, checksums,
-version-bound installers, release notes, installed CLI/MCP/daemon/Web smoke, and
-platform installer verification. Each wheel must also carry `pip-v1` in the
-shared ownership marker path, replace any stale standalone marker on install,
-refuse standalone self-update, and remove both its executable and marker on pip
-uninstall.
-
-The release workflow packages the same native executable bytes into standalone
-archives and dependency-free platform wheels. It does not build an sdist,
-universal wheel, importable CCCC Python package, fallback engine, or second Rust
-registry distribution.
-
-The Pages build uses its workflow token to resolve complete stable/RC releases,
-then publishes `releases.json` alongside installers that resolve GitHub's latest
-stable release at execution time. Website installers must not pin the build-time
-version; release-asset installers remain version-bound for reproducibility. It must
-fail before deployment if resolution fails or VitePress does not preserve that
-index. For the first rollout, deploy Pages and verify
-`https://chesterra.github.io/cccc/releases.json` before distributing the CLI that
-uses it. Subsequent successful release workflows refresh Pages automatically;
-`Deploy Docs` can also be rerun manually. Older clients blocked by API rate
-limits can upgrade through the original installation command after the fixed
-release is published. Installation and checksum verification remain unchanged.
+本仓库通过上面的本地命令验证改动。原有 GitHub 流水线已移除。
 
 ## Design Boundary
 

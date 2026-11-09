@@ -1,40 +1,40 @@
 # Operations Runbook
 
-This page is for operators who need reliable day-to-day CCCC execution.
+This page is for operators who need reliable day-to-day 牛马Agent execution.
 
 ## 1) Runtime Topology
 
 Default runtime home:
-- `CCCC_HOME=~/.cccc`
+- `NIUMA_HOME=~/.niuma-agent`
 
 Key paths:
-- `~/.cccc/registry.json`
-- `~/.cccc/daemon/ccccd.sock`
-- `~/.cccc/daemon/ccccd.log`
-- `~/.cccc/groups/<group_id>/group.yaml`
-- `~/.cccc/groups/<group_id>/ledger.jsonl`
+- `~/.niuma-agent/registry.json`
+- `~/.niuma-agent/daemon/niumad.sock`
+- `~/.niuma-agent/daemon/niumad.log`
+- `~/.niuma-agent/groups/<group_id>/group.yaml`
+- `~/.niuma-agent/groups/<group_id>/ledger.jsonl`
 
 ## 2) Startup and Health Checks
 
 ### Start
 
 ```bash
-cccc              # interactive terminal: daemon + Web UI with the terminal interface
-cccc --headless   # servers, containers, service managers, scripts: plain log output
+niuma-agent              # interactive terminal: daemon + Web UI with the terminal interface
+niuma-agent --headless   # servers, containers, service managers, scripts: plain log output
 ```
 
 Both run in the foreground and own what they started: quitting the interface,
 Ctrl+C or a termination signal stops the Web server, and the daemon when that
-launch started it. To keep CCCC running unattended, run `cccc --headless` under
+launch started it. To keep 牛马Agent running unattended, run `niuma-agent --headless` under
 a service manager such as systemd or a container runtime instead of detaching
-it. Without a terminal, `cccc` runs headless on its own.
+it. Without a terminal, `niuma-agent` runs headless on its own.
 
 ### Health Baseline
 
 ```bash
-cccc doctor
-cccc daemon status
-cccc groups
+niuma-agent doctor
+niuma-agent daemon status
+niuma-agent groups
 ```
 
 Expected:
@@ -55,10 +55,10 @@ When a group appears stuck:
 Useful commands:
 
 ```bash
-cccc daemon status
-cccc actor list
-cccc inbox --actor-id <actor_id>
-cccc tail -n 100 -f
+niuma-agent daemon status
+niuma-agent actor list
+niuma-agent inbox --actor-id <actor_id>
+niuma-agent tail -n 100 -f
 ```
 
 ## 4) Fast Recovery Playbook
@@ -66,7 +66,7 @@ cccc tail -n 100 -f
 ### Agent-level recovery (preferred) {#actor-level-recovery-preferred}
 
 ```bash
-cccc actor restart <actor_id>
+niuma-agent actor restart <actor_id>
 ```
 
 Use this before group-level restart.
@@ -74,15 +74,15 @@ Use this before group-level restart.
 ### Group-level recovery
 
 ```bash
-cccc group stop
-cccc group start
+niuma-agent group stop
+niuma-agent group start
 ```
 
 ### Daemon-level recovery (last resort)
 
 ```bash
-cccc daemon stop
-cccc daemon start
+niuma-agent daemon stop
+niuma-agent daemon start
 ```
 
 ## 5) Secure Remote Access
@@ -100,33 +100,19 @@ Do not:
 ### Before upgrade
 
 1. Stop active high-risk sessions.
-2. Backup `CCCC_HOME`.
+2. Backup `NIUMA_HOME`.
 3. Record current version and smoke state.
 
-### Upgrade
+### 更新程序
 
-```bash
-# Website-installer ownership
-cccc update
-
-# Pip ownership
-python -m pip install -U "cccc-pair>=0.4.36"
-```
-
-Do not remove the v0.4.36 lower bound. Before a pip upgrade, run
-`cccc daemon stop` and close any
-foreground CCCC process so the executable is replaceable on every platform.
-Do not layer the website installer over a pip-owned command. To switch
-installation channels in the same directory, uninstall `cccc-pair` with pip
-first; the installer refuses `pip-v1` ownership even when
-`CCCC_ALLOW_REPLACE_EXISTING=1` is set.
+按照[源码安装说明](./getting-started/index.md#从源码安装)重新构建。停止当前服务后使用新构建的程序启动，继续使用原有 `NIUMA_HOME`。
 
 ### After upgrade
 
 ```bash
-cccc doctor
-cccc daemon status
-cccc mcp
+niuma-agent doctor
+niuma-agent daemon status
+niuma-agent mcp
 ```
 
 Run a small end-to-end smoke:
@@ -139,7 +125,7 @@ Run a small end-to-end smoke:
 
 ### Backup (minimal)
 
-Backup `CCCC_HOME`:
+Backup `NIUMA_HOME`:
 - registry
 - daemon logs (optional)
 - all groups (`group.yaml`, ledger, state)
@@ -147,12 +133,12 @@ Backup `CCCC_HOME`:
 ### Restore
 
 1. Stop daemon.
-2. Restore `CCCC_HOME` directory.
-3. Start daemon and verify with `cccc doctor`.
+2. Restore `NIUMA_HOME` directory.
+3. Start daemon and verify with `niuma-agent doctor`.
 
 ## 8) Operational Guardrails
 
-- Keep one source of truth: decisions should be in CCCC messages.
+- Keep one source of truth: decisions should be in 牛马Agent messages.
 - Use `message_mode=request_reply` only for a concrete recipient whose reply is
   required; use Mail for useful but non-urgent context.
 - Mail is agent-only. Address either `user` alone or one/more agents in each
@@ -180,7 +166,7 @@ If an issue repeats:
    - group id
    - agent ID
    - event ids
-   - recent `cccc tail -n 100`
+   - recent `niuma-agent tail -n 100`
 2. Capture reproducible sequence.
 3. Classify severity (`P0/P1/P2`).
 4. Register fix or risk in release findings.
@@ -189,15 +175,15 @@ If an issue repeats:
 
 ### Activate the provider
 
-Connect Google from the Notebook settings in CCCC Web. That flow stores the
+Connect Google from the Notebook settings in 牛马Agent Web. That flow stores the
 credential and provider state used by the daemon. No feature toggle or
 environment variable is required.
 
 ### Validate control plane
 
 ```bash
-cccc space credential status
-cccc space health
+niuma-agent space credential status
+niuma-agent space health
 ```
 
 ### Validate explicit local-file ingestion
@@ -206,7 +192,7 @@ Create a supported file under the attached scope and ingest it explicitly.
 The native daemon rejects paths outside that scope before any provider write.
 
 ```bash
-cccc space ingest --kind resource_ingest \
+niuma-agent space ingest --kind resource_ingest \
   --payload '{"source_type":"file","file_path":"space/spec.md","title":"Spec"}'
 ```
 
@@ -220,11 +206,11 @@ stored credential and disable provider access from this installation.
 Expected after disconnect:
 
 - Group Space operations may return degraded/disabled provider results.
-- Core CCCC chat, task and agent workflows continue normally.
+- Core 牛马Agent chat, task and agent workflows continue normally.
 
 Optional throughput tuning:
 
 ```bash
-export CCCC_SPACE_PROVIDER_MAX_INFLIGHT=1   # safer
-export CCCC_SPACE_PROVIDER_MAX_INFLIGHT=4   # faster
+export NIUMA_SPACE_PROVIDER_MAX_INFLIGHT=1   # safer
+export NIUMA_SPACE_PROVIDER_MAX_INFLIGHT=4   # faster
 ```

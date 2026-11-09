@@ -12,9 +12,9 @@ await Promise.all(
     const rendered = template
       // Website installers resolve /releases/latest at execution time. Release
       // asset packaging separately binds these templates to its release version.
-      .replaceAll("@CCCC_VERSION@", "")
-      .replaceAll("@CCCC_RELEASE_TAG_PREFIX@", "v");
-    if (rendered.includes("@CCCC_")) {
+      .replaceAll("@NIUMA_VERSION@", "")
+      .replaceAll("@NIUMA_RELEASE_TAG_PREFIX@", "v");
+    if (rendered.includes("@NIUMA_")) {
       throw new Error(`Unrendered installer metadata in ${name}`);
     }
     await writeFile(join(publicDir, name), rendered);

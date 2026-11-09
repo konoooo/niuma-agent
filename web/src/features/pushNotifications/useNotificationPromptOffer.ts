@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { PUSH_STATUS_EVENT, pushSupported, readPushSetupStatus } from "./subscription";
 
-const DISMISSED_KEY = "cccc.notificationPrompt.dismissed";
+const DISMISSED_KEY = "niuma-agent.notificationPrompt.dismissed";
 const OFFERED = new Set(["disabled", "unbound", "keyMismatch"]);
 
 function readDismissed(): boolean {

@@ -19,7 +19,7 @@ it("shows sidebar waiting badges by default and remembers the choice after reloa
 });
 
 it("defaults to showing badges for an unrecognized stored value", async () => {
-  localStorage.setItem("cccc-pending-prompts", "unexpected");
+  localStorage.setItem("niuma-pending-prompts", "unexpected");
   const { useUIStore } = await import("./useUIStore");
   expect(useUIStore.getState().showPendingPrompts).toBe(true);
 });

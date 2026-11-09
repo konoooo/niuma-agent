@@ -1,6 +1,6 @@
 # Voice Secretary
 
-Voice Secretary runs in the native CCCC product and uses one durable workflow
+Voice Secretary runs in the native 牛马Agent product and uses one durable workflow
 authority. Local ASR is provided by the linked `sherpa-onnx` runtime.
 
 Voice Secretary is one global, on-demand service with direct Runtime configuration
@@ -22,7 +22,7 @@ The first task starts the Secretary. Its process and conversation remain availab
 between tasks, including after a normal clarification question. All Groups share
 this conversation; it is not a boundary for confidential Group information. Tasks
 run one at a time, so a long document task can delay other requests. Each task has
-an immutable destination checked by CCCC, even when the visible Group changes.
+an immutable destination checked by 牛马Agent, even when the visible Group changes.
 **New session** closes an idle conversation without deleting saved work; the next
 task starts a fresh one. Cancel, connection/termination failure, Runtime changes
 and daemon shutdown can also close the session. Waiting for information does not
@@ -45,11 +45,11 @@ directly or link a Runtime Profile, and manage recognition and document-processi
 structured runtimes as Chet: **Codex, Claude Code, Grok Build, OpenCode,
 Kilo**, and **Antigravity, GitHub Copilot, Devin and Cursor in ACP mode**. Native
 TUI Profiles are excluded. Tasks have distinct working copies and share one persistent execution session;
-native tools follow the Runtime permission model. CCCC binds its task MCP to the
+native tools follow the Runtime permission model. 牛马Agent binds its task MCP to the
 accepted target and checks document versions before committing working copies.
 These checks do not sandbox arbitrary native file or network operations.
 Profiles retain the Runtime's normal authentication and workspace-trust requirements.
-For Claude Code, trust `$CCCC_HOME/voice-secretary/workspace` once using the configured
+For Claude Code, trust `$NIUMA_HOME/voice-secretary/workspace` once using the configured
 Claude installation and `CLAUDE_CONFIG_DIR` before starting Secretary work. Create
 the directory first if it does not yet exist. This is the shared runtime workspace. This setup does not require
 sending a model prompt. An untrusted directory
@@ -195,7 +195,7 @@ history. A completed retry also retires
 obsolete predecessor copies, retaining their diagnostic receipts. Deleted Groups release their owned
 source/task data after provider cleanup; original repository files are not removed.
 Claude Agent View jobs keep a recovery record for the Secretary workspace. After
-a CCCC crash, the host stops only those owned jobs before releasing capacity and
+a 牛马Agent crash, the host stops only those owned jobs before releasing capacity and
 deleting private launch settings. Retained records from the earlier task-based
 execution are cleaned at their original directories before moving working copies;
 an unavailable control service leaves cleanup pending.
@@ -213,10 +213,10 @@ competing with action buttons. The wider-screen controls remain inline.
 
 ## Live voice provider connections
 
-Grok Voice reuses the CCCC host's first-party Grok Build subscription login (`grok login`). It requires
+Grok Voice reuses the 牛马Agent host's first-party Grok Build subscription login (`grok login`). It requires
 `grok` on PATH and uses the native auth manager for refresh; API keys are disabled for this path.
 The auth file follows native `GROK_AUTH_PATH`, `GROK_HOME/auth.json`, then `~/.grok/auth.json`.
-A temporary isolated helper reads only the selected login and never starts a model session. CCCC
+A temporary isolated helper reads only the selected login and never starts a model session. 牛马Agent
 mints a short-lived connection secret; browser audio streams directly to Grok Voice 3.0 using mono
 PCM16LE at 24 kHz. Long-lived OAuth credentials stay on the host. Subscription entitlement and limits
 remain subject to the provider; this is not a separate API-key configuration or a free-usage promise.
@@ -225,7 +225,7 @@ remain subject to the provider; this is not a separate API-key configuration or 
 Live voice is experimental. Choose Codex Voice or Grok Voice in Chet;
 Chet's text Runtime is configured independently. Codex Voice reads a local Codex
 ChatGPT login from `CODEX_HOME/auth.json` (by default `~/.codex/auth.json`) or
-`CCCC_CODEX_AUTH_PATH`, then connects to ChatGPT's Codex realtime backend
+`NIUMA_CODEX_AUTH_PATH`, then connects to ChatGPT's Codex realtime backend
 (default base URL: `https://chatgpt.com/backend-api/codex`). The call connection
 and Chet's text Runtime have different configuration: choosing a
 Runtime does not configure the call provider.
@@ -257,7 +257,7 @@ announcement queue without replaying Chet work. Codex Voice retains its native d
 This is distinct from the [public OpenAI Realtime API](https://developers.openai.com/api/docs/guides/realtime).
 An API key or API credits alone do not configure the current call path. Call
 availability and compatibility depend on the configured ChatGPT account and
-provider backend. See the [provider implementation](https://github.com/ChesterRa/cccc/blob/main/crates/cccc-daemon/src/ops/codex_voice_controller/provider.rs)
+provider backend. See the [provider implementation](https://github.com/konoooo/niuma-agent/blob/main/crates/niuma-daemon/src/ops/codex_voice_controller/provider.rs)
 for the current connection, rather than treating this feature as a public
 Realtime API integration.
 
@@ -274,7 +274,7 @@ speaker preferences remain shared with Voice Secretary.
 
 GPT-Live-1.1 is the default voice model for Plus and higher tiers, including
 Codex, according to the [October 15 system card](https://deploymentsafety.openai.com/gpt-live-1-1).
-CCCC keeps the subscription channel's `gpt-live-1-codex` identifier; that name
+牛马Agent keeps the subscription channel's `gpt-live-1-codex` identifier; that name
 does not establish which product revision the provider serves to an account.
 Voice availability still depends on the account and provider rollout. No separate
 API key is required, and selecting a Claude or Grok Runtime for Chet changes the working
@@ -341,7 +341,7 @@ Transcripts and historical ledger events are retained. There is no recovery fold
 the confirmation names the document because the file cannot be restored afterwards.
 An API failure keeps the document visible, its file in place, and its references intact.
 
-Internally the file is first moved to `CCCC_HOME/voice-secretary/<group_id>/trash/`
+Internally the file is first moved to `NIUMA_HOME/voice-secretary/<group_id>/trash/`
 so a failed index update or deletion-event append can be rolled back. The temporary
 copy remains until both the index and ledger writes succeed. On failure, rollback
 copies the file back without consuming its backup, restores the previous index
@@ -389,7 +389,7 @@ cannot overwrite the current group's library.
 
 Select **Settings → This instance → Voice → Voice Secretary → Capture and recognition → External provider ASR**.
 Choose the provider and explicitly save its credentials in that section. Recognition defaults are global;
-credentials/model settings are shared by this CCCC service instance and can only
+credentials/model settings are shared by this 牛马Agent service instance and can only
 be managed by administrators. Existing recordings retain the provider/model
 selected at start; changes apply to subsequent recordings.
 
@@ -408,12 +408,12 @@ selected at start; changes apply to subsequent recordings.
 **Test connection** checks the saved credentials/connection (and Bailian task
 admission) without sending microphone audio. It is not a recognition-accuracy
 or available-quota guarantee. Real recognition requires an enabled, funded
-provider account and network access from the CCCC server to the provider WSS
-endpoint. Audio leaves the CCCC server for the chosen provider and may incur
+provider account and network access from the 牛马Agent server to the provider WSS
+endpoint. Audio leaves the 牛马Agent server for the chosen provider and may incur
 provider charges.
 
 Credentials are stored separately from Group/assistant configuration, in
-`CCCC_HOME/config/voice-asr-providers.json`, using atomic owner-only writes on
+`NIUMA_HOME/config/voice-asr-providers.json`, using atomic owner-only writes on
 Unix. Read APIs return presence/configured flags rather than credentials.
 Blank credential inputs preserve the stored values; **Clear provider
 credentials** explicitly removes them. Browser code never receives stored keys,
@@ -466,24 +466,24 @@ Protocol references:
 Open **Settings → This instance → Voice → Voice Secretary → Capture and recognition** and select **Local ASR**.
 Install the final and live models under **Entire instance → Voice**. The sherpa-onnx runtime is linked into the
 Rust binary, so runtime install/remove actions are compatibility no-ops. Models
-are downloaded into `~/.cccc/cache/voice-models`, verified against the bundled
+are downloaded into `~/.niuma-agent/cache/voice-models`, verified against the bundled
 manifest, unpacked in staging, and atomically activated: each install becomes a
 new version directory, and one atomic write of the model's `install-state.json`
 switches to it. Downloaded archives are deleted once unpacked, unless the model
 requires the archive file itself. If an update fails before the switch, the
 installed version's files are kept, and the error is shown with the model when
-CCCC can record it; if CCCC stops during an update, the files are kept too.
+牛马Agent can record it; if 牛马Agent stops during an update, the files are kept too.
 Either way the model stays installed and usable as long as that version has
-every file the current model definition requires. If CCCC cannot confirm whether
+every file the current model definition requires. If 牛马Agent cannot confirm whether
 the switch happened, it leaves the install state as it is and keeps both
 versions until a later cleanup can confirm the current one.
 A replaced version is deleted at a later cleanup: when the next install starts,
-after an install completes, or when CCCC Web starts. A version that a
+after an install completes, or when 牛马Agent Web starts. A version that a
 recognition in progress still uses waits for a later cleanup. Removing a model
 deletes all of its versions at once, even one in use.
 
 A download that stops partway continues instead of starting over. When the
-connection drops, or no data arrives for 60 seconds, CCCC asks for the rest of
+connection drops, or no data arrives for 60 seconds, 牛马Agent asks for the rest of
 the file; it reports the error after three requests in a row that bring nothing,
 or after 20 failed requests. What arrived stays in the model's
 `.download-resume` folder, so installing again continues from there.
@@ -498,7 +498,7 @@ so that the space is free again.
 
 Existing model caches and `install-state.json` files are read in place; their
 next install or update moves the model into a version directory. Versions of
-CCCC before this layout show such a model as not installed, so after a
+牛马Agent before this layout show such a model as not installed, so after a
 downgrade it must be installed again. If `install-state.json` exists but cannot
 be read or is damaged, including a link to a missing file, the model shows as
 failed instead of not installed, and installing
@@ -508,7 +508,7 @@ interrupted installs recoverable after a process crash.
 
 Live browser capture sends 16 kHz mono PCM16 as binary WebSocket frames; JSON is
 used only for start/stop control messages. Both WebSocket recordings and HTTP
-binary request bodies are streamed into auto-deleted files under `~/.cccc/cache`
+binary request bodies are streamed into auto-deleted files under `~/.niuma-agent/cache`
 instead of being accumulated in Rust byte buffers. Short WebSocket recordings
 receive immediate final ASR. When speaker analysis is available, persistent
 recordings over 30 seconds, or recordings stopped while the single native
@@ -530,7 +530,7 @@ analysis continue to target the original Group. The UI identifies that Group
 and keeps the single global recording lease until the user stops and saves.
 
 Direct-composer results follow the same ownership rule. If another Group is
-visible when text becomes ready, CCCC appends it to the original Group's
+visible when text becomes ready, 牛马Agent appends it to the original Group's
 preserved composer draft instead of changing the visible Group's draft.
 The live recognizer resets its native stream at every detected speech endpoint,
 including silence or unchanged hypotheses, so decoded features do not accumulate
@@ -606,13 +606,13 @@ independent session ID, so a late result cannot overwrite a newer recording.
 Stable document-capture ASR segments are appended to:
 
 ```text
-~/.cccc/voice-secretary/<group_id>/<session_id>/transcripts/segments.jsonl
+~/.niuma-agent/voice-secretary/<group_id>/<session_id>/transcripts/segments.jsonl
 ```
 
 The bounded per-session meeting projection is shared in
 `groups/<group_id>/state/assistants.json`. The durable document-level transcript
 that survives session pruning and aggregates several recordings is shared at
-`~/.cccc/voice-secretary/<group_id>/documents/<document_id>/transcript.jsonl`.
+`~/.niuma-agent/voice-secretary/<group_id>/documents/<document_id>/transcript.jsonl`.
 Both Web implementations read these records through the daemon instead of
 owning a separate browser-side transcript authority. Transcript clearing also
 uses the daemon operation so the session projection and both durable logs are
@@ -686,8 +686,8 @@ display a spurious connection-failed message. Unexpected connection failures
 still report an error.
 
 Documents use the active workspace under `docs/voice-secretary/`. Groups without
-an active workspace store the Markdown fallback under CCCC_HOME. Removing a
-model, clearing the Secretary Runtime, or restarting CCCC does not delete documents or
+an active workspace store the Markdown fallback under NIUMA_HOME. Removing a
+model, clearing the Secretary Runtime, or restarting 牛马Agent does not delete documents or
 raw transcript sidecars.
 
 Group sessions, prompt drafts/requests, and Ask feedback have one durable authority:
@@ -697,7 +697,7 @@ and task/commit receipts belong to `voice-secretary/jobs`. Process-local PID, po
 are rebuilt after startup. Former preview input/document projection fields are
 preserved under `rust_state` rather than being mistaken for common workflow
 records. Every recording-lease mutation and expiry-capable read is serialized
-through `~/.cccc/state/voice_secretary_recording_lease.json.lock`, so concurrent
+through `~/.niuma-agent/state/voice_secretary_recording_lease.json.lock`, so concurrent
 clients cannot silently create a second recorder. Repository Markdown,
 transcript/input sidecars, the shared document index, and native model caches
 retain their specialized stores.

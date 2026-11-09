@@ -12,7 +12,7 @@ afterEach(() => {
 
 it("preserves the existing Codex device choice once and keeps it independent of speaking voice", async () => {
   localStorage.setItem(
-    "cccc.codexVoice.preferences.v1",
+    "niuma-agent.codexVoice.preferences.v1",
     JSON.stringify({
       voice: "sol",
       inputDeviceId: "original-mic",
@@ -26,7 +26,7 @@ it("preserves the existing Codex device choice once and keeps it independent of 
   });
   audio.useVoiceAudioStore.getState().update({ inputDeviceId: "shared-mic" });
   localStorage.setItem(
-    "cccc.codexVoice.preferences.v1",
+    "niuma-agent.codexVoice.preferences.v1",
     JSON.stringify({ voice: "cove", inputDeviceId: "stale-device" }),
   );
   vi.resetModules();
@@ -103,7 +103,7 @@ it("keeps an in-memory choice when storage writes fail instead of restoring stal
 
 it("validates stored device IDs without inventing a device or resetting the other choice", async () => {
   localStorage.setItem(
-    "cccc.voice.audio.v1",
+    "niuma-agent.voice.audio.v1",
     JSON.stringify({ inputDeviceId: "x".repeat(513), outputDeviceId: "  saved-speaker  " }),
   );
   const audio = await load();

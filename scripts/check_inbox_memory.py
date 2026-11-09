@@ -2,7 +2,7 @@
 
 Example (Linux, on a disposable profiling host):
   python scripts/check_inbox_memory.py --source-home /private/copied-home \
-    --binary /path/to/cccc --max-rss-growth-mib 128 --output result.json
+    --binary /path/to/niuma-agent --max-rss-growth-mib 128 --output result.json
 
 Only group documents, ledgers/segments and Mail cursors are copied. The source
 home is read-only. Enabled actors keep their identity/order/generation but use
@@ -126,23 +126,23 @@ def copy_groups(source: Path, target: Path) -> tuple[list[tuple[str, list[str]]]
 
 
 def replay(args: argparse.Namespace) -> dict:
-    with tempfile.TemporaryDirectory(prefix="cccc-real-inbox-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="niuma-real-inbox-") as temporary:
         home = Path(temporary) / "home"
         groups, mail = copy_groups(args.source_home, home)
         send = mail.pop("_send")
-        (home / ".cccc-rust-v1").write_text("CCCC Rust home v1\n")
+        (home / ".niuma-agent-rust-v1").write_text("牛马Agent Rust home v1\n")
         calls, metrics, errors = [], [], []
         stop = threading.Event()
         guard = threading.Lock()
         start = time.monotonic()
         log = open(Path(temporary) / "daemon.log", "wb")
-        daemon = subprocess.Popen([str(args.binary), "daemon", "run", "--host", "127.0.0.1", "--port", "0"], env=dict(os.environ, CCCC_HOME=str(home), CCCC_AUTOMATION_TICK_PROBE="1", CCCC_DELIVERY_QUERY_PROBE="1", CCCC_LEDGER_INDEX_PROBE="1", RUST_LOG="warn"), stdout=log, stderr=log)
+        daemon = subprocess.Popen([str(args.binary), "daemon", "run", "--host", "127.0.0.1", "--port", "0"], env=dict(os.environ, NIUMA_HOME=str(home), NIUMA_AUTOMATION_TICK_PROBE="1", NIUMA_DELIVERY_QUERY_PROBE="1", NIUMA_LEDGER_INDEX_PROBE="1", RUST_LOG="warn"), stdout=log, stderr=log)
 
         def call(op: str, **parameters):
             before = time.monotonic()
             with socket.socket(socket.AF_UNIX) as connection:
                 connection.settimeout(120)
-                connection.connect(str(home / "daemon/ccccd.sock"))
+                connection.connect(str(home / "daemon/niumad.sock"))
                 connection.sendall(json.dumps({"v": 1, "op": op, "args": parameters}).encode() + b"\n")
                 response = json.loads(connection.makefile("rb").readline())
             with guard:
@@ -186,7 +186,7 @@ def replay(args: argparse.Namespace) -> dict:
             # address appears only after that recovery completes.
             measure()
             deadline = time.monotonic() + 30
-            while not (home / "daemon/ccccd.addr.json").exists():
+            while not (home / "daemon/niumad.addr.json").exists():
                 if daemon.poll() is not None or time.monotonic() > deadline:
                     raise RuntimeError("daemon failed to start")
                 time.sleep(0.1)
@@ -234,20 +234,20 @@ def replay(args: argparse.Namespace) -> dict:
             claims = {group_id: 0 for group_id, _ in groups}
             index_queries = []
             for line in (Path(temporary) / "daemon.log").read_text(errors="replace").splitlines():
-                if line.startswith("CCCC_UNREAD_TICK "):
-                    tick = json.loads(line.removeprefix("CCCC_UNREAD_TICK "))
+                if line.startswith("NIUMA_UNREAD_TICK "):
+                    tick = json.loads(line.removeprefix("NIUMA_UNREAD_TICK "))
                     if tick.get("include_unread") and tick.get("success") and tick.get("eligible_actors", 0) > 0 and tick.get("group_id") in ticks:
                         ticks[tick["group_id"]] += 1
-                elif line.startswith("CCCC_DELIVERY_QUERY "):
-                    query = json.loads(line.removeprefix("CCCC_DELIVERY_QUERY "))
+                elif line.startswith("NIUMA_DELIVERY_QUERY "):
+                    query = json.loads(line.removeprefix("NIUMA_DELIVERY_QUERY "))
                     if query.get("group_id") in deliveries:
                         deliveries[query["group_id"]].add(query["actor_index"])
-                elif line.startswith("CCCC_DELIVERY_STATE_QUERY "):
-                    query = json.loads(line.removeprefix("CCCC_DELIVERY_STATE_QUERY "))
+                elif line.startswith("NIUMA_DELIVERY_STATE_QUERY "):
+                    query = json.loads(line.removeprefix("NIUMA_DELIVERY_STATE_QUERY "))
                     if query.get("group_id") in claims and query.get("actors", 0) > 0:
                         claims[query["group_id"]] += 1
-                elif line.startswith("CCCC_EVENT_INDEX_QUERY "):
-                    index_queries.append(json.loads(line.removeprefix("CCCC_EVENT_INDEX_QUERY ")))
+                elif line.startswith("NIUMA_EVENT_INDEX_QUERY "):
+                    index_queries.append(json.loads(line.removeprefix("NIUMA_EVENT_INDEX_QUERY ")))
             result = {"complete": True, "acceptance_metric": "RssAnon", "groups": len(groups), "enabled_actors": enabled, "elapsed_s": time.monotonic() - start, "rss_anon_growth_mib": growth, "rss_growth_mib": rss_growth, "max_rss_growth_mib": args.max_rss_growth_mib, "unread_ticks_per_group": list(ticks.values()), "restore_delivery_actor_indices": [sorted(indices) for indices in deliveries.values()], "claim_queries_per_group": list(claims.values()), "full_event_index_queries": index_queries, "metrics": metrics, "latency": summary, "errors": errors}
             args.output.write_text(json.dumps(result, indent=2))
             if errors:

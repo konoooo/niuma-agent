@@ -59,10 +59,10 @@ describe("messageBubble model", () => {
         senderId: "group_bridge:12D3KooWAXEk8Zw3BMLku6AGNrctVsC9beZsAAEttE798N5HYf1a",
         senderActor: null,
         senderTitle: "",
-        remoteSourceName: "CCCC Cross Test",
+        remoteSourceName: "牛马Agent Cross Test",
         displayNameMap: new Map(),
       }),
-    ).toBe("CCCC Cross Test");
+    ).toBe("牛马Agent Cross Test");
   });
 
   it("keeps only actors present in read status", () => {

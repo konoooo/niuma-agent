@@ -1,7 +1,7 @@
 const readline = require("node:readline");
 const vm = require("node:vm");
 
-const EXIT_SENTINEL = "__cccc_code_mode_exit__";
+const EXIT_SENTINEL = "__niuma_code_mode_exit__";
 let pending = new Map();
 let storedValues = {};
 let nextToolId = 1;
@@ -76,15 +76,15 @@ function buildBridge() {
 function buildContext(toolsMetadata, initialStoredValues, workLoops, helpAliases, helpCompactNotes, helpCuratedTools, helpCuratedLoops) {
   const sandbox = Object.create(null);
   Object.defineProperties(sandbox, {
-    __cccc_bridge__: { value: buildBridge(), configurable: true },
-    __cccc_tools_metadata_json__: { value: JSON.stringify(Array.isArray(toolsMetadata) ? toolsMetadata : []), configurable: true },
-    __cccc_work_loops_json__: { value: JSON.stringify(Array.isArray(workLoops) ? workLoops : []), configurable: true },
-    __cccc_help_aliases_json__: { value: JSON.stringify(helpAliases && typeof helpAliases === "object" ? helpAliases : {}), configurable: true },
-    __cccc_help_compact_notes_json__: { value: JSON.stringify(helpCompactNotes && typeof helpCompactNotes === "object" ? helpCompactNotes : {}), configurable: true },
-    __cccc_help_curated_tools_json__: { value: JSON.stringify(helpCuratedTools && typeof helpCuratedTools === "object" ? helpCuratedTools : {}), configurable: true },
-    __cccc_help_curated_loops_json__: { value: JSON.stringify(helpCuratedLoops && typeof helpCuratedLoops === "object" ? helpCuratedLoops : {}), configurable: true },
-    __cccc_stored_values_json__: { value: jsonString(initialStoredValues && typeof initialStoredValues === "object" ? initialStoredValues : {}), configurable: true },
-    __cccc_exit_sentinel__: { value: EXIT_SENTINEL, configurable: true },
+    __niuma_bridge__: { value: buildBridge(), configurable: true },
+    __niuma_tools_metadata_json__: { value: JSON.stringify(Array.isArray(toolsMetadata) ? toolsMetadata : []), configurable: true },
+    __niuma_work_loops_json__: { value: JSON.stringify(Array.isArray(workLoops) ? workLoops : []), configurable: true },
+    __niuma_help_aliases_json__: { value: JSON.stringify(helpAliases && typeof helpAliases === "object" ? helpAliases : {}), configurable: true },
+    __niuma_help_compact_notes_json__: { value: JSON.stringify(helpCompactNotes && typeof helpCompactNotes === "object" ? helpCompactNotes : {}), configurable: true },
+    __niuma_help_curated_tools_json__: { value: JSON.stringify(helpCuratedTools && typeof helpCuratedTools === "object" ? helpCuratedTools : {}), configurable: true },
+    __niuma_help_curated_loops_json__: { value: JSON.stringify(helpCuratedLoops && typeof helpCuratedLoops === "object" ? helpCuratedLoops : {}), configurable: true },
+    __niuma_stored_values_json__: { value: jsonString(initialStoredValues && typeof initialStoredValues === "object" ? initialStoredValues : {}), configurable: true },
+    __niuma_exit_sentinel__: { value: EXIT_SENTINEL, configurable: true },
     constructor: { value: undefined, configurable: true },
     console: { value: undefined, configurable: true },
     require: { value: undefined, configurable: true },
@@ -93,29 +93,29 @@ function buildContext(toolsMetadata, initialStoredValues, workLoops, helpAliases
     WebSocket: { value: undefined, configurable: true },
   });
   const context = vm.createContext(sandbox, {
-    name: "cccc_code_mode",
+    name: "niuma_code_mode",
     codeGeneration: { strings: false, wasm: false },
   });
   const bootstrap = `
 (() => {
-  const bridge = globalThis.__cccc_bridge__;
-  const toolsMetadata = JSON.parse(globalThis.__cccc_tools_metadata_json__ || "[]");
-  const commonWorkLoops = Object.freeze(JSON.parse(globalThis.__cccc_work_loops_json__ || "[]"));
-  const helpAliases = JSON.parse(globalThis.__cccc_help_aliases_json__ || "{}");
-  const helpCompactNotes = JSON.parse(globalThis.__cccc_help_compact_notes_json__ || "{}");
-  const helpCuratedTools = JSON.parse(globalThis.__cccc_help_curated_tools_json__ || "{}");
-  const helpCuratedLoops = JSON.parse(globalThis.__cccc_help_curated_loops_json__ || "{}");
-  const exitSentinel = String(globalThis.__cccc_exit_sentinel__ || "");
-  let storedValues = JSON.parse(globalThis.__cccc_stored_values_json__ || "{}");
-  delete globalThis.__cccc_bridge__;
-  delete globalThis.__cccc_tools_metadata_json__;
-  delete globalThis.__cccc_work_loops_json__;
-  delete globalThis.__cccc_help_aliases_json__;
-  delete globalThis.__cccc_help_compact_notes_json__;
-  delete globalThis.__cccc_help_curated_tools_json__;
-  delete globalThis.__cccc_help_curated_loops_json__;
-  delete globalThis.__cccc_stored_values_json__;
-  delete globalThis.__cccc_exit_sentinel__;
+  const bridge = globalThis.__niuma_bridge__;
+  const toolsMetadata = JSON.parse(globalThis.__niuma_tools_metadata_json__ || "[]");
+  const commonWorkLoops = Object.freeze(JSON.parse(globalThis.__niuma_work_loops_json__ || "[]"));
+  const helpAliases = JSON.parse(globalThis.__niuma_help_aliases_json__ || "{}");
+  const helpCompactNotes = JSON.parse(globalThis.__niuma_help_compact_notes_json__ || "{}");
+  const helpCuratedTools = JSON.parse(globalThis.__niuma_help_curated_tools_json__ || "{}");
+  const helpCuratedLoops = JSON.parse(globalThis.__niuma_help_curated_loops_json__ || "{}");
+  const exitSentinel = String(globalThis.__niuma_exit_sentinel__ || "");
+  let storedValues = JSON.parse(globalThis.__niuma_stored_values_json__ || "{}");
+  delete globalThis.__niuma_bridge__;
+  delete globalThis.__niuma_tools_metadata_json__;
+  delete globalThis.__niuma_work_loops_json__;
+  delete globalThis.__niuma_help_aliases_json__;
+  delete globalThis.__niuma_help_compact_notes_json__;
+  delete globalThis.__niuma_help_curated_tools_json__;
+  delete globalThis.__niuma_help_curated_loops_json__;
+  delete globalThis.__niuma_stored_values_json__;
+  delete globalThis.__niuma_exit_sentinel__;
 
   function define(name, value) {
     Object.defineProperty(globalThis, name, {
@@ -336,7 +336,7 @@ function buildContext(toolsMetadata, initialStoredValues, workLoops, helpAliases
       tools: detail === "schema" || detail === "full" ? matches : matches.map(compactTool),
       common_work_loops: loops,
       notes: compactNotes(tokens),
-      usage: "Call nested tools as await tools.<name>({...}). Prefer cccc_code_exec for multi-step read/patch/test/diff/report loops; use direct tools for one-step work.",
+      usage: "Call nested tools as await tools.<name>({...}). Prefer niuma_code_exec for multi-step read/patch/test/diff/report loops; use direct tools for one-step work.",
     };
   });
   define("text", function text(value) {
@@ -357,28 +357,28 @@ function buildContext(toolsMetadata, initialStoredValues, workLoops, helpAliases
   define("exit", function exit() {
     throw new Error(exitSentinel);
   });
-  define("setTimeout", function ccccSetTimeout(callback, ms, ...args) {
+  define("setTimeout", function niumaSetTimeout(callback, ms, ...args) {
     if (typeof callback !== "function") {
       throw new TypeError("setTimeout callback must be a function");
     }
     return bridge.setTimeout(callback, Number(ms) || 0, ...args);
   });
-  define("clearTimeout", function ccccClearTimeout(id) {
+  define("clearTimeout", function niumaClearTimeout(id) {
     return bridge.clearTimeout(id);
   });
-  define("__cccc_export_stored_values__", function __cccc_export_stored_values__() {
+  define("__niuma_export_stored_values__", function __niuma_export_stored_values__() {
     return JSON.stringify(storedValues);
   });
 })();
 `;
-  new vm.Script(bootstrap, { filename: "cccc_code_exec_bootstrap.mjs" }).runInContext(context, { timeout: 2000 });
+  new vm.Script(bootstrap, { filename: "niuma_code_exec_bootstrap.mjs" }).runInContext(context, { timeout: 2000 });
   return context;
 }
 
 function exportStoredValues(context) {
   if (!context) return storedValues;
   try {
-    const raw = vm.runInContext("__cccc_export_stored_values__()", context, { timeout: 1000 });
+    const raw = vm.runInContext("__niuma_export_stored_values__()", context, { timeout: 1000 });
     return parseJsonObject(raw, {});
   } catch (_err) {
     return {};
@@ -406,7 +406,7 @@ async function startCell(command) {
       command.help_curated_loops && typeof command.help_curated_loops === "object" ? command.help_curated_loops : {}
     );
     const script = new vm.Script(`(async () => {\n${source}\n})()`, {
-      filename: "cccc_code_exec.mjs",
+      filename: "niuma_code_exec.mjs",
     });
     await script.runInContext(context, { timeout: 2000 });
     finish("", exportStoredValues(context));

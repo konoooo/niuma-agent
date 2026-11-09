@@ -23,7 +23,7 @@ function worker() {
   }
   runInNewContext(script, {
     self: {
-      location: { origin: "https://cccc.example" },
+      location: { origin: "https://niuma-agent.example" },
       registration: { showNotification },
       clients: { matchAll, openWindow },
       addEventListener: (name: string, handler: (event: WorkerEvent) => void) => {
@@ -104,7 +104,7 @@ describe("push-only service worker", () => {
     });
     await completion;
     expect(w.showNotification).toHaveBeenCalledExactlyOnceWith(
-      "CCCC",
+      "牛马Agent",
       expect.objectContaining({ data: null }),
     );
   });
@@ -135,11 +135,11 @@ describe("push-only service worker", () => {
     const postMessage = vi.fn((_: unknown, ports: { postMessage(data: unknown): void }[]) => {
       ports[0].postMessage({ handled: true });
     });
-    w.matchAll.mockResolvedValue([{ url: "https://cccc.example/ui/", focus, postMessage }]);
+    w.matchAll.mockResolvedValue([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event-1" });
     expect(postMessage).toHaveBeenCalledOnce();
     expect(postMessage.mock.calls[0][0]).toEqual(
-      expect.objectContaining({ type: "cccc:push:open", group_id: "g-1", event_id: "event-1" }),
+      expect.objectContaining({ type: "niuma-agent:push:open", group_id: "g-1", event_id: "event-1" }),
     );
     const timing = postMessage.mock.calls[0][0] as { started_at_ms: number; deadline_ms: number };
     expect(timing.started_at_ms).toBeGreaterThan(0);
@@ -156,8 +156,8 @@ describe("push-only service worker", () => {
       const focus = vi.fn(() => new Promise((resolve) => setTimeout(() => resolve({}), 250)));
       const postMessage = vi.fn();
       w.matchAll.mockResolvedValue([
-        { url: "https://cccc.example/ui/", focus, postMessage },
-        { url: "https://cccc.example/ui/other", focus, postMessage },
+        { url: "https://niuma-agent.example/ui/", focus, postMessage },
+        { url: "https://niuma-agent.example/ui/other", focus, postMessage },
       ]);
       const completion = click(w.handlers.get("notificationclick")!, {
         group_id: "g-1",
@@ -179,7 +179,7 @@ describe("push-only service worker", () => {
       const w = worker();
       const focus = vi.fn().mockResolvedValue({});
       const postMessage = vi.fn();
-      w.matchAll.mockResolvedValue([{ url: "https://cccc.example/ui/", focus, postMessage }]);
+      w.matchAll.mockResolvedValue([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]);
       const completion = click(w.handlers.get("notificationclick")!, {
         group_id: "g-1",
         event_id: "event-1",
@@ -200,7 +200,7 @@ describe("push-only service worker", () => {
     const postMessage = vi.fn((_: unknown, ports: { postMessage(data: unknown): void }[]) => {
       ports[0].postMessage({ handled: true });
     });
-    w.matchAll.mockResolvedValue([{ url: "https://cccc.example/ui/", focus, postMessage }]);
+    w.matchAll.mockResolvedValue([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event-1" });
     expect(focus).toHaveBeenCalledOnce();
     expect(w.openWindow).not.toHaveBeenCalled();
@@ -212,7 +212,7 @@ describe("push-only service worker", () => {
       const w = worker();
       const focus = vi.fn().mockRejectedValue(new Error("focus denied"));
       w.matchAll.mockResolvedValue([
-        { url: "https://cccc.example/ui/", focus, postMessage: vi.fn() },
+        { url: "https://niuma-agent.example/ui/", focus, postMessage: vi.fn() },
       ]);
       const completion = click(w.handlers.get("notificationclick")!, {
         group_id: "g-1",
@@ -231,7 +231,7 @@ describe("push-only service worker", () => {
     w.matchAll.mockResolvedValue([{ url: "https://outside.example/ui/" }]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g/1", event_id: "event?1" });
     expect(w.openWindow).toHaveBeenCalledExactlyOnceWith(
-      "https://cccc.example/ui/?group=g%2F1&event=event%3F1",
+      "https://niuma-agent.example/ui/?group=g%2F1&event=event%3F1",
     );
   });
 
@@ -261,7 +261,7 @@ describe("push-only service worker", () => {
       const postMessage = vi.fn();
       w.matchAll.mockReturnValue(
         new Promise((resolve) =>
-          setTimeout(() => resolve([{ url: "https://cccc.example/ui/", focus, postMessage }]), 500),
+          setTimeout(() => resolve([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]), 500),
         ),
       );
       const completion = click(w.handlers.get("notificationclick")!, {
@@ -273,7 +273,7 @@ describe("push-only service worker", () => {
       expect(focus).toHaveBeenCalledOnce();
       expect(postMessage).toHaveBeenCalledOnce();
       expect(postMessage.mock.calls[0][0]).toEqual(
-        expect.objectContaining({ type: "cccc:push:open", group_id: "g-1", event_id: "event-1" }),
+        expect.objectContaining({ type: "niuma-agent:push:open", group_id: "g-1", event_id: "event-1" }),
       );
       expect(w.openWindow).not.toHaveBeenCalled();
     } finally {
@@ -290,7 +290,7 @@ describe("push-only service worker", () => {
       w.matchAll.mockReturnValue(
         new Promise((resolve) =>
           setTimeout(
-            () => resolve([{ url: "https://cccc.example/ui/", focus, postMessage }]),
+            () => resolve([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]),
             20_000,
           ),
         ),
@@ -304,7 +304,7 @@ describe("push-only service worker", () => {
       expect(focus).toHaveBeenCalledOnce();
       expect(postMessage).toHaveBeenCalledOnce();
       expect(postMessage.mock.calls[0][0]).toEqual(
-        expect.objectContaining({ type: "cccc:push:open", group_id: "g-1", event_id: "event-1" }),
+        expect.objectContaining({ type: "niuma-agent:push:open", group_id: "g-1", event_id: "event-1" }),
       );
       expect(w.openWindow).not.toHaveBeenCalled();
     } finally {
@@ -321,7 +321,7 @@ describe("push-only service worker", () => {
       w.matchAll.mockReturnValue(
         new Promise((resolve) =>
           setTimeout(
-            () => resolve([{ url: "https://cccc.example/ui/", focus, postMessage }]),
+            () => resolve([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]),
             650 + 60_000 + 1,
           ),
         ),
@@ -355,7 +355,7 @@ describe("push-only service worker", () => {
       await vi.advanceTimersByTimeAsync(551);
       // A paused worker resumes with the clock past the limit and its timer not yet run.
       vi.setSystemTime(Date.now() + 61_000);
-      finishLookup([{ url: "https://cccc.example/ui/", focus, postMessage }]);
+      finishLookup([{ url: "https://niuma-agent.example/ui/", focus, postMessage }]);
       await vi.advanceTimersByTimeAsync(61_000);
       await completion;
       expect(focus).not.toHaveBeenCalled();
@@ -374,11 +374,11 @@ describe("push-only service worker", () => {
       ports[0].postMessage({ handled: true });
     });
     w.matchAll.mockResolvedValue([
-      { url: "https://cccc.example/ui/capabilities?group_id=g-1", focus: elsewhere },
-      { url: "https://cccc.example/ui/capabilities/", focus: elsewhere },
-      { url: "https://cccc.example/ui/connect?frame=1", focus: elsewhere },
-      { url: "https://cccc.example/ui/push/", focus: elsewhere },
-      { url: "https://cccc.example/ui/?group=g-2", focus, postMessage },
+      { url: "https://niuma-agent.example/ui/capabilities?group_id=g-1", focus: elsewhere },
+      { url: "https://niuma-agent.example/ui/capabilities/", focus: elsewhere },
+      { url: "https://niuma-agent.example/ui/connect?frame=1", focus: elsewhere },
+      { url: "https://niuma-agent.example/ui/push/", focus: elsewhere },
+      { url: "https://niuma-agent.example/ui/?group=g-2", focus, postMessage },
     ]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event-1" });
     expect(elsewhere).not.toHaveBeenCalled();
@@ -387,46 +387,46 @@ describe("push-only service worker", () => {
     expect(w.openWindow).not.toHaveBeenCalled();
   });
 
-  it("opens the workbench when only other CCCC pages are open", async () => {
+  it("opens the workbench when only other 牛马Agent pages are open", async () => {
     const w = worker();
     const elsewhere = vi.fn();
     w.matchAll.mockResolvedValue([
-      { url: "https://cccc.example/ui/capabilities", focus: elsewhere },
+      { url: "https://niuma-agent.example/ui/capabilities", focus: elsewhere },
     ]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event-1" });
     expect(elsewhere).not.toHaveBeenCalled();
     expect(w.openWindow).toHaveBeenCalledExactlyOnceWith(
-      "https://cccc.example/ui/?group=g-1&event=event-1",
+      "https://niuma-agent.example/ui/?group=g-1&event=event-1",
     );
   });
 
   it("does not route notification clicks into an embedded frame", async () => {
     const w = worker();
     const focus = vi.fn();
-    w.matchAll.mockResolvedValue([{ url: "https://cccc.example/ui/", frameType: "nested", focus }]);
+    w.matchAll.mockResolvedValue([{ url: "https://niuma-agent.example/ui/", frameType: "nested", focus }]);
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event-1" });
     expect(focus).not.toHaveBeenCalled();
     expect(w.openWindow).toHaveBeenCalledExactlyOnceWith(
-      "https://cccc.example/ui/?group=g-1&event=event-1",
+      "https://niuma-agent.example/ui/?group=g-1&event=event-1",
     );
   });
 
   it("falls back to the workbench for a notification without a valid target", async () => {
     const w = worker();
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "" });
-    expect(w.openWindow).toHaveBeenCalledExactlyOnceWith("https://cccc.example/ui/");
+    expect(w.openWindow).toHaveBeenCalledExactlyOnceWith("https://niuma-agent.example/ui/");
   });
 
   it("does not use a notification target containing a control character", async () => {
     const w = worker();
     await click(w.handlers.get("notificationclick")!, { group_id: "g-1", event_id: "event\0-1" });
-    expect(w.openWindow).toHaveBeenCalledExactlyOnceWith("https://cccc.example/ui/");
+    expect(w.openWindow).toHaveBeenCalledExactlyOnceWith("https://niuma-agent.example/ui/");
   });
 
   it("focuses an existing page instead of replacing it for a notification without a target", async () => {
     const w = worker();
     const focus = vi.fn().mockResolvedValue({});
-    w.matchAll.mockResolvedValue([{ url: "https://cccc.example/ui/", focus }]);
+    w.matchAll.mockResolvedValue([{ url: "https://niuma-agent.example/ui/", focus }]);
     await click(w.handlers.get("notificationclick")!, null);
     expect(focus).toHaveBeenCalledOnce();
     expect(w.openWindow).not.toHaveBeenCalled();

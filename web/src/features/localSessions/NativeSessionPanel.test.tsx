@@ -38,7 +38,7 @@ const nativeActor: Actor = {
 };
 const originalCwd = "/synthetic/original workspace/日本";
 const originalCommand =
-  "cd -- '/synthetic/original workspace/日本' && CCCC_HOME='/synthetic/cccc home' CODEX_HOME='/synthetic/codex home' codex resume 'native-thread-from-server'";
+  "cd -- '/synthetic/original workspace/日本' && NIUMA_HOME='/synthetic/niuma-agent home' CODEX_HOME='/synthetic/codex home' codex resume 'native-thread-from-server'";
 const locales = {
   en: { actors: enActors, common: enCommon },
   zh: { actors: zhActors, common: zhCommon },
@@ -124,7 +124,7 @@ async function render(patch: Partial<Props> = {}) {
   const props: Props = {
     actor: nativeActor,
     groupId: GROUP_ID,
-    statusText: "CCCC access paused",
+    statusText: "牛马Agent access paused",
     isVisible: true,
     canAccessRecovery: true,
     ...patch,
@@ -172,14 +172,14 @@ it.each(["en", "zh", "ja"] as const)(
         cwd: "/synthetic/claude worktree",
         shell: "posix" as const,
         command:
-          "cd -- '/synthetic/claude worktree' && CCCC_HOME='/synthetic/cccc home' CLAUDE_CONFIG_DIR='/synthetic/claude config' claude --resume 'actual-conversation-id'",
+          "cd -- '/synthetic/claude worktree' && NIUMA_HOME='/synthetic/niuma-agent home' CLAUDE_CONFIG_DIR='/synthetic/claude config' claude --resume 'actual-conversation-id'",
       },
       {
         actor: nativeActor,
         cwd: "C:\\synthetic\\original workspace\\日本",
         shell: "powershell" as const,
         command:
-          "Set-Location -LiteralPath 'C:\\synthetic\\original workspace\\日本'; $env:CCCC_HOME = 'C:\\synthetic\\cccc'; $env:CODEX_HOME = 'C:\\synthetic\\codex'; codex resume 'native-thread-from-server'",
+          "Set-Location -LiteralPath 'C:\\synthetic\\original workspace\\日本'; $env:NIUMA_HOME = 'C:\\synthetic\\niuma-agent'; $env:CODEX_HOME = 'C:\\synthetic\\codex'; codex resume 'native-thread-from-server'",
       },
     ]) {
       mocks.load.mockResolvedValueOnce(recoveryResponse(fixture, fixture.actor));
@@ -226,7 +226,7 @@ it.each([
 ] as const)("explains the server's precise %s state independently from access", async (state) => {
   mocks.load.mockResolvedValue(recoveryResponse({ state }));
   await render();
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("CCCC access paused");
+  expect(host.querySelector('[role="status"]')?.textContent).toBe("牛马Agent access paused");
   const hints = enActors.nativeSession.recovery.hints;
   expect(host.textContent).toContain(enActors.nativeSession.recovery.states[state]);
   expect(host.textContent).toContain(
@@ -249,7 +249,7 @@ it("routes a disconnected Codex session back to the shared app-server, other run
   expect(host.textContent).not.toContain(hints.disconnectedCodex);
 });
 
-it.each(["CCCC access paused", "Group paused", "Group stopped", "Available to receive"])(
+it.each(["牛马Agent access paused", "Group paused", "Group stopped", "Available to receive"])(
   "keeps %s separate from a connected native integration",
   async (statusText) => {
     mocks.load.mockResolvedValue(recoveryResponse({ state: "connected" }));
@@ -264,7 +264,7 @@ it.each(["CCCC access paused", "Group paused", "Group stopped", "Available to re
 
 it("shows unknown metadata and the server's Claude picker without substituting a source/host ID", async () => {
   const actor = { ...nativeActor, runtime: "claude", external_session_id: "claude:original-host" };
-  const command = "CCCC_HOME='/synthetic/cccc' claude --resume";
+  const command = "NIUMA_HOME='/synthetic/niuma-agent' claude --resume";
   mocks.load.mockResolvedValue(recoveryResponse({ state: "unknown", cwd: null, command }, actor));
   await render({ actor });
   expect(host.textContent).toContain("Native state unknown");
@@ -371,7 +371,7 @@ it.each([
   expect(mocks.load).not.toHaveBeenCalled();
   expect(host.querySelector("section")).toBeNull();
   expect(host.querySelector("pre")).toBeNull();
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("CCCC access paused");
+  expect(host.querySelector('[role="status"]')?.textContent).toBe("牛马Agent access paused");
   await advance(9000);
   expect(mocks.load).not.toHaveBeenCalled();
   await render();
@@ -726,7 +726,7 @@ it("reports a negative refresh without re-enabling access or retrying automatica
   await clickButton("Refresh status");
   expect(host.textContent).toContain(enActors.nativeSession.recovery.refreshUnavailableCodex);
   expect(host.textContent).not.toContain(enActors.nativeSession.recovery.refreshUnavailable);
-  expect(host.querySelector('[role="status"]')?.textContent).toBe("CCCC access paused");
+  expect(host.querySelector('[role="status"]')?.textContent).toBe("牛马Agent access paused");
   await advance(60000);
   expect(mocks.refresh).toHaveBeenCalledOnce();
   expect(mocks.load).toHaveBeenCalledOnce();

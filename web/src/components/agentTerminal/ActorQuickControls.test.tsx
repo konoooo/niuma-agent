@@ -11,7 +11,7 @@ import { ActorQuickControls } from "./ActorQuickControls";
 async function render(
   running: boolean,
   onRemove: () => void,
-  pauseCcccAccess = false,
+  pauseNiumaAccess = false,
   onStop = vi.fn(),
   extra: Partial<React.ComponentProps<typeof ActorQuickControls>> = {},
 ) {
@@ -25,8 +25,8 @@ async function render(
         running={running}
         busy={false}
         readOnly={false}
-        hasTerminal={!pauseCcccAccess}
-        pauseCcccAccess={pauseCcccAccess}
+        hasTerminal={!pauseNiumaAccess}
+        pauseNiumaAccess={pauseNiumaAccess}
         writable
         connected
         connectionFailed={false}
@@ -114,7 +114,7 @@ describe("ActorQuickControls", () => {
     await act(async () => root.unmount());
     host.remove();
   });
-  it("describes starting a paused Dot as resuming CCCC access in both compact entries", async () => {
+  it("describes starting a paused Dot as resuming 牛马Agent access in both compact entries", async () => {
     const { root, host } = await render(false, vi.fn(), true);
     expect(host.querySelector('button[aria-label="dotsResume"]')).not.toBeNull();
     const labels = [...document.querySelectorAll("button")].map((button) => button.textContent);

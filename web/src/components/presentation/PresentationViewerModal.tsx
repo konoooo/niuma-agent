@@ -408,7 +408,7 @@ function PresentationViewer({
   });
   const interactiveModeHelp = t("presentationInteractiveModeHelp", {
     defaultValue:
-      "Enhanced mode works better for local or private pages and tries to keep navigation inside CCCC.",
+      "Enhanced mode works better for local or private pages and tries to keep navigation inside 牛马Agent.",
   });
   const previewModeOptions = {
     embedded: { label: embeddedModeLabel, help: embeddedModeHelp },

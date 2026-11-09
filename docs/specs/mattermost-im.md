@@ -1,16 +1,16 @@
 # Native Mattermost IM Connector Specification
 
-This specification describes the Mattermost connector contributed through [PR #103](https://github.com/ChesterRa/cccc/pull/103), including the September 15, 2026 integration corrections. Implementation and test evidence are separate: see the [feature map](mattermost-im-features.md), [acceptance record](mattermost-im-acceptance.md), [user guide](../guide/im-bridge/mattermost.md) and [architecture decision](../adr/0001-native-mattermost-im.md).
+This specification describes the Mattermost connector contributed through [PR #103](https://github.com/konoooo/niuma-agent/pull/103), including the September 15, 2026 integration corrections. Implementation and test evidence are separate: see the [feature map](mattermost-im-features.md), [acceptance record](mattermost-im-acceptance.md), [user guide](../guide/im-bridge/mattermost.md) and [architecture decision](../adr/0001-native-mattermost-im.md).
 
-The original comparison baseline was `2a38ad78700a4a188b45f515434b74cc315b91ec`. The [pre-integration specification at ea00093b](https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im.md) preserves the detailed development and review history. Historical passing results do not establish verification of later changes.
+The original comparison baseline was `2a38ad78700a4a188b45f515434b74cc315b91ec`. The [pre-integration specification at ea00093b](https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im.md) preserves the detailed development and review history. Historical passing results do not establish verification of later changes.
 
 ## Scope and implementation
 
-Mattermost is a native IM platform, built and released with CCCC. It reuses Group configuration, chat authorization, subscriptions, daemon dispatch, ledger output, Blob storage and worker lifecycle. No separate service, crate, SDK, plugin system, installer or dependency is introduced.
+Mattermost is a native IM platform, built and released with 牛马Agent. It reuses Group configuration, chat authorization, subscriptions, daemon dispatch, ledger output, Blob storage and worker lifecycle. No separate service, crate, SDK, plugin system, installer or dependency is introduced.
 
 The implementation follows the existing Slack/Telegram layout:
 
-- `crates/cccc-web/src/im_runtime/mattermost.rs`: REST/WS transport, authentication, lifecycle, recovery and protocol fixtures.
+- `crates/niuma-web/src/im_runtime/mattermost.rs`: REST/WS transport, authentication, lifecycle, recovery and protocol fixtures.
 - `mattermost_inbound.rs`: source filtering, commands, authorization, file staging and daemon submission.
 - `mattermost_outbound.rs`: target posts, progressive edits, final fallback and uploads.
 - Shared registration changes remain in IM state, runtime dispatch, Web/daemon routes and CLI argument translation.
@@ -59,7 +59,7 @@ Management flows involving Mattermost are ordered per Group within the browser, 
 
 ### Deliberate scope boundary
 
-The [review17 comment](https://github.com/ChesterRa/cccc/pull/103#discussion_r4006724800) identified a possible pre-existing ownership gap in management continuations that never pass through Mattermost: a delayed operation in Group A can refresh A's fields after navigation to B or modal closure. The contributor's scope decision explicitly deferred that legacy-only issue. Static inspection of the old SettingsModal supports the concern; it does not prove a write to the wrong Group.
+The [review17 comment](https://github.com/konoooo/niuma-agent/pull/103#discussion_r4006724800) identified a possible pre-existing ownership gap in management continuations that never pass through Mattermost: a delayed operation in Group A can refresh A's fields after navigation to B or modal closure. The contributor's scope decision explicitly deferred that legacy-only issue. Static inspection of the old SettingsModal supports the concern; it does not prove a write to the wrong Group.
 
 This integration does not claim to fix that legacy-only path. Mattermost ownership, draft, status and ordering protections remain required. Deleted-Group revision cleanup is implemented and is not covered by the deferral.
 
@@ -73,7 +73,7 @@ The existing `/subscribe` / `/sub`, pairing key, approval/rejection, revocation,
 
 Mattermost intercepts leading slash commands. Document `@<Bot username> /command` as the reliable text-command form; use the actual username, not the display title. No custom slash-command registration or public callback is required.
 
-Authorized DMs can send ordinary text. Channel questions and files require addressing the Bot; recognized CCCC commands that arrive as ordinary posts also count as explicit requests. Ignore a bare mention with no text or files. Strip only the leading Bot mention. Default foreman, explicit Actor IDs, `@all` and `@peers` retain daemon semantics; mentions in the body do not add recipients.
+Authorized DMs can send ordinary text. Channel questions and files require addressing the Bot; recognized 牛马Agent commands that arrive as ordinary posts also count as explicit requests. Ignore a bare mention with no text or files. Strip only the leading Bot mention. Default foreman, explicit Actor IDs, `@all` and `@peers` retain daemon semantics; mentions in the body do not add recipients.
 
 Use real `user_id`, `channel_id`, `root_id`, `post_id` and `file_ids`, preserving native source metadata and stable client IDs. Ignore self/Bot/system posts, edits and unrelated chatter. Authorization and pause checks precede file downloads or model submission.
 
@@ -81,7 +81,7 @@ Use real `user_id`, `channel_id`, `root_id`, `post_id` and `file_ids`, preservin
 
 The bounded source-post cache records successful dispatch, applied control decisions and attempted failure feedback. Replaying a source post must not repeat authorization changes, file downloads or failure notices. A new post ID can retry. This is an in-memory limit, not persistent exactly-once delivery.
 
-Shared daemon errors may contain user input. Convert them to safe categories at the submission boundary. An explicit recipient rejection gives a corrective message; unknown outcomes instruct the user to check CCCC before resending. Do not log raw daemon text or automatically resubmit ambiguous requests. Remove the processing reaction without marking an unknown outcome as a definite failure.
+Shared daemon errors may contain user input. Convert them to safe categories at the submission boundary. An explicit recipient rejection gives a corrective message; unknown outcomes instruct the user to check 牛马Agent before resending. Do not log raw daemon text or automatically resubmit ambiguous requests. Remove the processing reaction without marking an unknown outcome as a definite failure.
 
 Channel/sender lookup failure feedback is limited to the exact currently authorized, subscribed, unpaused and correctly addressed target. Do not infer an unknown channel type as a DM or notify unauthorized/self/known-Bot sources. Record the feedback attempt even if sending fails.
 
@@ -89,7 +89,7 @@ Files use native authenticated endpoints and Group Blob storage. Verify file-to-
 
 Enforce the shared 10 MiB file limit and a lower Group `files.max_mb` before Blob writes; `files.enabled=false` disables forwarding. Images, files, PDFs, audio/video and attachment-only input are transport capabilities, not OCR/transcription promises. Incoming MIME comes from Mattermost. Outgoing upload preserves names and bytes; Mattermost classifies the resulting MIME.
 
-Only `attachments` are uploaded. Plain text and `refs` are not converted into files. Agent file delivery uses `cccc_file_send(...)` and must respect its working-directory scope.
+Only `attachments` are uploaded. Plain text and `refs` are not converted into files. Agent file delivery uses `niuma_file_send(...)` and must respect its working-directory scope.
 
 ## Outbound, streaming and reactions
 

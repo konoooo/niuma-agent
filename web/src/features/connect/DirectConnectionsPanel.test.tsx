@@ -180,7 +180,7 @@ it("automatically removes expired invitations without approving a replaced Group
   expect(postBodies()).toEqual([{ action: "remove", group_id: "group-a", id: "direct-id" }]);
 });
 function invitation(expires = Date.now() + 1800000) {
-  return `cccc-direct:${btoa(
+  return `niuma-direct:${btoa(
     String.fromCharCode(
       ...new TextEncoder().encode(
         JSON.stringify({
@@ -299,7 +299,7 @@ it("creates from the detected address with one confirmation and waits for readin
   });
   expect(postBodies().map((b) => b.action)).toEqual(["configure", "invite"]);
   expect(host.querySelector<HTMLTextAreaElement>("textarea[readonly]")?.value).toContain(
-    "cccc-direct:",
+    "niuma-direct:",
   );
 });
 it("previews the invited pair, blocks expired content and joins without configuring a listener", async () => {

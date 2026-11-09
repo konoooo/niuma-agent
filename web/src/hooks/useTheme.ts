@@ -3,7 +3,7 @@ import { Theme } from "../types";
 import { syncDocumentBrandingTheme } from "../utils/branding";
 import { getAutomaticTheme, subscribeToAutomaticTheme } from "../utils/theme";
 
-const THEME_STORAGE_KEY = "cccc-theme";
+const THEME_STORAGE_KEY = "niuma-theme";
 
 function getStoredTheme(): Theme {
   if (typeof window === "undefined") return "system";

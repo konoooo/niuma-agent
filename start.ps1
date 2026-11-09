@@ -28,24 +28,24 @@ if (-not $SkipBuild) {
   if ($LASTEXITCODE -ne 0) {
     throw "Web build failed with exit code $LASTEXITCODE"
   }
-  cargo build --locked -p cccc --bin cccc | Out-Host
+  cargo build --locked -p niuma-agent --bin niuma-agent | Out-Host
   if ($LASTEXITCODE -ne 0) {
-    throw "CCCC build failed with exit code $LASTEXITCODE"
+    throw "牛马Agent build failed with exit code $LASTEXITCODE"
   }
 }
 
 if ($LocalHome) {
-  $env:CCCC_HOME = (Join-Path $repoRoot '.cccc')
+  $env:NIUMA_HOME = (Join-Path $repoRoot '.niuma-agent')
 }
 
-$env:CCCC_WEB_HOST = $WebHost
-$env:CCCC_WEB_PORT = "$WebPort"
-$binary = Join-Path $repoRoot 'target\debug\cccc.exe'
+$env:NIUMA_WEB_HOST = $WebHost
+$env:NIUMA_WEB_PORT = "$WebPort"
+$binary = Join-Path $repoRoot 'target\debug\niuma-agent.exe'
 if (-not (Test-Path $binary -PathType Leaf)) {
   throw "Missing $binary; run without -SkipBuild first."
 }
 
-Write-Host "[start] CCCC: http://${WebHost}:${WebPort}/"
+Write-Host "[start] 牛马Agent: http://${WebHost}:${WebPort}/"
 Write-Host '[start] Press Ctrl+C to stop.'
 & $binary
 exit $LASTEXITCODE

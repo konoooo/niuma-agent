@@ -19,15 +19,15 @@ expected=$(mktemp)
 actual=$(mktemp)
 trap 'rm -f "$expected" "$actual"' EXIT
 printf '%s\n' \
-  "cccc-v${VERSION}-aarch64-apple-darwin.tar.gz" \
-  "cccc-v${VERSION}-x86_64-pc-windows-msvc.zip" \
-  "cccc-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
-  "cccc_pair-${WHEEL_VERSION}-py3-none-macosx_11_0_arm64.whl" \
-  "cccc_pair-${WHEEL_VERSION}-py3-none-manylinux_2_28_x86_64.whl" \
-  "cccc_pair-${WHEEL_VERSION}-py3-none-win_amd64.whl" > "$expected"
+  "niuma-v${VERSION}-aarch64-apple-darwin.tar.gz" \
+  "niuma-v${VERSION}-x86_64-pc-windows-msvc.zip" \
+  "niuma-v${VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+  "niuma_pair-${WHEEL_VERSION}-py3-none-macosx_11_0_arm64.whl" \
+  "niuma_pair-${WHEEL_VERSION}-py3-none-manylinux_2_28_x86_64.whl" \
+  "niuma_pair-${WHEEL_VERSION}-py3-none-win_amd64.whl" > "$expected"
 
 find "$ASSET_DIR" -maxdepth 1 -type f \
-  \( -name 'cccc-v*.tar.gz' -o -name 'cccc-v*.zip' -o -name 'cccc_pair-*.whl' \) \
+  \( -name 'niuma-v*.tar.gz' -o -name 'niuma-v*.zip' -o -name 'niuma_pair-*.whl' \) \
   -exec basename {} \; | LC_ALL=C sort > "$actual"
 if ! diff -u "$expected" "$actual"; then
   echo "release payload set does not match the three supported targets" >&2
@@ -41,13 +41,13 @@ done < "$expected"
 
 for installer in install.sh install.ps1; do
   source_path="$ROOT_DIR/scripts/$installer"
-  grep -Fq '@CCCC_VERSION@' "$source_path"
-  grep -Fq '@CCCC_RELEASE_TAG_PREFIX@' "$source_path"
+  grep -Fq '@NIUMA_VERSION@' "$source_path"
+  grep -Fq '@NIUMA_RELEASE_TAG_PREFIX@' "$source_path"
   sed \
-    -e "s/@CCCC_VERSION@/$VERSION/g" \
-    -e 's/@CCCC_RELEASE_TAG_PREFIX@/v/g' \
+    -e "s/@NIUMA_VERSION@/$VERSION/g" \
+    -e 's/@NIUMA_RELEASE_TAG_PREFIX@/v/g' \
     "$source_path" > "$ASSET_DIR/$installer"
-  if grep -Eq '@CCCC_(VERSION|RELEASE_TAG_PREFIX)@' "$ASSET_DIR/$installer"; then
+  if grep -Eq '@NIUMA_(VERSION|RELEASE_TAG_PREFIX)@' "$ASSET_DIR/$installer"; then
     echo "failed to render $installer release metadata" >&2
     exit 1
   fi

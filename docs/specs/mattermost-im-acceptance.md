@@ -2,7 +2,7 @@
 
 This record accompanies the [specification](mattermost-im.md) and [feature map](mattermost-im-features.md). Evidence is scoped to the tested version and environment. Local tests, controlled protocol fixtures, real-server checks and user acceptance are distinct; none alone proves a release ready on every platform.
 
-The connector arrived through [PR #103](https://github.com/ChesterRa/cccc/pull/103). Its [original acceptance record at ea00093b](https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-acceptance.md) preserves the complete development chronology, initial failures, reruns and contributor-reported Linux/Windows checks. Private server details, credentials and raw session evidence do not belong in this repository.
+The connector arrived through [PR #103](https://github.com/konoooo/niuma-agent/pull/103). Its [original acceptance record at ea00093b](https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-acceptance.md) preserves the complete development chronology, initial failures, reruns and contributor-reported Linux/Windows checks. Private server details, credentials and raw session evidence do not belong in this repository.
 
 ## September 15 integration findings
 
@@ -56,7 +56,7 @@ Identifiers are retained from the original feature comparison. The historical ev
 
 ## Historical findings and later corrections
 
-These summaries preserve the useful evidence without treating every review round as a separate current specification. Exact versions, commands and original failure logs are indexed in the [archived record](https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-acceptance.md).
+These summaries preserve the useful evidence without treating every review round as a separate current specification. Exact versions, commands and original failure logs are indexed in the [archived record](https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-acceptance.md).
 
 - **File references:** an Actor returned `refs` instead of using file delivery. No file reached Mattermost in that attempt. It remains an Actor tool-use failure; the connector was not changed to convert references into attachments.
 - **LOG01 → LOG03/LOG05:** an oversize file produced status and user feedback but no readable Group log. The combined CLI path lacked a tracing subscriber. Native Group logging plus stderr corrected that gap; a new oversize upload verified the real log path, and follow mode later showed new records once. Rotation, redaction and write-failure checks remain controlled tests, not real disk-failure evidence.
@@ -74,7 +74,7 @@ Historical full checks also recorded intermittent terminal WebSocket shutdown an
 
 ## Regression entry points
 
-Use isolated `CCCC_HOME` directories, synthetic credentials and controlled platform fixtures. Do not use a developer's running services for these checks.
+Use isolated `NIUMA_HOME` directories, synthetic credentials and controlled platform fixtures. Do not use a developer's running services for these checks.
 
 | Area | Entry points and assertions |
 |---|---|

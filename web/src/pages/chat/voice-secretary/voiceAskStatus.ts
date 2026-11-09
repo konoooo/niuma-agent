@@ -3,7 +3,7 @@ import { hasFinalAskReply } from "./voiceComposerUtils";
 import { secretaryTaskRunning } from "./secretaryTaskLineModel";
 
 export type VoiceAskNotice = { requestId: string; hidden: boolean };
-const noticeKey = (groupId: string) => `cccc_voice_ask_notice:${encodeURIComponent(groupId)}`;
+const noticeKey = (groupId: string) => `niuma_voice_ask_notice:${encodeURIComponent(groupId)}`;
 
 /** A tab remembers only its current request identity and whether its hint was hidden. */
 export function readVoiceAskNotice(groupId: string): VoiceAskNotice {

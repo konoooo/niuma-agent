@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Wrap one release-ready CCCC executable in a deterministic native wheel."""
+"""Wrap one release-ready 牛马Agent executable in a deterministic native wheel."""
 
 from __future__ import annotations
 
@@ -19,9 +19,9 @@ from pathlib import Path
 
 _WHEEL_COMPONENT_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._!+]*$")
 _PLATFORM_EXECUTABLES = {
-    "manylinux_2_28_x86_64": "cccc",
-    "macosx_11_0_arm64": "cccc",
-    "win_amd64": "cccc.exe",
+    "manylinux_2_28_x86_64": "niuma-agent",
+    "macosx_11_0_arm64": "niuma-agent",
+    "win_amd64": "niuma-agent.exe",
 }
 
 
@@ -89,8 +89,8 @@ def _metadata(
         f"Summary: {summary}\n"
         f"Description-Content-Type: {readme_content_type}\n"
         "License-Expression: Apache-2.0\n"
-        "Project-URL: Homepage, https://github.com/ChesterRa/cccc\n"
-        "Project-URL: Repository, https://github.com/ChesterRa/cccc\n"
+        "Project-URL: Homepage, https://github.com/konoooo/niuma-agent\n"
+        "Project-URL: Repository, https://github.com/konoooo/niuma-agent\n"
         "Classifier: Development Status :: 5 - Production/Stable\n"
         "Classifier: Environment :: Console\n"
         "Classifier: Programming Language :: Rust\n"
@@ -117,7 +117,7 @@ def build(binary: Path, output_dir: Path, *, platform_tag: str, root: Path) -> P
     dist_info = f"{stem}.dist-info"
     executable_name = _PLATFORM_EXECUTABLES[platform_tag]
     script = f"{stem}.data/scripts/{executable_name}"
-    install_marker = f"{stem}.data/scripts/.cccc-standalone"
+    install_marker = f"{stem}.data/scripts/.niuma-agent-standalone"
     wheel = f"{dist_info}/WHEEL"
     metadata = f"{dist_info}/METADATA"
     license_path = f"{dist_info}/licenses/LICENSE"
@@ -135,7 +135,7 @@ def build(binary: Path, output_dir: Path, *, platform_tag: str, root: Path) -> P
         ),
         wheel: (
             "Wheel-Version: 1.0\n"
-            "Generator: cccc-native-wheel 1\n"
+            "Generator: niuma-native-wheel 1\n"
             "Root-Is-Purelib: false\n"
             f"Tag: py3-none-{platform_tag}\n\n"
         ).encode("utf-8"),

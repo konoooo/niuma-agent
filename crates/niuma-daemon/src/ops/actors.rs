@@ -1,0 +1,1419 @@
+use super::operation::{
+    Operation,
+    Policy::{Read, Write},
+};
+use niuma_contracts::{Actor, ActorRole, ActorRuntime, DaemonRequest, Event};
+use niuma_core::actors;
+use niuma_core::context::ContextStore;
+use niuma_core::ledger;
+use niuma_core::permissions::{self, ActorAction};
+use niuma_core::{
+    GroupDoc, GroupStore, HomeLayout, group_scope, runtime_switches, web_model_connectors,
+};
+use serde_json::{Map, Value, json};
+use std::collections::BTreeMap;
+
+use crate::dispatch::{OpError, OpResult, object, required_arg, store, string_arg};
+use crate::ops::{
+    actor_delivery, actor_profile_runtime, actor_runtime, actor_secrets, runtime_session,
+};
+
+const WEB_MODEL_TARGETS_KEY: &str = "web_model_browser_targets";
+const WEB_MODEL_DELIVERY_PREFERENCES_KEY: &str = "web_model_delivery_preferences";
+const RUNTIME_STATES_KEY: &str = "runtime_states";
+
+#[cfg(all(test, unix))]
+#[path = "actors_confirmation_tests.rs"]
+mod confirmation_tests;
+
+pub(super) fn resolve_operation(request: &DaemonRequest) -> Option<Operation> {
+    Some(match request.op.as_str() {
+        "actor_list" => Operation::new(Read, list),
+        "actor_models" => Operation::new(Read, super::actor_model_config::list),
+        "actor_prompt" => Operation::new(Read, prompt),
+        "actor_add" => Operation::new(Write, add),
+        "actor_update" => Operation::new(Write, update),
+        "actor_remove" => Operation::new(Write, remove),
+        "actor_start" => Operation::new(Write, |home, request| {
+            lifecycle(home, request, "actor.start")
+        }),
+        "actor_stop" => Operation::new(Write, |home, request| {
+            lifecycle(home, request, "actor.stop")
+        }),
+        "actor_restart" => Operation::new(Write, |home, request| {
+            lifecycle(home, request, "actor.restart")
+        }),
+        "actor_new_session" => Operation::new(Write, |home, request| {
+            lifecycle(home, request, "actor.new_session")
+        }),
+        "actor_env_private_keys" => Operation::new(Read, actor_secrets::keys),
+        "actor_env_private_update" => Operation::new(Write, actor_secrets::update),
+        _ => return None,
+    })
+}
+
+fn prompt(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group = load(home, request)?;
+    let actor_id = required_arg(request, "actor_id")?;
+    let actor = group
+        .actors
+        .iter()
+        .find(|actor| actor.id == actor_id)
+        .ok_or_else(|| OpError::new("actor_not_found", format!("actor not found: {actor_id}")))?;
+    object(json!({
+        "group_id":group.group_id,
+        "actor_id":actor_id,
+        "prompt":actor_runtime::session_prompt(home, &group, actor)
+    }))
+}
+
+fn list(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group = load(home, request)?;
+    authorize(&group, request, ActorAction::List, "")?;
+    object(json!({"actors": super::actor_listing::list(home, &group, request)?}))
+}
+
+fn add(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    let group = store(home)?.load(&group_id).map_err(OpError::not_found)?;
+    authorize(&group, request, ActorAction::Add, "")?;
+    let mut actor = actor_from_args(request)?;
+    let private_env = private_env_arg(request)?;
+    let by = string_arg(request, "by").unwrap_or_else(|| "user".into());
+    if private_env.is_some() && !by.trim().is_empty() && by.trim() != "user" {
+        return Err(OpError::new(
+            "permission_denied",
+            "env_private is only allowed for by=user",
+        ));
+    }
+    if !actor.profile_id.is_empty() {
+        if private_env.is_some() {
+            return Err(OpError::new(
+                "actor_profile_linked_readonly",
+                "env_private is profile-controlled for linked actors",
+            ));
+        }
+        super::profile_access::require_actor_link(home, request, &actor)?;
+        actor = actor_profile_runtime::link(home, &actor, &actor.profile_id)?;
+    }
+    actor.normalize_runtime_constraints();
+    actor.default_scope_key = normalize_default_scope_key(&group, &actor.default_scope_key)?;
+    let added = store(home)?
+        .mutate(&group_id, |doc| actors::add(doc, actor))
+        .map_err(OpError::invalid)?;
+    if let Err(error) =
+        web_model_connectors::retire_actor(home, &group_id, &added.id).map_err(OpError::io)
+    {
+        return Err(super::actor_saga::rollback_added(
+            home, &group_id, &added.id, error,
+        ));
+    }
+    if let Err(error) = remove_persisted_headless_state(home, &group_id, &added.id) {
+        return Err(super::actor_saga::rollback_added(
+            home,
+            &group_id,
+            &added.id,
+            OpError::io(error),
+        ));
+    }
+    if let Err(error) = runtime_session::antigravity::remove(home, &group_id, &added.id) {
+        return Err(super::actor_saga::rollback_added(
+            home,
+            &group_id,
+            &added.id,
+            OpError::io(error),
+        ));
+    }
+    if let Err(error) = runtime_session::native_acp::retire_all(home, &group_id, &added.id) {
+        return Err(super::actor_saga::rollback_added(
+            home,
+            &group_id,
+            &added.id,
+            OpError::io(error),
+        ));
+    }
+    if let Err(error) = actor_secrets::remove(home, &group_id, &added.id) {
+        return Err(super::actor_saga::rollback_added(
+            home, &group_id, &added.id, error,
+        ));
+    }
+    if let Some(values) = private_env
+        && let Err(error) = actor_secrets::replace(home, &group_id, &added.id, values)
+    {
+        return Err(super::actor_saga::rollback_added(
+            home, &group_id, &added.id, error,
+        ));
+    }
+    let event = match append_event(
+        home,
+        &group_id,
+        "actor.add",
+        request,
+        json!({"actor": added}),
+    ) {
+        Ok(event) => event,
+        Err(error) => {
+            return Err(super::actor_saga::rollback_added(
+                home, &group_id, &added.id, error,
+            ));
+        }
+    };
+    if let Err(error) = super::local_headless::retry_confirmation(&group_id, &added.id) {
+        tracing::warn!(%error, %group_id, actor_id = %added.id, "new Actor confirmation cleanup failed");
+    }
+    object(json!({"actor": added, "event": event}))
+}
+
+fn update(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    let actor_id = required_arg(request, "actor_id")?;
+    let group = store(home)?.load(&group_id).map_err(OpError::not_found)?;
+    authorize(&group, request, ActorAction::Update, &actor_id)?;
+    super::actor_switch::refuse_pending(home, &group_id, &actor_id)?;
+    let profile_id = string_arg(request, "profile_id").unwrap_or_default();
+    let profile_action = string_arg(request, "profile_action").unwrap_or_default();
+    if !profile_id.is_empty() && !profile_action.is_empty() {
+        return Err(OpError::new(
+            "invalid_args",
+            "profile_id and profile_action are mutually exclusive",
+        ));
+    }
+    if !profile_action.is_empty() && profile_action != "convert_to_custom" {
+        return Err(OpError::new("invalid_args", "invalid profile_action"));
+    }
+    let mut patch = request
+        .args
+        .get("patch")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_else(|| {
+            request
+                .args
+                .iter()
+                .filter(|(key, _)| {
+                    !matches!(
+                        key.as_str(),
+                        "group_id"
+                            | "actor_id"
+                            | "by"
+                            | "caller_id"
+                            | "is_admin"
+                            | "allowed_groups"
+                            | "profile_id"
+                            | "profile_action"
+                    )
+                })
+                .map(|(key, value)| (key.clone(), value.clone()))
+                .collect()
+        });
+    // These fields select the operation or carry port-bound authority; they are
+    // never Actor state, including when a caller supplies an explicit patch.
+    for key in [
+        "group_id",
+        "actor_id",
+        "by",
+        "caller_id",
+        "is_admin",
+        "allowed_groups",
+        "profile_id",
+        "profile_action",
+    ] {
+        patch.remove(key);
+    }
+    if patch.remove("runner").is_some() {
+        return Err(OpError::new(
+            "unsupported_field",
+            "runner is derived from the Runtime and cannot be selected",
+        ));
+    }
+    patch.remove("runtime_state_source");
+    patch.remove("runtime_confirmation_required");
+    patch.remove("runtime_confirmation_paused");
+    patch.remove(actor_runtime::AUTOMATIC_LIFECYCLE);
+    if let Some(value) = patch.get("default_scope_key") {
+        let reference = value
+            .as_str()
+            .ok_or_else(|| OpError::new("invalid_args", "default_scope_key must be a string"))?;
+        patch.insert(
+            "default_scope_key".into(),
+            Value::String(normalize_default_scope_key(&group, reference)?),
+        );
+    }
+    let current = group
+        .actors
+        .iter()
+        .find(|actor| actor.id == actor_id)
+        .ok_or_else(|| OpError::new("actor_not_found", "actor not found"))?;
+    let original_actor = current.clone();
+    if !current.availability.is_available() {
+        let mut value = serde_json::to_value(current).map_err(OpError::invalid)?;
+        value["runtime_mode"] = json!(current.runtime_mode);
+        let changed = [
+            "runtime",
+            "runtime_mode",
+            "command",
+            "env",
+            "default_scope_key",
+            "profile_scope",
+            "profile_owner",
+            "enabled",
+        ]
+        .iter()
+        .any(|key| {
+            patch
+                .get(*key)
+                .is_some_and(|next| value.get(*key) != Some(next))
+        });
+        if changed
+            || !profile_action.is_empty()
+            || (!profile_id.is_empty() && profile_id != current.profile_id)
+        {
+            return Err(OpError::new(
+                "actor_handoff_in_progress",
+                "离岗流程中可编辑名称、模型和备注；运行时、连接与目录请返岗后修改",
+            ));
+        }
+    }
+
+    let profile_reference_patched = !current.profile_id.is_empty()
+        && (patch.contains_key("profile_scope") || patch.contains_key("profile_owner"));
+    if !current.external_session_id.is_empty()
+        && (!profile_id.is_empty() || !profile_action.is_empty())
+    {
+        return Err(OpError::new(
+            "external_session_owned",
+            "Native runtime configuration belongs to the original session",
+        ));
+    }
+    if actor_profile_runtime::rejects_linked_patch(current, &patch) {
+        return Err(OpError::new(
+            "actor_profile_linked_readonly",
+            "linked actor runtime fields are read-only; convert to custom first",
+        ));
+    }
+    let mut preview_group = group.clone();
+    let patched_preview =
+        actors::update(&mut preview_group, &actor_id, &patch).map_err(OpError::invalid)?;
+    let mut final_preview = if !profile_id.is_empty() {
+        let mut linked = patched_preview.clone();
+        linked.profile_id.clone_from(&profile_id);
+        super::profile_access::require_actor_link(home, request, &linked)?;
+        actor_profile_runtime::link(home, &patched_preview, &profile_id)?
+    } else if profile_action == "convert_to_custom" {
+        super::profile_access::require_actor_link(home, request, &patched_preview)?;
+        let mut resolved = actor_profile_runtime::resolve(home, &patched_preview)?;
+        resolved.env.clear();
+        resolved.profile_id.clear();
+        resolved.profile_scope = "global".into();
+        resolved.profile_owner.clear();
+        resolved.profile_revision_applied = 0;
+        resolved
+    } else if profile_reference_patched {
+        super::profile_access::require_actor_link(home, request, &patched_preview)?;
+        patched_preview
+    } else {
+        patched_preview
+    };
+    final_preview.role = None;
+    final_preview.normalize_runtime_constraints();
+    // A Web Model's route is its authority, so saving a new one ends it. A turn
+    // that route still carries is settled by a runtime switch, not by a save.
+    let route_changes = web_model_route_changes(&original_actor, &final_preview);
+    let _browser_work = route_changes
+        .then(|| actor_runtime::hold_browser_work(home, &group_id, &actor_id))
+        .transpose()?;
+    if route_changes
+        && super::runtime_state::actor_state(home, &group_id, &actor_id)?["active_turn_id"]
+            .as_str()
+            .is_some_and(|id| !id.is_empty())
+    {
+        return Err(OpError::new(
+            "delivery_unresolved",
+            "This member has an unfinished turn. Wait for it to finish, or switch its runtime.",
+        ));
+    }
+    let original_secrets = if profile_action == "convert_to_custom" {
+        Some(actor_secrets::values(home, &group_id, &actor_id)?)
+    } else {
+        None
+    };
+    let converted_secrets = if profile_action == "convert_to_custom" {
+        Some(actor_secrets::effective_values(home, &group_id, current)?)
+    } else {
+        None
+    };
+    let enabled_patched = patch.contains_key("enabled");
+    let enabling_native = enabled_patched
+        && !original_actor.enabled
+        && final_preview.enabled
+        && !final_preview.external_session_id.is_empty();
+    let was_running = actor_process_running(&group, &original_actor);
+    let actor = store(home)?
+        .mutate(&group_id, |doc| {
+            let patched = actors::update(doc, &actor_id, &patch)?;
+            let mut final_actor = if !profile_id.is_empty() {
+                actor_profile_runtime::link(home, &patched, &profile_id)
+                    .map_err(|error| std::io::Error::other(error.message))?
+            } else if profile_action == "convert_to_custom" {
+                let mut resolved = actor_profile_runtime::resolve(home, &patched)
+                    .map_err(|error| std::io::Error::other(error.message))?;
+                resolved.env.clear();
+                resolved.profile_id.clear();
+                resolved.profile_scope = "global".into();
+                resolved.profile_owner.clear();
+                resolved.profile_revision_applied = 0;
+                resolved
+            } else {
+                patched
+            };
+            final_actor.role = None;
+            final_actor.normalize_runtime_constraints();
+            let index = doc
+                .actors
+                .iter()
+                .position(|actor| actor.id == actor_id)
+                .ok_or_else(|| std::io::Error::other("actor not found"))?;
+            doc.actors[index] = final_actor.clone();
+            if enabled_patched && !final_actor.enabled {
+                doc.running = doc.running && doc.actors.iter().any(|actor| actor.enabled);
+            } else if enabling_native
+                && matches!(
+                    doc.state,
+                    niuma_contracts::GroupState::Active | niuma_contracts::GroupState::Idle
+                )
+            {
+                // Native access needs no provider launch, but must survive
+                // daemon restart just like an explicit Actor Start.
+                doc.running = true;
+            }
+            Ok(final_actor)
+        })
+        .map_err(OpError::invalid)?;
+    if let Some(secrets) = converted_secrets {
+        if let Err(error) = actor_secrets::replace(home, &group_id, &actor_id, secrets) {
+            return Err(rollback_actor_update(
+                home,
+                &group,
+                &original_actor,
+                original_secrets.as_ref(),
+                None,
+                ActorUpdateEffect::None,
+                error,
+            ));
+        }
+    }
+    let updated_group =
+        match store(home).and_then(|store| store.load(&group_id).map_err(OpError::io)) {
+            Ok(group) => group,
+            Err(error) => {
+                return Err(rollback_actor_update(
+                    home,
+                    &group,
+                    &original_actor,
+                    original_secrets.as_ref(),
+                    None,
+                    ActorUpdateEffect::None,
+                    error,
+                ));
+            }
+        };
+    if enabled_patched
+        && actor.enabled
+        && !was_running
+        && actor_runtime::user_confirmation_retry(request)
+    {
+        super::local_headless::retry_confirmation(&group_id, &actor_id).map_err(OpError::io)?;
+    }
+    let mut effect = ActorUpdateEffect::None;
+    if enabled_patched && !actor.enabled {
+        actor_delivery::shutdown_actor(&group_id, &actor_id);
+        if let Err(error) = actor_runtime::apply(home, &group, &actor_id, "actor.stop") {
+            let effect = if was_running && !actor_process_running(&group, &original_actor) {
+                ActorUpdateEffect::Stopped
+            } else {
+                ActorUpdateEffect::None
+            };
+            return Err(rollback_actor_update(
+                home,
+                &group,
+                &original_actor,
+                original_secrets.as_ref(),
+                Some(&updated_group),
+                effect,
+                error,
+            ));
+        }
+        if was_running {
+            effect = ActorUpdateEffect::Stopped;
+        }
+    } else if enabled_patched
+        && actor.enabled
+        && updated_group.running
+        && matches!(
+            group.state,
+            niuma_contracts::GroupState::Active | niuma_contracts::GroupState::Idle
+        )
+    {
+        if let Err(error) = actor_runtime::apply(home, &updated_group, &actor_id, "actor.start") {
+            let effect = if !was_running && actor_process_running(&updated_group, &actor) {
+                ActorUpdateEffect::Started
+            } else {
+                ActorUpdateEffect::None
+            };
+            return Err(rollback_actor_update(
+                home,
+                &group,
+                &original_actor,
+                original_secrets.as_ref(),
+                Some(&updated_group),
+                effect,
+                error,
+            ));
+        }
+        if !was_running {
+            effect = ActorUpdateEffect::Started;
+        }
+    }
+    let retired_routes = if route_changes {
+        match web_model_connectors::retire_actor(home, &group_id, &actor_id) {
+            Ok(routes) => routes,
+            Err(error) => {
+                return Err(rollback_actor_update(
+                    home,
+                    &group,
+                    &original_actor,
+                    original_secrets.as_ref(),
+                    Some(&updated_group),
+                    effect,
+                    OpError::io(error),
+                ));
+            }
+        }
+    } else {
+        Vec::new()
+    };
+    let event = match append_event(
+        home,
+        &group_id,
+        "actor.update",
+        request,
+        json!({"actor_id": actor_id, "patch": patch}),
+    ) {
+        Ok(event) => event,
+        Err(mut error) => {
+            if let Err(restore_error) = web_model_connectors::restore(home, &retired_routes) {
+                error
+                    .message
+                    .push_str(&format!("; route rollback failed: {restore_error}"));
+            }
+            return Err(rollback_actor_update(
+                home,
+                &group,
+                &original_actor,
+                original_secrets.as_ref(),
+                Some(&updated_group),
+                effect,
+                error,
+            ));
+        }
+    };
+    if original_actor.default_scope_key != actor.default_scope_key
+        && actor.enabled
+        && actor.runtime.is_web_model()
+        && updated_group.running
+    {
+        // A Web conversation can read the newly selected workspace in its
+        // current turn, before any further message reaches the Actor.
+        super::runtime_state::record_web_instruction_baseline(home, &updated_group, &actor);
+    }
+    if enabling_native {
+        actor_delivery::dispatch_unread(home, &updated_group, &actor_id);
+    }
+    let actor = actor_runtime::actor_response(home, &group_id, &actor);
+    object(
+        json!({"runtime_confirmation_required":actor["runtime_confirmation_required"],
+        "actor": actor, "event": event}),
+    )
+}
+
+#[derive(Clone, Copy)]
+enum ActorUpdateEffect {
+    None,
+    Started,
+    Stopped,
+}
+
+fn actor_process_running(group: &GroupDoc, actor: &Actor) -> bool {
+    actor_runtime::actor_is_running(group, actor)
+}
+
+fn rollback_actor_update(
+    home: &HomeLayout,
+    original_group: &GroupDoc,
+    original_actor: &Actor,
+    original_secrets: Option<&BTreeMap<String, String>>,
+    updated_group: Option<&GroupDoc>,
+    effect: ActorUpdateEffect,
+    original: OpError,
+) -> OpError {
+    let mut failures = Vec::new();
+    if matches!(effect, ActorUpdateEffect::Started)
+        && let Some(group) = updated_group
+    {
+        actor_delivery::shutdown_actor(&group.group_id, &original_actor.id);
+        if let Err(error) = actor_runtime::apply(home, group, &original_actor.id, "actor.stop") {
+            failures.push(format!("stop newly started runtime: {}", error.message));
+        }
+    }
+    match store(home).and_then(|store| {
+        store
+            .mutate(&original_group.group_id, |doc| {
+                let index = doc
+                    .actors
+                    .iter()
+                    .position(|actor| actor.id == original_actor.id)
+                    .ok_or_else(|| std::io::Error::other("actor not found during rollback"))?;
+                doc.actors[index] = original_actor.clone();
+                doc.running = original_group.running;
+                doc.state = original_group.state;
+                Ok(())
+            })
+            .map_err(OpError::io)
+    }) {
+        Ok(()) => {}
+        Err(error) => failures.push(format!("restore actor state: {}", error.message)),
+    }
+    if let Some(secrets) = original_secrets
+        && let Err(error) = actor_secrets::replace(
+            home,
+            &original_group.group_id,
+            &original_actor.id,
+            secrets.clone(),
+        )
+    {
+        failures.push(format!("restore actor secrets: {}", error.message));
+    }
+    if matches!(effect, ActorUpdateEffect::Stopped)
+        && let Err(error) = actor_runtime::restore_runtime(home, original_group, &original_actor.id)
+        && !actor_runtime::same_untrusted_workspace(&original, &error)
+    {
+        failures.push(format!(
+            "restart previously running actor: {}",
+            error.message
+        ));
+    }
+    if failures.is_empty() {
+        original
+    } else {
+        OpError::new(
+            "rollback_failed",
+            format!(
+                "{}; rollback failed: {}",
+                original.message,
+                failures.join("; ")
+            ),
+        )
+    }
+}
+
+fn remove(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    let actor_id = required_arg(request, "actor_id")?;
+    let group = store(home)?.load(&group_id).map_err(OpError::not_found)?;
+    authorize(&group, request, ActorAction::Remove, &actor_id)?;
+    if let Some(actor) = actors::find(&group, &actor_id).filter(|actor| !actor.leave_id.is_empty())
+    {
+        if niuma_core::actor_leave::get(&group, &actor.leave_id).is_ok_and(|record| {
+            record.is_handing_off() || record.status == niuma_contracts::ActorLeaveStatus::Returning
+        }) {
+            return Err(OpError::new(
+                "actor_handoff_in_progress",
+                "请先完成或撤销交接，再移除成员",
+            ));
+        }
+    }
+    // Its switch audit must not be lost with the member, and its Retry,
+    // not a removal that may still fail, completes and resumes it.
+    super::actor_switch::refuse_pending(home, &group_id, &actor_id)?;
+    // The Foreman is the first visible Actor: removing it hands the role on.
+    let succession =
+        (actors::effective_role(&group, &actor_id) == Some(ActorRole::Foreman)).then(|| {
+            actors::visible(&group)
+                .find(|actor| actor.id != actor_id)
+                .map(|actor| actor.id.clone())
+        });
+    let index = group
+        .actors
+        .iter()
+        .position(|actor| actor.id == actor_id)
+        .ok_or_else(|| OpError::new("actor_not_found", "actor not found"))?;
+    let _browser_work = actor_runtime::hold_browser_work(home, &group_id, &actor_id)?;
+    let original_actor = group.actors[index].clone();
+    let original_web_model_target = web_model_target(&group, &actor_id).cloned();
+    let original_web_model_delivery_preference =
+        web_model_delivery_preference(&group, &actor_id).cloned();
+    let original_runtime_state = runtime_state(&group, &actor_id).cloned();
+    let original_secrets = actor_secrets::values(home, &group_id, &actor_id)?;
+    let runtime_was_running = actor_process_running(&group, &original_actor);
+    actor_delivery::shutdown_actor(&group_id, &actor_id);
+    if let Err(error) = actor_runtime::apply(home, &group, &actor_id, "actor.stop") {
+        actor_delivery::dispatch_group_unread(home, &group);
+        return Err(error);
+    }
+    if let Err(error) =
+        super::codex_voice_analyst::remove_claude_actor_settings(home, &group_id, &actor_id)
+    {
+        return Err(restart_after_failed_remove(
+            home,
+            &group,
+            &original_actor,
+            runtime_was_running,
+            OpError::io(error),
+        ));
+    }
+    if let Err(error) = store(home)?
+        .mutate(&group_id, |doc| {
+            actors::remove(doc, &actor_id)?;
+            Ok(())
+        })
+        .map_err(OpError::invalid)
+    {
+        return Err(restart_after_failed_remove(
+            home,
+            &group,
+            &original_actor,
+            runtime_was_running,
+            error,
+        ));
+    }
+    let retired_connectors = match web_model_connectors::retire_actor(home, &group_id, &actor_id) {
+        Ok(entries) => entries,
+        Err(error) => {
+            return Err(restore_removed_and_runtime(
+                home,
+                &group_id,
+                super::actor_saga::RemovedActorSnapshot {
+                    actor: original_actor,
+                    index,
+                    web_model_target: original_web_model_target,
+                    web_model_delivery_preference: original_web_model_delivery_preference,
+                    runtime_state: original_runtime_state,
+                    connector_entries: Vec::new(),
+                    secrets: original_secrets,
+                },
+                &group,
+                runtime_was_running,
+                OpError::io(error),
+            ));
+        }
+    };
+    let removal_snapshot = super::actor_saga::RemovedActorSnapshot {
+        actor: original_actor,
+        index,
+        web_model_target: original_web_model_target,
+        web_model_delivery_preference: original_web_model_delivery_preference,
+        runtime_state: original_runtime_state,
+        connector_entries: retired_connectors,
+        secrets: original_secrets,
+    };
+    if let Err(error) = actor_secrets::remove(home, &group_id, &actor_id) {
+        return Err(restore_removed_and_runtime(
+            home,
+            &group_id,
+            removal_snapshot,
+            &group,
+            runtime_was_running,
+            error,
+        ));
+    }
+    let event = match append_event(
+        home,
+        &group_id,
+        "actor.remove",
+        request,
+        json!({"actor_id": actor_id}),
+    ) {
+        Ok(event) => event,
+        Err(error) => {
+            return Err(restore_removed_and_runtime(
+                home,
+                &group_id,
+                removal_snapshot,
+                &group,
+                runtime_was_running,
+                error,
+            ));
+        }
+    };
+    if let Err(error) = super::local_headless::retry_confirmation(&group_id, &actor_id) {
+        tracing::warn!(%error, %group_id, %actor_id, "removed Actor confirmation cleanup failed");
+    }
+    if let Some(successor) = succession
+        && let Err(error) = append_event(
+            home,
+            &group_id,
+            "group.foreman_change",
+            request,
+            json!({"from": actor_id, "to": successor}),
+        )
+    {
+        // The removal is committed; a missing record is not worth undoing it.
+        tracing::warn!(error = %error.message, %group_id, %actor_id, "foreman change not recorded");
+    }
+    if let Err(error) = remove_persisted_headless_state(home, &group_id, &actor_id) {
+        tracing::warn!(%error, %group_id, %actor_id, "post-commit headless state cleanup failed");
+    }
+    if let Err(error) = runtime_session::remove(home, &group_id, &actor_id) {
+        tracing::warn!(%error, %group_id, %actor_id, "post-commit runtime session cleanup failed");
+    }
+    if let Err(error) = runtime_session::antigravity::remove(home, &group_id, &actor_id) {
+        tracing::warn!(%error,%group_id,%actor_id,"post-commit ACP receipt cleanup failed");
+    }
+    if let Err(error) = runtime_session::native_acp::retire_all(home, &group_id, &actor_id) {
+        tracing::warn!(%error,%group_id,%actor_id,"post-commit native ACP receipt cleanup failed");
+    }
+    if let Err(error) = retire_actor_context(home, &group_id, &actor_id, &event.by) {
+        tracing::warn!(%error, %group_id, %actor_id, "post-commit Actor context cleanup failed");
+    }
+    // Not with the removal itself: a removal that fails restores the member,
+    // which still needs its records. A leftover record names no member and
+    // has no effect.
+    if !runtime_switches::records(&group).is_empty()
+        && let Err(error) = store(home).and_then(|store| {
+            store
+                .mutate(&group_id, |doc| {
+                    runtime_switches::prune(doc);
+                    Ok(())
+                })
+                .map_err(OpError::io)
+        })
+    {
+        tracing::warn!(error = %error.message, %group_id, %actor_id, "post-commit switch record cleanup failed");
+    }
+    object(json!({"actor_id": actor_id, "event": event}))
+}
+
+/// Retire open task references and working state belonging to a removed Actor.
+/// Task progress, content, other Actors and finished ownership stay unchanged.
+/// One `context.sync` event records the cleanup.
+fn retire_actor_context(
+    home: &HomeLayout,
+    group_id: &str,
+    actor_id: &str,
+    by: &str,
+) -> std::io::Result<()> {
+    let contexts = ContextStore::new(home.clone())?;
+    // The version check retries when the board changes between read and write.
+    for _ in 0..3 {
+        let document = contexts.load(group_id)?;
+        let mut operations = document
+            .tasks
+            .iter()
+            .filter(|task| {
+                ["assignee", "handoff_to"]
+                    .iter()
+                    .any(|field| task.get(*field).and_then(Value::as_str) == Some(actor_id))
+                    && matches!(
+                        task.get("status")
+                            .and_then(Value::as_str)
+                            .unwrap_or("planned"),
+                        "planned" | "active"
+                    )
+            })
+            .filter_map(|task| {
+                let task_id = task.get("id").and_then(Value::as_str)?;
+                let mut operation = Map::from_iter([
+                    ("op".into(), json!("task.update")),
+                    ("task_id".into(), json!(task_id)),
+                ]);
+                for field in ["assignee", "handoff_to"] {
+                    if task.get(field).and_then(Value::as_str) == Some(actor_id) {
+                        operation.insert(field.into(), Value::Null);
+                    }
+                }
+                Some(operation)
+            })
+            .collect::<Vec<_>>();
+        if document.agent_states.contains_key(actor_id) {
+            operations.push(Map::from_iter([
+                ("op".into(), json!("agent_state.clear")),
+                ("actor_id".into(), json!(actor_id)),
+            ]));
+        }
+        if operations.is_empty() {
+            return Ok(());
+        }
+        let version = contexts.version(&document)?;
+        let result = match contexts.sync(group_id, &operations, Some(&version), by, false) {
+            Ok(result) => result,
+            Err(error) if error.to_string() == "version_conflict" => continue,
+            Err(error) => return Err(error),
+        };
+        let mut event = Event::new("context.sync", group_id);
+        event.by = by.to_owned();
+        event.data = Map::from_iter([
+            ("version".into(), json!(result.version)),
+            ("changes".into(), json!(result.changes)),
+        ]);
+        return ledger::append(
+            &GroupStore::new(home.clone())?.ledger_path(group_id)?,
+            &event,
+        );
+    }
+    Err(std::io::Error::other(
+        "context kept changing during Actor retirement",
+    ))
+}
+
+fn restore_removed_and_runtime(
+    home: &HomeLayout,
+    group_id: &str,
+    snapshot: super::actor_saga::RemovedActorSnapshot,
+    original_group: &GroupDoc,
+    runtime_was_running: bool,
+    original: OpError,
+) -> OpError {
+    let actor_id = snapshot.actor.id.clone();
+    let restored = super::actor_saga::restore_removed(home, group_id, snapshot, original);
+    if restored.code == "rollback_failed" {
+        return restored;
+    }
+    restart_after_failed_remove(
+        home,
+        original_group,
+        original_group
+            .actors
+            .iter()
+            .find(|actor| actor.id == actor_id)
+            .expect("removed actor belongs to the original group"),
+        runtime_was_running,
+        restored,
+    )
+}
+
+fn restart_after_failed_remove(
+    home: &HomeLayout,
+    group: &GroupDoc,
+    actor: &Actor,
+    runtime_was_running: bool,
+    original: OpError,
+) -> OpError {
+    if !runtime_was_running {
+        return original;
+    }
+    match actor_runtime::restore_runtime(home, group, &actor.id) {
+        Ok(_) => {
+            actor_delivery::dispatch_group_unread(home, group);
+            original
+        }
+        Err(error) => OpError::new(
+            "rollback_failed",
+            format!(
+                "{}; rollback failed to restart removed Actor: {}",
+                original.message, error.message
+            ),
+        ),
+    }
+}
+
+fn web_model_target<'a>(group: &'a GroupDoc, actor_id: &str) -> Option<&'a Value> {
+    group
+        .extra
+        .get(WEB_MODEL_TARGETS_KEY)
+        .and_then(Value::as_object)
+        .and_then(|targets| targets.get(actor_id))
+}
+
+fn web_model_delivery_preference<'a>(group: &'a GroupDoc, actor_id: &str) -> Option<&'a Value> {
+    group
+        .extra
+        .get(WEB_MODEL_DELIVERY_PREFERENCES_KEY)
+        .and_then(Value::as_object)
+        .and_then(|preferences| preferences.get(actor_id))
+}
+
+fn runtime_state<'a>(group: &'a GroupDoc, actor_id: &str) -> Option<&'a Value> {
+    group
+        .extra
+        .get(RUNTIME_STATES_KEY)
+        .and_then(Value::as_object)
+        .and_then(|states| states.get(actor_id))
+}
+
+fn remove_persisted_headless_state(
+    home: &HomeLayout,
+    group_id: &str,
+    actor_id: &str,
+) -> std::io::Result<()> {
+    let path = home
+        .groups_dir()
+        .join(group_id)
+        .join("state/runners/headless")
+        .join(format!("{actor_id}.json"));
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
+/// Whether a runtime change leaves the Actor's Web Model route pointing at the
+/// wrong provider or delivery kind.
+pub(super) fn web_model_route_changes(before: &Actor, after: &Actor) -> bool {
+    before.runtime.web_model_provider() != after.runtime.web_model_provider()
+        || (before.runtime != after.runtime
+            && (before.runtime == ActorRuntime::ChatgptDots
+                || after.runtime == ActorRuntime::ChatgptDots))
+}
+
+pub(super) fn lifecycle(home: &HomeLayout, request: &DaemonRequest, kind: &str) -> OpResult {
+    lifecycle_leading(home, request, kind, None)
+}
+
+/// As [`lifecycle`]; `leading` is delivered ahead of the backlog a start
+/// dispatches, as a runtime switch does with its handoff.
+pub(super) fn lifecycle_leading(
+    home: &HomeLayout,
+    request: &DaemonRequest,
+    kind: &str,
+    leading: Option<&Event>,
+) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    let actor_id = required_arg(request, "actor_id")?;
+    let _timing_span = tracing::info_span!(
+        "actor_lifecycle", group_id = %group_id, actor_id = %actor_id, action = kind
+    )
+    .entered();
+    let group = store(home)?.load(&group_id).map_err(OpError::not_found)?;
+    let action = match kind {
+        "actor.start" => ActorAction::Start,
+        "actor.stop" => ActorAction::Stop,
+        _ => ActorAction::Restart,
+    };
+    authorize(&group, request, action, &actor_id)?;
+    if kind != "actor.stop" {
+        // Stopping stays available; a start waits for the switch's retry.
+        super::actor_switch::refuse_pending(home, &group_id, &actor_id)?;
+    }
+    let original_actor = group
+        .actors
+        .iter()
+        .find(|actor| actor.id == actor_id)
+        .cloned()
+        .ok_or_else(|| OpError::new("actor_not_found", "actor not found"))?;
+    if !original_actor.external_session_id.is_empty()
+        && matches!(kind, "actor.restart" | "actor.new_session")
+    {
+        return Err(OpError::new(
+            "external_session_owned",
+            "Reset this session in its original runtime; 牛马Agent only controls collaboration access",
+        ));
+    }
+    // Only an explicit user Start may replace a protected confirmation PTY
+    // whose watcher was cancelled. Automatic delivery must leave it alone.
+    let orphaned_confirmation = kind == "actor.start"
+        && actor_runtime::user_confirmation_retry(request)
+        && original_actor.external_session_id.is_empty()
+        && super::local_headless::orphaned_confirmation(&group_id, &actor_id)
+            .map_err(OpError::io)?;
+    let runtime_was_running =
+        actor_process_running(&group, &original_actor) && !orphaned_confirmation;
+    let retry_runtime = if original_actor.external_session_id.is_empty()
+        && matches!(kind, "actor.start" | "actor.restart")
+    {
+        Some(actor_profile_runtime::resolve(home, &original_actor)?.runtime)
+    } else {
+        None
+    };
+    let retry_claude_trust = retry_runtime == Some(niuma_contracts::ActorRuntime::Claude)
+        && !super::local_headless::running(&group_id, &actor_id)
+        && super::local_headless::waiting_for_workspace_trust(&group_id, &actor_id)
+            .map_err(OpError::io)?;
+    let runtime_session_snapshot = if kind == "actor.new_session" {
+        Some(runtime_session::snapshot(home, &group_id, &actor_id).map_err(OpError::io)?)
+    } else {
+        None
+    };
+    if kind != "actor.start" || !runtime_was_running || retry_claude_trust {
+        let reason = delivery_shutdown_reason(home, &group_id, &original_actor, kind)?;
+        super::codex_voice_analyst::lifecycle_timing::run_sync("actor.delivery_shutdown", || {
+            actor_delivery::shutdown_actor_for(&group_id, &actor_id, reason);
+            Ok(())
+        })
+        .map_err(OpError::io)?;
+    }
+    let retried_claude_resume = if let Some(runtime) = retry_runtime
+        .filter(|_| kind == "actor.restart" || !runtime_was_running || retry_claude_trust)
+    {
+        if runtime == niuma_contracts::ActorRuntime::Claude {
+            runtime_session::retry_failed_claude_resume(home, &group_id, &actor_id)
+                .map_err(OpError::io)?
+        } else {
+            runtime_session::resume_failure::retry(home, &group_id, &actor_id, runtime)
+                .map_err(OpError::io)?;
+            false
+        }
+    } else {
+        false
+    };
+    let enabled = kind != "actor.stop";
+    // An old trust terminal is not a resumed managed session. An explicit retry
+    // must retire that attachment before retrying the same durable conversation.
+    let apply_kind = if kind == "actor.start"
+        && (orphaned_confirmation || (retry_claude_trust && retried_claude_resume))
+    {
+        "actor.restart"
+    } else {
+        kind
+    };
+    // Preparation can fail without replacing the current confirmation terminal.
+    // Retire its owner only once the snapshot and retry gates are ready to proceed.
+    if actor_runtime::user_confirmation_retry(request)
+        && (matches!(kind, "actor.restart" | "actor.new_session")
+            || (kind == "actor.start" && !runtime_was_running))
+    {
+        super::local_headless::retry_confirmation(&group_id, &actor_id).map_err(OpError::io)?;
+    }
+    let status = match actor_runtime::apply(home, &group, &actor_id, apply_kind) {
+        Ok(status) => status,
+        Err(error) => {
+            // A failed teardown has not launched a replacement. Do not turn
+            // this error into a second stop/start attempt during rollback.
+            let effect =
+                if error.details.get("lifecycle_stage").and_then(Value::as_str) == Some("stop") {
+                    ActorLifecycleEffect::None
+                } else {
+                    lifecycle_effect(
+                        kind,
+                        runtime_was_running,
+                        actor_process_running(&group, &original_actor),
+                    )
+                };
+            return Err(rollback_actor_lifecycle(
+                home,
+                &group,
+                &original_actor,
+                runtime_session_snapshot.as_ref(),
+                effect,
+                error,
+            ));
+        }
+    };
+    let effect = lifecycle_effect(
+        kind,
+        runtime_was_running,
+        actor_process_running(&group, &original_actor),
+    );
+    let actor =
+        match actor_runtime::persist_lifecycle(home, &group, &actor_id, enabled, status.as_ref()) {
+            Ok(actor) => actor,
+            Err(error) => {
+                return Err(rollback_actor_lifecycle(
+                    home,
+                    &group,
+                    &original_actor,
+                    runtime_session_snapshot.as_ref(),
+                    effect,
+                    error,
+                ));
+            }
+        };
+    let event = match append_event(
+        home,
+        &group_id,
+        kind,
+        request,
+        json!({"actor_id": actor_id, "runner": actor.runner}),
+    ) {
+        Ok(event) => event,
+        Err(error) => {
+            return Err(rollback_actor_lifecycle(
+                home,
+                &group,
+                &original_actor,
+                runtime_session_snapshot.as_ref(),
+                effect,
+                error,
+            ));
+        }
+    };
+    if enabled {
+        match GroupStore::new(home.clone()).and_then(|store| store.load(&group_id)) {
+            Ok(current_group) => {
+                // A member that pulls claims it with the backlog, in ledger order.
+                if let Some(leading) = leading
+                    && let Some(actor) = actors::find(&current_group, &actor_id)
+                    && actor_delivery::receives_push(&current_group, actor)
+                {
+                    actor_delivery::dispatch_to(
+                        home,
+                        &current_group,
+                        leading,
+                        std::slice::from_ref(actor),
+                        false,
+                    );
+                }
+                actor_delivery::dispatch_unread(home, &current_group, &actor_id);
+            }
+            Err(error) => tracing::warn!(
+                %error,
+                %group_id,
+                %actor_id,
+                "failed to reload actor inbox after activation"
+            ),
+        }
+    }
+    let actor = actor_runtime::actor_response(home, &group_id, &actor);
+    object(
+        json!({"runtime_confirmation_required":actor["runtime_confirmation_required"],
+        "actor": actor, "event": event, "runtime": status}),
+    )
+}
+
+/// A restart replaces the session: what it may hold is not sent again. A DeepSeek
+/// turn is the exception. It runs until the provider answers and its message stays
+/// undelivered until then, so relaunching DeepSeek runs it again, as Stop and Start
+/// do. Moving to another runtime stays a replacement.
+pub(super) fn delivery_shutdown_reason(
+    home: &HomeLayout,
+    group_id: &str,
+    actor: &Actor,
+    kind: &str,
+) -> Result<actor_delivery::ShutdownReason, OpError> {
+    if !matches!(kind, "actor.restart" | "actor.new_session") {
+        return Ok(actor_delivery::ShutdownReason::Stop);
+    }
+    // Registered, not running: a failed turn that asks for a restart still owns its work.
+    let stays_on_deepseek = super::deepseek_runtime::registered_generation(group_id, &actor.id)
+        .is_some()
+        && actor_profile_runtime::resolve(home, actor)?.runtime == ActorRuntime::Deepseek;
+    Ok(if stays_on_deepseek {
+        actor_delivery::ShutdownReason::Stop
+    } else {
+        actor_delivery::ShutdownReason::Replace
+    })
+}
+
+#[derive(Clone, Copy)]
+enum ActorLifecycleEffect {
+    None,
+    Started,
+    Stopped,
+    Replaced,
+}
+
+fn lifecycle_effect(kind: &str, was_running: bool, is_running: bool) -> ActorLifecycleEffect {
+    match (kind, was_running, is_running) {
+        ("actor.stop", true, false) => ActorLifecycleEffect::Stopped,
+        ("actor.start", false, true) => ActorLifecycleEffect::Started,
+        ("actor.restart" | "actor.new_session", true, true) => ActorLifecycleEffect::Replaced,
+        ("actor.restart" | "actor.new_session", true, false) => ActorLifecycleEffect::Stopped,
+        ("actor.restart" | "actor.new_session", false, true) => ActorLifecycleEffect::Started,
+        _ => ActorLifecycleEffect::None,
+    }
+}
+
+fn rollback_actor_lifecycle(
+    home: &HomeLayout,
+    original_group: &GroupDoc,
+    original_actor: &Actor,
+    runtime_session_snapshot: Option<&Option<serde_json::Map<String, Value>>>,
+    effect: ActorLifecycleEffect,
+    original: OpError,
+) -> OpError {
+    let mut failures = Vec::new();
+    if matches!(
+        effect,
+        ActorLifecycleEffect::Started | ActorLifecycleEffect::Replaced
+    ) {
+        actor_delivery::shutdown_actor(&original_group.group_id, &original_actor.id);
+        if let Err(error) =
+            actor_runtime::apply(home, original_group, &original_actor.id, "actor.stop")
+        {
+            failures.push(format!("stop replacement runtime: {}", error.message));
+        }
+    }
+    if let Some(snapshot) = runtime_session_snapshot
+        && let Err(error) = runtime_session::restore_snapshot(
+            home,
+            &original_group.group_id,
+            &original_actor.id,
+            snapshot.as_ref(),
+        )
+    {
+        failures.push(format!("restore runtime session: {error}"));
+    }
+    match store(home).and_then(|store| {
+        store
+            .mutate(&original_group.group_id, |doc| {
+                let index = doc
+                    .actors
+                    .iter()
+                    .position(|actor| actor.id == original_actor.id)
+                    .ok_or_else(|| std::io::Error::other("actor not found during rollback"))?;
+                doc.actors[index] = original_actor.clone();
+                doc.running = original_group.running;
+                doc.state = original_group.state;
+                Ok(())
+            })
+            .map_err(OpError::io)
+    }) {
+        Ok(()) => {}
+        Err(error) => failures.push(format!("restore actor state: {}", error.message)),
+    }
+    if matches!(
+        effect,
+        ActorLifecycleEffect::Stopped | ActorLifecycleEffect::Replaced
+    ) && let Err(error) =
+        actor_runtime::restore_runtime(home, original_group, &original_actor.id)
+    {
+        failures.push(format!("restore previous runtime: {}", error.message));
+    }
+    if original_actor.enabled && original_group.running {
+        actor_delivery::dispatch_unread(home, original_group, &original_actor.id);
+    }
+    if failures.is_empty() {
+        original
+    } else {
+        OpError::new(
+            "rollback_failed",
+            format!(
+                "{}; rollback failed: {}",
+                original.message,
+                failures.join("; ")
+            ),
+        )
+    }
+}
+
+fn actor_from_args(request: &DaemonRequest) -> Result<Actor, OpError> {
+    if request
+        .args
+        .get("external_session_id")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !id.is_empty())
+        || request
+            .args
+            .get("actor")
+            .and_then(|actor| actor.get("external_session_id"))
+            .and_then(Value::as_str)
+            .is_some_and(|id| !id.is_empty())
+    {
+        return Err(OpError::new(
+            "unsupported_field",
+            "Create native-session Actors through local_session_conversation",
+        ));
+    }
+    if let Some(value) = request.args.get("actor") {
+        if value.get("runner").is_some() {
+            return Err(OpError::new(
+                "unsupported_field",
+                "runner is derived from the Runtime and cannot be selected",
+            ));
+        }
+        return serde_json::from_value(value.clone()).map_err(OpError::invalid);
+    }
+    if request.args.contains_key("runner") {
+        return Err(OpError::new(
+            "unsupported_field",
+            "runner is derived from the Runtime and cannot be selected",
+        ));
+    }
+    let id = required_arg(request, "actor_id")?;
+    let mut value = serde_json::to_value(Actor::new(id)).map_err(OpError::invalid)?;
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| OpError::new("internal_error", "invalid actor"))?;
+    for (key, item) in &request.args {
+        if !matches!(
+            key.as_str(),
+            "group_id"
+                | "actor_id"
+                | "by"
+                | "caller_id"
+                | "is_admin"
+                | "allowed_groups"
+                | "env_private"
+                | "runtime_state_source"
+        ) {
+            object.insert(key.clone(), item.clone());
+        }
+    }
+    serde_json::from_value(value).map_err(OpError::invalid)
+}
+
+fn normalize_default_scope_key(group: &GroupDoc, reference: &str) -> Result<String, OpError> {
+    let reference = reference.trim();
+    if reference.is_empty() {
+        return Ok(String::new());
+    }
+    group_scope::resolve_attached_scope(group, reference)
+        .map(|scope| scope.scope_key.clone())
+        .ok_or_else(|| {
+            OpError::new(
+                "scope_not_attached",
+                format!("scope not attached: {reference}"),
+            )
+        })
+}
+
+fn private_env_arg(request: &DaemonRequest) -> Result<Option<BTreeMap<String, String>>, OpError> {
+    let Some(value) = request.args.get("env_private") else {
+        return Ok(None);
+    };
+    let object = value
+        .as_object()
+        .ok_or_else(|| OpError::new("invalid_args", "env_private must be an object"))?;
+    if object.len() > 256 {
+        return Err(OpError::new("invalid_args", "too many env_private keys"));
+    }
+    let mut values = BTreeMap::new();
+    for (key, value) in object {
+        actor_secrets::validate_env_key(key)?;
+        let value = actor_secrets::python_string(value)?;
+        if value.chars().count() > 200_000 {
+            return Err(OpError::new("invalid_args", "env value too large"));
+        }
+        values.insert(key.clone(), value);
+    }
+    Ok(Some(values))
+}
+
+fn load(home: &HomeLayout, request: &DaemonRequest) -> Result<GroupDoc, OpError> {
+    store(home)?
+        .load(&required_arg(request, "group_id")?)
+        .map_err(OpError::not_found)
+}
+
+fn authorize(
+    group: &GroupDoc,
+    request: &DaemonRequest,
+    action: ActorAction,
+    target: &str,
+) -> Result<(), OpError> {
+    permissions::require_actor(
+        group,
+        &string_arg(request, "by").unwrap_or_else(|| "user".into()),
+        action,
+        target,
+    )
+    .map_err(OpError::invalid)
+}
+
+fn append_event(
+    home: &HomeLayout,
+    group_id: &str,
+    kind: &str,
+    request: &DaemonRequest,
+    data: Value,
+) -> Result<Event, OpError> {
+    let mut event = Event::new(kind, group_id);
+    event.by = string_arg(request, "by").unwrap_or_else(|| "user".into());
+    event.data = data.as_object().cloned().unwrap_or_default();
+    ledger::append(
+        &store(home)?.ledger_path(group_id).map_err(OpError::io)?,
+        &event,
+    )
+    .map_err(OpError::io)?;
+    Ok(event)
+}

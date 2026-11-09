@@ -46,7 +46,7 @@ describe("branding utils", () => {
   });
 
   it("keeps the default descriptive title for the built-in product name", () => {
-    expect(resolveDocumentTitle("CCCC")).toBe(DEFAULT_DOCUMENT_TITLE);
+    expect(resolveDocumentTitle("牛马Agent")).toBe(DEFAULT_DOCUMENT_TITLE);
   });
 
   it("uses the custom product name as the document title", () => {

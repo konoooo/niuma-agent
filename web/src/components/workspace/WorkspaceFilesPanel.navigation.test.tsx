@@ -85,14 +85,14 @@ it("shows ignored entries by default and remembers an explicit filter without di
   await edit("keep draft");
   await optionsMenu();
   await menuAction("Hide Git-ignored files");
-  expect(localStorage.getItem("cccc-workspace-show-ignored")).toBe("false");
+  expect(localStorage.getItem("niuma-workspace-show-ignored")).toBe("false");
   expect(rowByName("src").getAttribute("aria-expanded")).toBe("true");
   expect(mainArea().querySelector("textarea")?.value).toBe("keep draft");
   expect(panel().querySelector('[title="build"]')).toBeNull();
 });
 
 it("opens an absolute path and reveals it through the filter, then collapses and reveals without rereading the file", async () => {
-  localStorage.setItem("cccc-workspace-show-ignored", "false");
+  localStorage.setItem("niuma-workspace-show-ignored", "false");
   filesFixture();
   await mount();
   await enterPath("/repo/build/notes.txt");
@@ -311,7 +311,7 @@ it("rejects a tree move from another instance origin even when Group and scope I
   const event = new Event("drop", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", {
     value: {
-      types: ["application/x-cccc-workspace-entry"],
+      types: ["application/x-niuma-workspace-entry"],
       getData: () =>
         JSON.stringify({
           origin: "https://another-instance.example",
@@ -336,7 +336,7 @@ it("rejects forged current-origin metadata as authority for a tree move", async 
   const event = new Event("drop", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "dataTransfer", {
     value: {
-      types: ["application/x-cccc-workspace-entry"],
+      types: ["application/x-niuma-workspace-entry"],
       getData: () =>
         JSON.stringify({
           origin: window.location.origin,
@@ -382,7 +382,7 @@ it("accepts a local drag once and rejects its replay or canceled token", async (
     );
   const data = new Map<string, string>();
   await act(async () => rowByName("README.txt").dispatchEvent(dragEvent("dragstart", data)));
-  expect(data.get("application/x-cccc-workspace-entry")).toBeTruthy();
+  expect(data.get("application/x-niuma-workspace-entry")).toBeTruthy();
   await act(async () => rowByName("src").dispatchEvent(dragEvent("drop", data)));
   expect(fetch).toHaveBeenCalledTimes(1);
   await act(async () => rowByName("src").dispatchEvent(dragEvent("drop", data)));

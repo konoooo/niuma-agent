@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the Rust-only CCCC wheel structure and executable identity."""
+"""Verify the Rust-only 牛马Agent wheel structure and executable identity."""
 
 from __future__ import annotations
 
@@ -25,11 +25,11 @@ def verify(wheel: Path, *, platform_tag: str, binary: Path | None = None) -> byt
     if not wheel.name.endswith(suffix):
         raise ValueError(f"wheel filename is missing platform suffix {suffix!r}")
     stem = wheel.name[: -len(suffix)]
-    if not stem.startswith("cccc_pair-") or not stem.removeprefix("cccc_pair-"):
+    if not stem.startswith("niuma_pair-") or not stem.removeprefix("niuma_pair-"):
         raise ValueError(
-            "wheel filename must use the cccc_pair distribution and a version"
+            "wheel filename must use the niuma_pair distribution and a version"
         )
-    version = stem.removeprefix("cccc_pair-")
+    version = stem.removeprefix("niuma_pair-")
     dist_info = f"{stem}.dist-info"
     expected_tag = f"Tag: py3-none-{platform_tag}"
     with zipfile.ZipFile(wheel) as archive:
@@ -38,9 +38,9 @@ def verify(wheel: Path, *, platform_tag: str, binary: Path | None = None) -> byt
             raise ValueError("wheel contains duplicate archive members")
         if any(name.startswith("/") or ".." in Path(name).parts for name in names):
             raise ValueError("wheel contains an unsafe archive member")
-        executable_name = "cccc.exe" if platform_tag == "win_amd64" else "cccc"
+        executable_name = "niuma-agent.exe" if platform_tag == "win_amd64" else "niuma-agent"
         payload = f"{stem}.data/scripts/{executable_name}"
-        install_marker = f"{stem}.data/scripts/.cccc-standalone"
+        install_marker = f"{stem}.data/scripts/.niuma-agent-standalone"
         wheel_metadata = f"{dist_info}/WHEEL"
         core_metadata = f"{dist_info}/METADATA"
         license_path = f"{dist_info}/licenses/LICENSE"
@@ -71,8 +71,8 @@ def verify(wheel: Path, *, platform_tag: str, binary: Path | None = None) -> byt
         if expected_tag not in metadata:
             raise ValueError(f"native wheel is missing {expected_tag!r}")
         rendered_core = archive.read(core_metadata).decode("utf-8")
-        if "Name: cccc-pair\n" not in rendered_core:
-            raise ValueError("wheel project name must remain cccc-pair")
+        if "Name: niuma-agent\n" not in rendered_core:
+            raise ValueError("wheel project name must remain niuma-agent")
         if f"Version: {version}\n" not in rendered_core:
             raise ValueError("wheel metadata version does not match its filename")
         headers, separator, description = rendered_core.partition("\n\n")
@@ -131,7 +131,7 @@ def main() -> int:
         )
     except ValueError as error:
         parser.error(str(error))
-    print(f"OK: verified native CCCC wheel {args.wheel}")
+    print(f"OK: verified native 牛马Agent wheel {args.wheel}")
     return 0
 
 

@@ -36,7 +36,7 @@ async function read(summary: Summary | null, groupId = "g", active = false) {
 
 afterEach(() => {
   useUIStore.setState({ showPendingPrompts: true });
-  localStorage.removeItem("cccc-pending-prompts");
+  localStorage.removeItem("niuma-pending-prompts");
 });
 
 it("offers the Group's Waiting for you filter only while those prompts are shown", async () => {

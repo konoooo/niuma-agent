@@ -1,6 +1,6 @@
 # Slack Setup
 
-Connect your CCCC working group to Slack for team collaboration.
+Connect your 牛马Agent working group to Slack for team collaboration.
 
 ## Overview
 
@@ -13,14 +13,14 @@ Slack integration uses Socket Mode for real-time messaging. It's ideal for:
 ## Prerequisites
 
 - A Slack workspace where you have admin rights
-- CCCC installed and running
+- 牛马Agent installed and running
 
 ## Step 1: Create a Slack App
 
 1. Go to [Slack API Apps](https://api.slack.com/apps)
 2. Click **Create New App**
 3. Choose **From scratch**
-4. Enter app name (e.g., "CCCC Bot")
+4. Enter app name (e.g., "牛马Agent Bot")
 5. Select your workspace
 6. Click **Create App**
 
@@ -31,7 +31,7 @@ Socket Mode allows the bot to receive events without exposing a public URL.
 1. In your app settings, go to **Socket Mode**
 2. Toggle **Enable Socket Mode** to ON
 3. Click **Generate** to create an app-level token
-4. Name it (e.g., "cccc-socket-token")
+4. Name it (e.g., "niuma-socket-token")
 5. Add the scope `connections:write`
 6. Click **Generate**
 7. **Copy the token** (starts with `xapp-`)
@@ -93,11 +93,11 @@ Slack requires both tokens:
 - **App Token** (`xapp-`): For Socket Mode connection
 :::
 
-## Step 7: Configure CCCC
+## Step 7: Configure 牛马Agent
 
 ### Option A: Via Web UI
 
-1. Open the CCCC Web UI at `http://127.0.0.1:8848/`
+1. Open the 牛马Agent Web UI at `http://127.0.0.1:8848/`
 2. Go to **Settings** (gear icon in header)
 3. Navigate to the **IM Bridge** section
 4. Select **Slack** as the platform
@@ -109,7 +109,7 @@ Slack requires both tokens:
 ### Option B: Via CLI
 
 ```bash
-cccc im set slack \
+niuma-agent im set slack \
   --bot-token-env SLACK_BOT_TOKEN \
   --app-token-env SLACK_APP_TOKEN
 ```
@@ -126,7 +126,7 @@ im:
 ## Step 8: Start the Bridge
 
 ```bash
-cccc im start
+niuma-agent im start
 ```
 
 ## Step 9: Subscribe in Slack
@@ -152,7 +152,7 @@ In channels, @mention the bot for ordinary text:
 @YourBotName /send Please implement the user authentication module
 ```
 
-Recognized CCCC commands such as `/send`, `/status`, and `/subscribe` may be sent without an @mention. Unrelated slash commands remain ignored:
+Recognized 牛马Agent commands such as `/send`, `/status`, and `/subscribe` may be sent without an @mention. Unrelated slash commands remain ignored:
 
 ```
 /send Please implement the user authentication module
@@ -165,14 +165,14 @@ In direct messages with the bot, you can use `/send` directly:
 ```
 
 ::: warning Important
-- In channels, ordinary text and files require @mention; recognized CCCC slash commands do not
+- In channels, ordinary text and files require @mention; recognized 牛马Agent slash commands do not
 - After mentioning the bot, plain text is treated as implicit send to foreman
 - Use `/send` when you need explicit recipients like `@all` or `@peers`
 :::
 
 ### Targeting Specific Agents
 
-Use `@mention` syntax with the `/send` command (use CCCC's syntax, not Slack's):
+Use `@mention` syntax with the `/send` command (use 牛马Agent's syntax, not Slack's):
 
 ```
 /send @foreman Review the latest commits
@@ -195,7 +195,7 @@ Reply in threads to keep conversations organized. Authorization and outbound del
 
 ### File Sharing
 
-Attach files to your message. They're uploaded to CCCC's blob storage, then forwarded to agents.
+Attach files to your message. They're uploaded to 牛马Agent's blob storage, then forwarded to agents.
 
 Multiple outbound files are allocated and uploaded separately, then finalized in one Slack message. The response text appears once as the initial comment; invalid files do not cause the text fallback to disappear.
 
@@ -205,7 +205,7 @@ Agent output is updated progressively with `chat.update`. Completed replies long
 
 | Command | Description |
 |---------|-------------|
-| `/subscribe` | Start receiving messages from CCCC |
+| `/subscribe` | Start receiving messages from 牛马Agent |
 | `/unsubscribe` | Stop receiving messages |
 | `/send <message>` | Send to foreman (default) |
 | `/send @<actor> <message>` | Send to a specific agent |
@@ -244,11 +244,11 @@ Add the required scope:
 
 ### Connection drops
 
-Socket Mode connections may drop occasionally. CCCC auto-reconnects, but if issues persist:
+Socket Mode connections may drop occasionally. 牛马Agent auto-reconnects, but if issues persist:
 
 ```bash
-cccc im stop
-cccc im start
+niuma-agent im stop
+niuma-agent im start
 ```
 
 ## Advanced Configuration

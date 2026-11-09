@@ -2,22 +2,22 @@
 
 Use the Web interface to create a working Group, start Agents and follow their work.
 
-## 1. Open CCCC
+## 1. Open 牛马Agent
 
-Run `cccc`, then open [http://127.0.0.1:8848/](http://127.0.0.1:8848/).
+Run `niuma-agent`, then open [http://127.0.0.1:8848/](http://127.0.0.1:8848/).
 This starts the daemon and Web interface. Keep the terminal running.
 
 ## 2. Create a Group
 
 Click **+ New** in the sidebar. Choose a project directory on the machine running
-CCCC, give the Group a name, and create it. **Browse** lets you select a directory
+牛马Agent, give the Group a name, and create it. **Browse** lets you select a directory
 without typing its full path. Group administration requires administrator access.
 
 Alternatively, attach the current directory from a terminal:
 
 ```bash
 cd /path/to/your/project
-cccc attach .
+niuma-agent attach .
 ```
 
 Select the Group in the sidebar. Its name and run status appear in the header.
@@ -30,14 +30,14 @@ Use the **+** in the Agent bar near the composer. Choose an installed Runtime
 Add the Agent when ready. The first Group coordinator has the **foreman** role;
 additional Agents can work as peers.
 
-Complete the Runtime's own sign-in/setup if needed. To check its CCCC integration:
+Complete the Runtime's own sign-in/setup if needed. To check its 牛马Agent integration:
 
 ```bash
-cccc setup --runtime claude
+niuma-agent setup --runtime claude
 ```
 
 Use the corresponding Runtime name for other CLIs. Managed Claude Code, Codex,
-Grok Build and OpenCode sessions receive their scoped CCCC MCP entry at startup.
+Grok Build and OpenCode sessions receive their scoped 牛马Agent MCP entry at startup.
 
 ## 4. Start and communicate
 
@@ -86,15 +86,15 @@ remaining Agents. Return to **Messages** to read replies or continue the discuss
 
 ## Troubleshooting
 
-**The page does not load:** check `cccc daemon status` and the terminal running
-CCCC. To use another Web port, run `CCCC_WEB_PORT=9000 cccc`.
+**The page does not load:** check `niuma-agent daemon status` and the terminal running
+牛马Agent. To use another Web port, run `NIUMA_WEB_PORT=9000 niuma-agent`.
 
 **An Agent does not start:** open its Runtime inspector, read the reported error,
 check that the CLI is installed and signed in, and run
-`cccc setup --runtime <name>` if the integration needs attention.
+`niuma-agent setup --runtime <name>` if the integration needs attention.
 
-**The project is not listed:** create a Group or run `cccc attach .` in its
-project directory. Paths refer to the CCCC host, not the device displaying the
+**The project is not listed:** create a Group or run `niuma-agent attach .` in its
+project directory. Paths refer to the 牛马Agent host, not the device displaying the
 browser. Use an absolute path or one starting with `~`; Browse can help find it.
 
 ## Next steps

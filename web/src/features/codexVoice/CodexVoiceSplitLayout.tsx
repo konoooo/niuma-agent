@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-const STORAGE_KEY = "cccc.codexVoice.splitRatio.v1";
+const STORAGE_KEY = "niuma-agent.codexVoice.splitRatio.v1";
 const DEFAULT_RATIO = (100 * 1.15) / 2.15;
 const HANDLE_WIDTH = 8;
 

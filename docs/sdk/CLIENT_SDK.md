@@ -1,80 +1,10 @@
-# CCCC Client SDK
+# Rust 客户端
 
-The official SDK for integrating external apps/services with a running CCCC daemon.
+`niuma-agent-client` 的源码在 [crates/niuma-client](../../crates/niuma-client)。用 Cargo 路径依赖将其加入项目，连接已经启动的服务。
 
-## Repository and Packages
-
-- Repository: [ChesterRa/cccc-sdk](https://github.com/ChesterRa/cccc-sdk)
-- Python package: `cccc-sdk` (import as `cccc_sdk`)
-- TypeScript package: `cccc-sdk`
-- Rust crate: `cccc-sdk` (crate name `cccc_sdk`)
-
-## How It Fits with CCCC Core
-
-CCCC core (`cccc-pair`) is the runtime system:
-
-- daemon
-- ledger/state
-- Web/CLI/MCP/IM ports
-
-The SDK is a client layer:
-
-- it does not start/own daemon state
-- it connects to an existing daemon
-- it uses the same control-plane semantics as Web/CLI/MCP
-
-## When to Use SDK vs MCP
-
-Use SDK when you are building:
-
-- backend services
-- bots
-- IDE integrations
-- automation services outside the agent runtime
-
-Use MCP when the caller is an in-session agent/tool runtime.
-
-## Install
-
-```bash
-# Python
-pip install -U cccc-sdk
-
-# TypeScript
-npm install cccc-sdk
+```toml
+[dependencies]
+niuma-agent-client = { path = "../niuma-agent/crates/niuma-client" }
 ```
 
-For the current Rust crate version and Cargo setup, see the
-[SDK repository](https://github.com/ChesterRa/cccc-sdk#quick-start-rust).
-
-## Runtime Requirement
-
-A CCCC daemon must already be running.
-
-```bash
-cccc daemon status
-```
-
-The SDK client then connects to the daemon transport configured by your CCCC runtime (`CCCC_HOME`, daemon socket/TCP settings).
-
-## Integration Model
-
-Typical production setup:
-
-1. Run CCCC core (`cccc-pair`) as the local control plane.
-2. Connect your app/service through the SDK.
-3. Use SDK calls for group/actor/messaging/context/automation operations.
-4. Keep operational truth in the CCCC ledger and group state.
-
-## Compatibility Notes
-
-- SDK and core are released independently, but should stay on the same major/minor line for best compatibility.
-- For protocol-level details, see:
-  - `docs/standards/CCCS_V1.md`
-  - `docs/standards/CCCC_DAEMON_IPC_V1.md`
-
-## Next
-
-For concrete API examples and language-specific usage, follow the SDK repo documentation:
-
-- [cccc-sdk README](https://github.com/ChesterRa/cccc-sdk)
+本地数据和 IPC 地址由 `NIUMA_HOME` 决定。消息格式与操作名称见 [IPC 协议](../standards/NIUMA_DAEMON_IPC_V1.md)。

@@ -160,7 +160,7 @@ it("rechecks version differences on focus without replaying a dismissed pair", a
     expect(current?.daemonVersionMismatch).toBe(firstDifference);
     await act(async () => current?.dismissDaemonVersionMismatch());
     expect(current?.daemonVersionMismatch).toBeNull();
-    expect(window.localStorage.getItem("cccc.daemonVersionMismatch.dismissed")).toBe(
+    expect(window.localStorage.getItem("niuma-agent.daemonVersionMismatch.dismissed")).toBe(
       JSON.stringify(["0.4.45", "0.4.44"]),
     );
     await act(async () => window.dispatchEvent(new Event("focus")));
@@ -185,7 +185,7 @@ it("remembers a dismissed version pair across page loads and other tabs", async 
     ok: true,
     result: { version: "0.4.45", daemon: { version: "0.4.44" }, web: { read_only: false } },
   });
-  const key = "cccc.daemonVersionMismatch.dismissed";
+  const key = "niuma-agent.daemonVersionMismatch.dismissed";
   const pair = JSON.stringify(["0.4.45", "0.4.44"]);
   window.localStorage.setItem(key, pair);
   let current: ReturnType<typeof useAppChrome> | undefined;

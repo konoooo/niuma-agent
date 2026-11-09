@@ -7,7 +7,7 @@ precommit_started=$SECONDS
 
 full=0
 dry_run=0
-if [[ "${CCCC_PRECOMMIT_FULL:-}" == "1" || "${PRECOMMIT_FULL:-}" == "1" ]]; then
+if [[ "${NIUMA_PRECOMMIT_FULL:-}" == "1" || "${PRECOMMIT_FULL:-}" == "1" ]]; then
   full=1
 fi
 for arg in "$@"; do
@@ -25,9 +25,9 @@ for arg in "$@"; do
   esac
 done
 
-fast_budget_seconds="${CCCC_PRECOMMIT_BUDGET_SECONDS:-120}"
+fast_budget_seconds="${NIUMA_PRECOMMIT_BUDGET_SECONDS:-120}"
 if [[ ! "$fast_budget_seconds" =~ ^[1-9][0-9]*$ ]]; then
-  echo "CCCC_PRECOMMIT_BUDGET_SECONDS must be a positive integer" >&2
+  echo "NIUMA_PRECOMMIT_BUDGET_SECONDS must be a positive integer" >&2
   exit 2
 fi
 bash -n scripts/pre_commit_checks.sh scripts/pre_commit_rust.sh
@@ -120,7 +120,7 @@ run_tooling_checks() {
   echo ""
 
   echo "Running release-tool and repository contract tests..."
-  env -u CCCC_GROUP_ID -u CCCC_ACTOR_ID \
+  env -u NIUMA_GROUP_ID -u NIUMA_ACTOR_ID \
     uv run --no-project --with pytest --with pyyaml python -m pytest -q
   echo "✓ Tooling tests passed"
   echo ""

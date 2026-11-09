@@ -31,7 +31,7 @@ export function mayContainMarkdown(text: string): boolean {
   if (!value.trim()) return false;
   // Internal delivery manifests should stay compact plain text instead of
   // picking up prose list spacing from Markdown rendering.
-  if (/^\[cccc\]\s+(Attachments|References):/m.test(value)) return false;
+  if (/^\[niuma-agent\]\s+(Attachments|References):/m.test(value)) return false;
   if (containsMarkdownTable(value)) return true;
   return /(```|`[^`\n]+`|\[[^\]]+\]\([^)]+\)|^#{1,6}\s|^\s*[-*+]\s|^\s*\d+\.\s|^\s*>\s)/m.test(
     value,

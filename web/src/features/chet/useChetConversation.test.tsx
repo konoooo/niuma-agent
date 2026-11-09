@@ -705,7 +705,7 @@ const spoken = (n: number): ChetRecord => ({
     complete: true,
   },
 });
-const SEEN = "cccc.chet.seen.v2";
+const SEEN = "niuma-agent.chet.seen.v2";
 
 it("marks what is new since the conversation was last open, including before it ever was", async () => {
   const history = fakeHistory([answered(1)]);

@@ -20,7 +20,7 @@ describe("Voice readiness diagnostics", () => {
         (key) => locale[key as keyof typeof locale] as string,
         { ...ready, analyst_runtime_available: false, analyst_runtime_setup_required: true },
       );
-      expect(text).toContain("cccc setup --runtime antigravity --runtime-mode acp --login");
+      expect(text).toContain("niuma-agent setup --runtime antigravity --runtime-mode acp --login");
       expect(text).not.toBe(locale.codexVoiceAnalystRuntimeMissing);
     },
   );

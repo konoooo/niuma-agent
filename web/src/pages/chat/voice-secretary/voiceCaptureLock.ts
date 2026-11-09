@@ -7,8 +7,8 @@ export type VoiceCaptureChannelMessage = {
   sentAt?: number;
 };
 
-const VOICE_CAPTURE_LOCK_KEY = "cccc.voiceSecretary.activeCapture";
-const VOICE_CAPTURE_CHANNEL_NAME = "cccc.voiceSecretary.capture";
+const VOICE_CAPTURE_LOCK_KEY = "niuma-agent.voiceSecretary.activeCapture";
+const VOICE_CAPTURE_CHANNEL_NAME = "niuma-agent.voiceSecretary.capture";
 const VOICE_CAPTURE_LOCK_TTL_MS = 30 * 1000;
 const VOICE_CAPTURE_LOCK_PROBE_TIMEOUT_MS = 300;
 

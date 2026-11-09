@@ -15,10 +15,10 @@ it("shows a delegation sent from this Group as a status, not as the relay prose"
           text: [
             "你好，我是来自「g_src」的 agent-a。用户让我来联系你。",
             "",
-            "<!-- cccc-delegation-protocol",
-            "[cccc-delegation:v1]",
+            "<!-- niuma-delegation-protocol",
+            "[niuma-delegation:v1]",
             "delegation_id: dlg_1",
-            "[/cccc-delegation]",
+            "[/niuma-delegation]",
             "-->",
           ].join("\n"),
           to: ["target"],
@@ -40,5 +40,5 @@ it("shows a delegation sent from this Group as a status, not as the relay prose"
   );
   expect(markup).toContain("delegationOutboundStatus");
   expect(markup).not.toContain("用户让我来联系你");
-  expect(markup).not.toContain("[cccc-delegation:v1]");
+  expect(markup).not.toContain("[niuma-delegation:v1]");
 });

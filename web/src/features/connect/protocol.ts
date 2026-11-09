@@ -56,7 +56,7 @@ export function groupConnectionCount(
       }
     : undefined;
 }
-export const CONNECT_CHANNEL = "cccc.connect.frame.v1";
+export const CONNECT_CHANNEL = "niuma-agent.connect.frame.v1";
 
 export function isConnectFramePath(path: string): boolean {
   return path === "/ui/connect" || path === "/ui/connect/";

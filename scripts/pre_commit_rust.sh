@@ -30,9 +30,9 @@ for arg in "$@"; do
   esac
 done
 
-cargo_jobs="${CCCC_CARGO_JOBS:-2}"
+cargo_jobs="${NIUMA_CARGO_JOBS:-2}"
 if [[ ! "$cargo_jobs" =~ ^[1-9][0-9]*$ ]]; then
-  echo "CCCC_CARGO_JOBS must be a positive integer" >&2
+  echo "NIUMA_CARGO_JOBS must be a positive integer" >&2
   exit 2
 fi
 
@@ -102,9 +102,9 @@ mark_rust_change() {
         return
       fi
       append_unique_package "$package_name"
-      if [[ "$package_name" == "cccc-pair-daemon" ]]; then
+      if [[ "$package_name" == "niuma-agent-daemon" ]]; then
         daemon_impacted=1
-      elif [[ "$package_name" == "cccc-pair-runtime" ]]; then
+      elif [[ "$package_name" == "niuma-agent-runtime" ]]; then
         runtime_impacted=1
       fi
       crate_relative="${relative#*/}"
@@ -167,9 +167,9 @@ elif [[ ${#rust_source_scope_args[@]} -gt 0 ]]; then
   rust_lint_command=(cargo clippy "${rust_source_scope_args[@]}" --locked --jobs "$cargo_jobs" -- -D warnings)
 fi
 if [[ "$full" == "1" || "$rust_workspace" == "1" || "$daemon_impacted" == "1" || "$runtime_impacted" == "1" ]]; then
-  rust_test_command=(cargo test --workspace --exclude cccc-pair-daemon --exclude cccc-pair-runtime --locked --jobs "$cargo_jobs")
-  rust_runtime_test_command=(cargo test --package cccc-pair-runtime --locked --jobs "$cargo_jobs" -- --test-threads=1)
-  rust_daemon_test_command=(cargo test --package cccc-pair-daemon --locked --jobs "$cargo_jobs" -- --test-threads=1)
+  rust_test_command=(cargo test --workspace --exclude niuma-agent-daemon --exclude niuma-agent-runtime --locked --jobs "$cargo_jobs")
+  rust_runtime_test_command=(cargo test --package niuma-agent-runtime --locked --jobs "$cargo_jobs" -- --test-threads=1)
+  rust_daemon_test_command=(cargo test --package niuma-agent-daemon --locked --jobs "$cargo_jobs" -- --test-threads=1)
 elif [[ ${#rust_source_scope_args[@]} -gt 0 ]]; then
   rust_test_command=(cargo test "${rust_source_scope_args[@]}" --locked --jobs "$cargo_jobs")
 fi
@@ -182,7 +182,7 @@ plan_changed_test() {
   local test_name="${test_spec#*:}"
   changed_test_lint_command=(cargo clippy --package "$package_name" --test "$test_name" --locked --jobs "$cargo_jobs" -- -D warnings)
   changed_test_command=(cargo test --package "$package_name" --test "$test_name" --locked --jobs "$cargo_jobs")
-  if [[ "$package_name" == "cccc-pair-daemon" || "$package_name" == "cccc-pair-runtime" ]]; then
+  if [[ "$package_name" == "niuma-agent-daemon" || "$package_name" == "niuma-agent-runtime" ]]; then
     changed_test_command+=(-- --test-threads=1)
   fi
 }

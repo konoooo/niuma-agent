@@ -39,7 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.connectors.mockResolvedValue({
     ok: true,
-    result: { connectors: [connector], connector_base_url: "https://cccc.example.test" },
+    result: { connectors: [connector], connector_base_url: "https://niuma-agent.example.test" },
   });
   mocks.dots.mockResolvedValue({
     ok: true,
@@ -90,14 +90,14 @@ it("links to shared diagnostics without attributing another Actor's pairing fail
             {
               at: "2026-10-14T02:00:00Z",
               method: "tools/call",
-              tool_name: "cccc_pair",
+              tool_name: "niuma_pair",
               ok: false,
               reason: "pairing_expired",
             },
           ],
         },
       ],
-      connector_base_url: "https://cccc.example.test",
+      connector_base_url: "https://niuma-agent.example.test",
     },
   });
   const onOpenChatGPT = vi.fn();

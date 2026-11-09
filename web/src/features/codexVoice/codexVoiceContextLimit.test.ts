@@ -39,7 +39,7 @@ it("splits the full post-preflight notification below the provider limit without
   for (const frame of frames) {
     expect(new TextEncoder().encode(frame.content[0].text).length).toBeLessThanOrEqual(500);
     expect(frame.type).toBe("session.context.append");
-    expect(frame).not.toHaveProperty("_cccc_result_id");
+    expect(frame).not.toHaveProperty("_niuma_result_id");
   }
   expect(prepare).toHaveBeenCalledTimes(1);
   expect(submitted).toHaveBeenCalledExactlyOnceWith("result-1");

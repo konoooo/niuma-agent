@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-  [string]$Version = $env:CCCC_VERSION,
-  [string]$InstallDir = $env:CCCC_INSTALL_DIR,
+  [string]$Version = $env:NIUMA_VERSION,
+  [string]$InstallDir = $env:NIUMA_INSTALL_DIR,
   [switch]$NoModifyPath
 )
 
@@ -12,25 +12,25 @@ Set-StrictMode -Version Latest
 [Net.ServicePointManager]::SecurityProtocol =
   [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-$defaultVersion = "@CCCC_VERSION@"
-$releaseTagPrefix = if ($env:CCCC_RELEASE_TAG_PREFIX) { $env:CCCC_RELEASE_TAG_PREFIX } else { "@CCCC_RELEASE_TAG_PREFIX@" }
+$defaultVersion = "@NIUMA_VERSION@"
+$releaseTagPrefix = if ($env:NIUMA_RELEASE_TAG_PREFIX) { $env:NIUMA_RELEASE_TAG_PREFIX } else { "@NIUMA_RELEASE_TAG_PREFIX@" }
 if ($releaseTagPrefix.StartsWith("@")) {
   $releaseTagPrefix = "v"
 }
-$repository = if ($env:CCCC_GITHUB_REPOSITORY) { $env:CCCC_GITHUB_REPOSITORY } else { "ChesterRa/cccc" }
-$releaseBaseUrl = if ($env:CCCC_RELEASE_BASE_URL) {
-  $env:CCCC_RELEASE_BASE_URL.TrimEnd("/")
+$repository = if ($env:NIUMA_GITHUB_REPOSITORY) { $env:NIUMA_GITHUB_REPOSITORY } else { "konoooo/niuma-agent" }
+$releaseBaseUrl = if ($env:NIUMA_RELEASE_BASE_URL) {
+  $env:NIUMA_RELEASE_BASE_URL.TrimEnd("/")
 } else {
   "https://github.com/$repository/releases"
 }
-$NoModifyPath = $NoModifyPath -or $env:CCCC_NO_MODIFY_PATH -eq "1"
-$allowReplaceExisting = $env:CCCC_ALLOW_REPLACE_EXISTING -eq "1"
-$trustedExistingCli = $env:CCCC_TRUSTED_EXISTING_CLI
-$installMarker = ".cccc-standalone"
+$NoModifyPath = $NoModifyPath -or $env:NIUMA_NO_MODIFY_PATH -eq "1"
+$allowReplaceExisting = $env:NIUMA_ALLOW_REPLACE_EXISTING -eq "1"
+$trustedExistingCli = $env:NIUMA_TRUSTED_EXISTING_CLI
+$installMarker = ".niuma-agent-standalone"
 $installMarkerVersion = "standalone-v1"
 $pipInstallMarkerVersion = "pip-v1"
 if (-not $InstallDir) {
-  $InstallDir = Join-Path $env:LOCALAPPDATA "CCCC\bin"
+  $InstallDir = Join-Path $env:LOCALAPPDATA "牛马Agent\bin"
 }
 if ([string]::IsNullOrWhiteSpace($InstallDir) -or $InstallDir.Contains(';') -or
     -not [IO.Path]::IsPathRooted($InstallDir)) {
@@ -48,17 +48,17 @@ function Get-ResponseUri([object]$Response) {
   throw "Could not resolve the latest release URI"
 }
 
-function Get-CcccCommandPaths([string]$PathValue) {
+function Get-NiumaCommandPaths([string]$PathValue) {
   if ([string]::IsNullOrWhiteSpace($PathValue)) { return }
   $extensions = if ($env:PATHEXT) { @($env:PATHEXT.Split(';')) } else { @('.COM', '.EXE', '.BAT', '.CMD') }
-  $names = @('cccc')
+  $names = @('niuma-agent')
   foreach ($extension in $extensions) {
     $extension = $extension.Trim()
     if (-not $extension) { continue }
     if (-not $extension.StartsWith('.')) { $extension = ".$extension" }
-    $names += "cccc$extension"
+    $names += "niuma-agent$extension"
   }
-  if ($names -notcontains 'cccc.ps1') { $names += 'cccc.ps1' }
+  if ($names -notcontains 'niuma-agent.ps1') { $names += 'niuma-agent.ps1' }
   $seen = @{}
   foreach ($entry in $PathValue.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
     $directory = [Environment]::ExpandEnvironmentVariables($entry.Trim().Trim('"'))
@@ -108,7 +108,7 @@ function Add-DirectoryToPathFront([string]$PathValue, [string]$Directory) {
   return (@($Directory) + $remaining) -join ';'
 }
 
-function Move-CcccItemWithRetry([string]$Source, [string]$Destination) {
+function Move-NiumaItemWithRetry([string]$Source, [string]$Destination) {
   for ($attempt = 0; $attempt -lt 40; $attempt++) {
     try {
       Move-Item -LiteralPath $Source -Destination $Destination -ErrorAction Stop
@@ -120,7 +120,7 @@ function Move-CcccItemWithRetry([string]$Source, [string]$Destination) {
   }
 }
 
-function Invoke-CcccCommand(
+function Invoke-NiumaCommand(
   [string]$CommandPath,
   [string[]]$Arguments,
   [int]$TimeoutMilliseconds = 35000
@@ -160,17 +160,17 @@ function Invoke-CcccCommand(
   }
 }
 
-function Get-CcccCommandFailure([object]$Result) {
+function Get-NiumaCommandFailure([object]$Result) {
   $detail = ([string]$Result.Stderr).Trim()
   if (-not $detail) { $detail = ([string]$Result.Stdout).Trim() }
   if (-not $detail) { $detail = "exit code $($Result.ExitCode)" }
   return $detail
 }
 
-function Invoke-CcccDaemonStart([string]$CommandPath) {
-  $result = Invoke-CcccCommand $CommandPath @("daemon", "start")
+function Invoke-NiumaDaemonStart([string]$CommandPath) {
+  $result = Invoke-NiumaCommand $CommandPath @("daemon", "start")
   if ($result.ExitCode -ne 0) {
-    throw "daemon start failed: $(Get-CcccCommandFailure $result)"
+    throw "daemon start failed: $(Get-NiumaCommandFailure $result)"
   }
 }
 
@@ -181,14 +181,14 @@ function Join-PersistedWindowsPath([string]$MachinePath, [string]$UserPath) {
   return $parts -join ';'
 }
 
-function Get-ProspectiveCcccCommandPath([string]$PathValue, [string]$InstalledCommand) {
+function Get-ProspectiveNiumaCommandPath([string]$PathValue, [string]$InstalledCommand) {
   if ([string]::IsNullOrWhiteSpace($PathValue)) { return $null }
   $installDirectory = Split-Path -Parent $InstalledCommand
   foreach ($entry in $PathValue.Split(';', [StringSplitOptions]::RemoveEmptyEntries)) {
     if (Test-SameDirectoryPath $entry $installDirectory) {
       return [IO.Path]::GetFullPath($InstalledCommand)
     }
-    $commands = @(Get-CcccCommandPaths $entry)
+    $commands = @(Get-NiumaCommandPaths $entry)
     if ($commands.Count -gt 0) { return $commands[0] }
   }
   return $null
@@ -201,7 +201,7 @@ function Receive-File([string]$Uri, [string]$Destination) {
     return
   }
   $response = Invoke-WebRequest -UseBasicParsing -Uri $Uri -OutFile $Destination -PassThru
-  if (-not $env:CCCC_RELEASE_BASE_URL) {
+  if (-not $env:NIUMA_RELEASE_BASE_URL) {
     $effectiveUri = [Uri](Get-ResponseUri $response)
     $trustedHost = $effectiveUri.Host -eq "github.com" -or $effectiveUri.Host.EndsWith(".githubusercontent.com")
     if ($effectiveUri.Scheme -ne "https" -or -not $trustedHost) {
@@ -219,15 +219,15 @@ if ($architecture -ne "X64") {
   throw "Unsupported Windows architecture: $architecture"
 }
 
-$installedCommand = [IO.Path]::GetFullPath((Join-Path $InstallDir "cccc.exe"))
+$installedCommand = [IO.Path]::GetFullPath((Join-Path $InstallDir "niuma-agent.exe"))
 if (-not $NoModifyPath) {
   $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
   $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $prospectiveUserPath = Add-DirectoryToPathFront $userPath $InstallDir
   $prospectivePath = Join-PersistedWindowsPath $machinePath $prospectiveUserPath
-  $prospectiveCommand = Get-ProspectiveCcccCommandPath $prospectivePath $installedCommand
+  $prospectiveCommand = Get-ProspectiveNiumaCommandPath $prospectivePath $installedCommand
   if (-not (Test-SameCommandPath $prospectiveCommand $installedCommand)) {
-    throw "Machine PATH resolves cccc to $prospectiveCommand before the per-user install directory $InstallDir. Windows places Machine PATH before User PATH in a new terminal, so this installer cannot safely override that command without changing machine-wide state. Remove or upgrade the machine-wide CCCC from an elevated shell, or rerun with -NoModifyPath and invoke $installedCommand directly"
+    throw "Machine PATH resolves niuma-agent to $prospectiveCommand before the per-user install directory $InstallDir. Windows places Machine PATH before User PATH in a new terminal, so this installer cannot safely override that command without changing machine-wide state. Remove or upgrade the machine-wide 牛马Agent from an elevated shell, or rerun with -NoModifyPath and invoke $installedCommand directly"
   }
 }
 
@@ -237,7 +237,7 @@ if (-not $Version -and $defaultVersion -match '^[0-9]+\.[0-9]+\.[0-9]+') {
 if (-not $Version) {
   $latest = Invoke-WebRequest -UseBasicParsing -Uri "$releaseBaseUrl/latest"
   $latestUri = Get-ResponseUri $latest
-  if (-not $env:CCCC_RELEASE_BASE_URL) {
+  if (-not $env:NIUMA_RELEASE_BASE_URL) {
     $expectedPrefix = "https://github.com/$repository/releases/tag/v"
     if (-not $latestUri.StartsWith($expectedPrefix, [StringComparison]::Ordinal)) {
       throw "Latest release redirected outside $expectedPrefix"
@@ -257,7 +257,7 @@ if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*
 }
 
 $target = "x86_64-pc-windows-msvc"
-$package = "cccc-v$Version-$target"
+$package = "niuma-v$Version-$target"
 $archive = "$package.zip"
 $wheelVersion = $Version `
   -replace '-alpha([0-9]+)$', 'a$1' `
@@ -265,12 +265,12 @@ $wheelVersion = $Version `
   -replace '-rc([0-9]+)$', 'rc$1' `
   -replace '-', ''
 $downloadUrl = "$releaseBaseUrl/download/$releaseTagPrefix$Version"
-$tempDir = Join-Path ([IO.Path]::GetTempPath()) ("cccc-install-" + [Guid]::NewGuid().ToString("N"))
-$binaries = @("cccc.exe")
+$tempDir = Join-Path ([IO.Path]::GetTempPath()) ("niuma-install-" + [Guid]::NewGuid().ToString("N"))
+$binaries = @("niuma-agent.exe")
 $staged = @()
 $originals = @()
-$backupDir = Join-Path $InstallDir (".cccc-backup-" + $PID)
-$lockPath = Join-Path $InstallDir ".cccc-install.lock"
+$backupDir = Join-Path $InstallDir (".niuma-agent-backup-" + $PID)
+$lockPath = Join-Path $InstallDir ".niuma-agent-install.lock"
 $lockStream = $null
 $transactionStarted = $false
 $transactionCommitted = $false
@@ -280,30 +280,30 @@ $pathModified = $false
 $userPathBeforeInstall = $null
 $processPathBeforeInstall = $env:Path
 $markerPath = Join-Path $InstallDir $installMarker
-$markerStage = "$markerPath.cccc-install-$PID"
+$markerStage = "$markerPath.niuma-agent-install-$PID"
 $markerBackup = Join-Path $backupDir $installMarker
 $markerTouched = $false
 $markerOriginal = $false
 
 try {
   New-Item -ItemType Directory -Path $tempDir | Out-Null
-  Write-Host "Downloading CCCC v$Version for $target..."
+  Write-Host "Downloading 牛马Agent v$Version for $target..."
   $archivePath = Join-Path $tempDir $archive
   $checksumsPath = Join-Path $tempDir "SHA256SUMS"
   Receive-File "$downloadUrl/SHA256SUMS" $checksumsPath
 
   $expectedArchives = @(
-    "cccc-v$Version-x86_64-unknown-linux-gnu.tar.gz",
-    "cccc-v$Version-aarch64-apple-darwin.tar.gz",
-    "cccc-v$Version-x86_64-pc-windows-msvc.zip"
+    "niuma-v$Version-x86_64-unknown-linux-gnu.tar.gz",
+    "niuma-v$Version-aarch64-apple-darwin.tar.gz",
+    "niuma-v$Version-x86_64-pc-windows-msvc.zip"
   )
   $expectedWheels = @(
-    "cccc_pair-$wheelVersion-py3-none-manylinux_2_28_x86_64.whl",
-    "cccc_pair-$wheelVersion-py3-none-macosx_11_0_arm64.whl",
-    "cccc_pair-$wheelVersion-py3-none-win_amd64.whl"
+    "niuma_pair-$wheelVersion-py3-none-manylinux_2_28_x86_64.whl",
+    "niuma_pair-$wheelVersion-py3-none-macosx_11_0_arm64.whl",
+    "niuma_pair-$wheelVersion-py3-none-win_amd64.whl"
   )
-  $legacyArchive = "cccc-v$Version-x86_64-apple-darwin.tar.gz"
-  $legacyWheel = "cccc_pair-$wheelVersion-py3-none-macosx_11_0_x86_64.whl"
+  $legacyArchive = "niuma-v$Version-x86_64-apple-darwin.tar.gz"
+  $legacyWheel = "niuma_pair-$wheelVersion-py3-none-macosx_11_0_x86_64.whl"
   $expectedPayloads = @($expectedArchives) + @($expectedWheels) + @($legacyArchive, $legacyWheel)
   $checksumEntries = @{}
   foreach ($line in Get-Content -LiteralPath $checksumsPath) {
@@ -373,7 +373,7 @@ try {
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
       throw "Archive is missing $binary"
     }
-    $stage = Join-Path $InstallDir (".$binary.cccc-install-" + $PID)
+    $stage = Join-Path $InstallDir (".$binary.niuma-agent-install-" + $PID)
     Copy-Item -LiteralPath $source -Destination $stage -Force
     $staged += $stage
   }
@@ -388,7 +388,7 @@ try {
     throw "Another installation is using $InstallDir (lock: $lockPath)"
   }
 
-  $existingCli = Join-Path $InstallDir "cccc.exe"
+  $existingCli = Join-Path $InstallDir "niuma-agent.exe"
   $ownedByStandaloneInstaller = $false
   $markerPresent = $false
   if (Test-Path -LiteralPath $markerPath) {
@@ -405,7 +405,7 @@ try {
       $markerValue = ""
     }
     if ($markerValue -eq $pipInstallMarkerVersion) {
-      throw "Existing $existingCli is managed by pip; run python -m pip uninstall cccc-pair before installing the standalone release"
+      throw "Existing $existingCli is managed by pip; run python -m pip uninstall niuma-agent before installing the standalone release"
     }
     $ownedByStandaloneInstaller = $markerValue -eq $installMarkerVersion
   }
@@ -420,10 +420,10 @@ try {
   if ((Test-Path -LiteralPath $existingCli) -and
       -not $ownedByStandaloneInstaller -and -not $trustedExisting -and
       -not $allowReplaceExisting) {
-    throw "Existing $existingCli is managed by another installation; refusing to replace it. Remove it, choose a different CCCC_INSTALL_DIR, or set CCCC_ALLOW_REPLACE_EXISTING=1 to replace it deliberately"
+    throw "Existing $existingCli is managed by another installation; refusing to replace it. Remove it, choose a different NIUMA_INSTALL_DIR, or set NIUMA_ALLOW_REPLACE_EXISTING=1 to replace it deliberately"
   }
   if (-not $ownedByStandaloneInstaller -and $trustedExisting) {
-    Write-Host "Adopting existing CCCC command at $existingCli into the standalone installation."
+    Write-Host "Adopting existing 牛马Agent command at $existingCli into the standalone installation."
   }
 
   foreach ($binary in $binaries) {
@@ -433,35 +433,35 @@ try {
   }
   New-Item -ItemType Directory -Path $backupDir | Out-Null
   $transactionStarted = $true
-  $oldCli = Join-Path $InstallDir "cccc.exe"
+  $oldCli = Join-Path $InstallDir "niuma-agent.exe"
   if (Test-Path -LiteralPath $oldCli -PathType Leaf) {
-    $daemonStatus = Invoke-CcccCommand $oldCli @("daemon", "status")
+    $daemonStatus = Invoke-NiumaCommand $oldCli @("daemon", "status")
     $daemonWasRunning = $daemonStatus.ExitCode -eq 0
     if ($daemonWasRunning) {
-      $daemonStop = Invoke-CcccCommand $oldCli @("daemon", "stop")
+      $daemonStop = Invoke-NiumaCommand $oldCli @("daemon", "stop")
       if ($daemonStop.ExitCode -ne 0) {
-        throw "Could not stop the running CCCC daemon: $(Get-CcccCommandFailure $daemonStop)"
+        throw "Could not stop the running 牛马Agent daemon: $(Get-NiumaCommandFailure $daemonStop)"
       }
       for ($attempt = 0; $attempt -lt 40; $attempt++) {
-        $daemonStatus = Invoke-CcccCommand $oldCli @("daemon", "status")
+        $daemonStatus = Invoke-NiumaCommand $oldCli @("daemon", "status")
         if ($daemonStatus.ExitCode -ne 0) { break }
         Start-Sleep -Milliseconds 250
       }
-      if ($attempt -eq 40) { throw "The running CCCC daemon did not stop in time" }
+      if ($attempt -eq 40) { throw "The running 牛马Agent daemon did not stop in time" }
     }
   }
 
   foreach ($binary in $originals) {
-    Move-CcccItemWithRetry (Join-Path $InstallDir $binary) (Join-Path $backupDir $binary)
+    Move-NiumaItemWithRetry (Join-Path $InstallDir $binary) (Join-Path $backupDir $binary)
   }
   foreach ($binary in $binaries) {
-    $stage = Join-Path $InstallDir (".$binary.cccc-install-" + $PID)
-    Move-CcccItemWithRetry $stage (Join-Path $InstallDir $binary)
+    $stage = Join-Path $InstallDir (".$binary.niuma-agent-install-" + $PID)
+    Move-NiumaItemWithRetry $stage (Join-Path $InstallDir $binary)
   }
 
-  $installedVersion = (& (Join-Path $InstallDir "cccc.exe") --version | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or $installedVersion -ne "cccc $Version") {
-    throw "Installed version mismatch: expected cccc $Version, got $installedVersion"
+  $installedVersion = (& (Join-Path $InstallDir "niuma-agent.exe") --version | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or $installedVersion -ne "niuma-agent $Version") {
+    throw "Installed version mismatch: expected niuma-agent $Version, got $installedVersion"
   }
 
   if (Test-Path -LiteralPath $markerPath -PathType Leaf) {
@@ -486,13 +486,13 @@ try {
     Write-Warning "Move $InstallDir to the front of PATH, then open a new terminal."
   }
 
-  $resolvedCommands = @(Get-CcccCommandPaths $env:Path)
+  $resolvedCommands = @(Get-NiumaCommandPaths $env:Path)
   $resolvedCommand = if ($resolvedCommands.Count -gt 0) { $resolvedCommands[0] } else { $null }
   if (-not $NoModifyPath -and -not (Test-SameCommandPath $resolvedCommand $installedCommand)) {
-    throw "PATH verification resolved cccc to $resolvedCommand instead of $installedCommand"
+    throw "PATH verification resolved niuma-agent to $resolvedCommand instead of $installedCommand"
   }
   if ($NoModifyPath -and -not (Test-SameCommandPath $resolvedCommand $installedCommand)) {
-    Write-Warning "This shell still resolves cccc to $resolvedCommand. Run $installedCommand directly or move $InstallDir to the front of PATH."
+    Write-Warning "This shell still resolves niuma-agent to $resolvedCommand. Run $installedCommand directly or move $InstallDir to the front of PATH."
   }
   $otherCommands = @(
     $resolvedCommands |
@@ -500,7 +500,7 @@ try {
       Select-Object -Unique
   )
   if ($otherCommands.Count -gt 0) {
-    Write-Host "Other CCCC commands were left unchanged:"
+    Write-Host "Other 牛马Agent commands were left unchanged:"
     foreach ($commandPath in $otherCommands) {
       Write-Host "  - $commandPath"
     }
@@ -510,12 +510,12 @@ try {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $persistedUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $persistedPath = Join-PersistedWindowsPath $machinePath $persistedUserPath
-    $persistedCommands = @(Get-CcccCommandPaths $persistedPath)
+    $persistedCommands = @(Get-NiumaCommandPaths $persistedPath)
     $persistedCommand = if ($persistedCommands.Count -gt 0) { $persistedCommands[0] } else { $null }
     if (-not (Test-SameCommandPath $persistedCommand $installedCommand)) {
-      throw "Persistent PATH verification resolved cccc to $persistedCommand instead of $installedCommand"
+      throw "Persistent PATH verification resolved niuma-agent to $persistedCommand instead of $installedCommand"
     }
-    Write-Host "Verified persistent Machine + User PATH resolves cccc to $installedCommand."
+    Write-Host "Verified persistent Machine + User PATH resolves niuma-agent to $installedCommand."
   }
 
   # The downloaded binary, ownership marker, and PATH have passed validation.
@@ -526,15 +526,15 @@ try {
 
   if ($daemonWasRunning) {
     try {
-      Invoke-CcccDaemonStart (Join-Path $InstallDir "cccc.exe")
+      Invoke-NiumaDaemonStart (Join-Path $InstallDir "niuma-agent.exe")
     } catch {
-      throw "CCCC v$Version was installed, but its daemon could not restart: $_"
+      throw "牛马Agent v$Version was installed, but its daemon could not restart: $_"
     }
   }
 
-  Write-Host "Installed CCCC v$Version in $InstallDir"
+  Write-Host "Installed 牛马Agent v$Version in $InstallDir"
   Write-Host "Verify installed command directly: `"$installedCommand`" doctor"
-  Write-Host "Verify after opening a new terminal: cccc doctor"
+  Write-Host "Verify after opening a new terminal: niuma-agent doctor"
 } finally {
   if ($transactionStarted -and -not $transactionCommitted) {
     if ($pathModified) {
@@ -580,9 +580,9 @@ try {
         }
       }
     }
-    if ($daemonWasRunning -and (Test-Path -LiteralPath (Join-Path $InstallDir "cccc.exe"))) {
+    if ($daemonWasRunning -and (Test-Path -LiteralPath (Join-Path $InstallDir "niuma-agent.exe"))) {
       try {
-        Invoke-CcccDaemonStart (Join-Path $InstallDir "cccc.exe")
+        Invoke-NiumaDaemonStart (Join-Path $InstallDir "niuma-agent.exe")
       } catch {
         Write-Error "Rollback restored the previous binary but failed to restart its daemon: $_" -ErrorAction Continue
       }

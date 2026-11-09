@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "repository": "konoooo/niuma-agent",
+  "channels": { "stable": null, "rc": null }
+}

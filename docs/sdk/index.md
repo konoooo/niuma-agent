@@ -1,31 +1,5 @@
-# SDK Overview
+# 客户端集成
 
-Use the official SDK when you need to integrate CCCC with external applications and services.
+应用可通过仓库内的 `niuma-agent-client` Rust 包访问运行中的服务。成员可通过 `niuma-agent mcp` 调用 `niuma_` 工具。
 
-## Official SDK
-
-- Repository: [ChesterRa/cccc-sdk](https://github.com/ChesterRa/cccc-sdk)
-- Python package: `cccc-sdk` (import as `cccc_sdk`)
-- TypeScript package: `cccc-sdk`
-- Rust crate: `cccc-sdk` (crate name `cccc_sdk`)
-
-## Install
-
-```bash
-pip install -U cccc-sdk
-npm install cccc-sdk
-cargo add cccc-sdk
-```
-
-For language-specific setup and examples, use the
-[SDK repository](https://github.com/ChesterRa/cccc-sdk).
-
-## Relationship to CCCC Core
-
-- CCCC core (`cccc-pair`) is the runtime control plane (daemon + ledger + ports).
-- SDK is a client interface to that running control plane.
-- SDK does not replace core and does not persist state on its own.
-
-## Next
-
-- [Client SDK](./CLIENT_SDK)
+参见 [Rust 客户端说明](./CLIENT_SDK.md) 和 [本地 IPC 协议](../standards/NIUMA_DAEMON_IPC_V1.md)。

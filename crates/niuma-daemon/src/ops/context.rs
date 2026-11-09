@@ -1,0 +1,424 @@
+use super::operation::{
+    Operation,
+    Policy::{Read, Write},
+};
+use niuma_contracts::{ActorRole, DaemonRequest, Event};
+use niuma_core::context::{ContextDoc, ContextStore};
+use niuma_core::ledger;
+use niuma_core::{GroupDoc, HomeLayout, actors};
+use serde_json::{Map, Value, json};
+
+use crate::dispatch::{OpError, OpResult, bool_arg, object, required_arg, store, string_arg};
+
+pub(super) fn resolve_operation(request: &DaemonRequest) -> Option<Operation> {
+    Some(match request.op.as_str() {
+        "context_get" => Operation::new(Read, get),
+        "context_sync" => Operation::new(Write, sync),
+        "task_list" => Operation::new(Read, super::task_list::run),
+        _ => return None,
+    })
+}
+
+fn get(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    load_group(home, &group_id)?;
+    let contexts = ContextStore::new(home.clone()).map_err(OpError::io)?;
+    let detail = string_arg(request, "detail").unwrap_or_else(|| "full".into());
+    if !matches!(detail.as_str(), "overview" | "summary" | "full") {
+        return Err(OpError::new(
+            "invalid_detail",
+            "detail must be 'overview', 'summary', or 'full'",
+        ));
+    }
+    let document = if detail == "overview" {
+        contexts.load_overview(&group_id)
+    } else {
+        contexts.load(&group_id)
+    }
+    .map_err(OpError::io)?;
+    let version = contexts.version(&document).map_err(OpError::io)?;
+    match page(request)? {
+        Some(page) if detail == "overview" => {
+            let value = super::context_projection::project(document, version, &detail);
+            let size = serde_json::to_vec_pretty(&value).map_or(usize::MAX, |bytes| bytes.len());
+            if page.max_bytes.is_some_and(|limit| size > limit) {
+                return Err(page_too_small(size));
+            }
+            object(value)
+        }
+        Some(page) => object(
+            super::context_projection::project_page(document, version, &detail, &page)
+                .map_err(page_too_small)?,
+        ),
+        _ => object(super::context_projection::project(
+            document, version, &detail,
+        )),
+    }
+}
+
+/// Paging starts when a caller sends `limit`, `cursor` or `max_bytes`; without
+/// them the snapshot stays complete.
+fn page(request: &DaemonRequest) -> Result<Option<super::context_projection::Page>, OpError> {
+    let args = &request.args;
+    if !["limit", "cursor", "max_bytes"]
+        .iter()
+        .any(|key| args.contains_key(*key))
+    {
+        return Ok(None);
+    }
+    let number = |key: &str| match args.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .and_then(|value| usize::try_from(value).ok())
+            .map(Some)
+            .ok_or_else(|| OpError::new("invalid_args", format!("{key} must be an integer"))),
+    };
+    let limit = number("limit")?.unwrap_or(100);
+    if !(1..=500).contains(&limit) {
+        return Err(OpError::new(
+            "invalid_args",
+            "limit must be between 1 and 500",
+        ));
+    }
+    let max_bytes = number("max_bytes")?;
+    if max_bytes.is_some_and(|bytes| bytes < 4096) {
+        return Err(OpError::new(
+            "invalid_args",
+            "max_bytes must be at least 4096",
+        ));
+    }
+    let after = match args.get("cursor") {
+        None | Some(Value::Null) => 0,
+        Some(cursor) => cursor
+            .as_str()
+            .and_then(|id| id.trim().strip_prefix('T'))
+            .and_then(|number| number.parse().ok())
+            .ok_or_else(|| OpError::new("invalid_args", "cursor must be a task id such as T042"))?,
+    };
+    Ok(Some(super::context_projection::Page {
+        limit,
+        after,
+        max_bytes,
+        include_archived: bool_arg(request, "include_archived", true),
+    }))
+}
+
+/// Not even one task (its text clipped) fits next to the brief and the Actor
+/// states, so no page can honour `max_bytes`.
+fn page_too_small(smallest: usize) -> OpError {
+    OpError::new(
+        "invalid_args",
+        format!("max_bytes is smaller than the smallest page of this context ({smallest} bytes)"),
+    )
+}
+
+fn sync(home: &HomeLayout, request: &DaemonRequest) -> OpResult {
+    let group_id = required_arg(request, "group_id")?;
+    let group = load_group(home, &group_id)?;
+    let operations = parse_operations(request)?;
+    let by = string_arg(request, "by").unwrap_or_else(|| "user".into());
+    let contexts = ContextStore::new(home.clone()).map_err(OpError::io)?;
+    let role = if by.is_empty() || matches!(by.as_str(), "user" | "system") {
+        None
+    } else {
+        Some(actors::effective_role(&group, &by).ok_or_else(|| {
+            OpError::new(
+                "permission_denied",
+                format!("context changes require a known actor: {by}"),
+            )
+        })?)
+    };
+    let mut denied = None;
+    let result = contexts
+        .sync_checked(
+            &group_id,
+            &operations,
+            string_arg(request, "if_version").as_deref(),
+            &by,
+            bool_arg(request, "dry_run", false),
+            |document, operation| {
+                guard_member_availability(&group,document,operation,&by).and_then(|_|authorize(role, document, operation, &by)).map_err(|error| {
+                    denied = Some(error);
+                    std::io::Error::other("context authorization rejected")
+                })
+            },
+        )
+        .map_err(|error| {
+            if let Some(error) = denied.take() {
+                error
+            } else if let Some(conflict) = error.get_ref().and_then(|cause| cause.downcast_ref::<niuma_core::context::TaskConflict>()) {
+                let mut failure = OpError::new("task_conflict", conflict.to_string());
+                failure.details = json!({"task_id":conflict.task_id,"expected":conflict.expected,"actual":conflict.actual}).as_object().cloned().unwrap_or_default();
+                failure
+            } else if error.to_string() == "version_conflict" {
+                OpError::new("version_conflict", "context version conflict")
+            } else if error.kind() == std::io::ErrorKind::InvalidInput {
+                OpError::invalid(error)
+            } else {
+                OpError::io(error)
+            }
+        })?;
+    if !result.dry_run && !result.changes.is_empty() {
+        let mut event = Event::new("context.sync", &group_id);
+        event.by = by;
+        event.data = json!({"version": &result.version, "changes": &result.changes})
+            .as_object()
+            .cloned()
+            .unwrap_or_default();
+        ledger::append(
+            &store(home)?.ledger_path(&group_id).map_err(OpError::io)?,
+            &event,
+        )
+        .map_err(OpError::io)?;
+    }
+    object(json!({
+        "success": true,
+        "dry_run": result.dry_run,
+        "changes": result.changes,
+        "version": result.version,
+    }))
+}
+
+pub(super) fn load_group(home: &HomeLayout, group_id: &str) -> Result<GroupDoc, OpError> {
+    store(home)?
+        .load(group_id)
+        .map_err(|_| OpError::new("group_not_found", format!("group not found: {group_id}")))
+}
+
+fn parse_operations(request: &DaemonRequest) -> Result<Vec<Map<String, Value>>, OpError> {
+    request
+        .args
+        .get("ops")
+        .and_then(Value::as_array)
+        .ok_or_else(|| OpError::new("invalid_args", "ops must be an array"))?
+        .iter()
+        .map(|value| {
+            value
+                .as_object()
+                .cloned()
+                .ok_or_else(|| OpError::new("invalid_args", "each context op must be an object"))
+        })
+        .collect()
+}
+
+fn guard_member_availability(
+    group: &GroupDoc,
+    document: &ContextDoc,
+    operation: &Map<String, Value>,
+    by: &str,
+) -> Result<(), OpError> {
+    let name = operation
+        .get("op")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let who = actors::find(group, by);
+    if let Some(actor) = who.filter(|actor| !actor.availability.is_available()) {
+        let capture = actor.availability == niuma_contracts::ActorAvailability::Handoff
+            && name == "task.create"
+            && operation.get("assignee").and_then(Value::as_str) == Some(by)
+            && operation
+                .get("status")
+                .and_then(Value::as_str)
+                .is_none_or(|status| status == "planned");
+        let state = name == "agent_state.update"
+            && operation.get("actor_id").and_then(Value::as_str) == Some(by);
+        if !capture && !state {
+            return Err(OpError::new(
+                "actor_on_leave",
+                "当前仅可整理交接或同步返岗，不可继续执行普通任务",
+            ));
+        }
+    }
+    if matches!(name, "task.create" | "task.update") {
+        for key in ["assignee", "handoff_to"] {
+            if let Some(actor) = operation
+                .get(key)
+                .and_then(Value::as_str)
+                .and_then(|id| actors::find(group, id))
+                .filter(|actor| !actor.availability.is_available())
+            {
+                let own_capture = who.is_some_and(|who| {
+                    who.id == actor.id
+                        && who.availability == niuma_contracts::ActorAvailability::Handoff
+                }) && name == "task.create"
+                    && key == "assignee";
+                let manager_capture = name == "task.create"
+                    && key == "assignee"
+                    && (matches!(by, "user" | "system")
+                        || actors::effective_role(group, by) == Some(ActorRole::Foreman))
+                    && !actor.leave_id.is_empty()
+                    && operation
+                        .get("client_request_id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| id.starts_with(&format!("{}:", actor.leave_id)))
+                    && operation
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .is_none_or(|status| status == "planned");
+                let unchanged = name == "task.update"
+                    && operation
+                        .get("task_id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| {
+                            document.tasks.iter().any(|task| {
+                                task.get("id").and_then(Value::as_str) == Some(id)
+                                    && task.get(key).and_then(Value::as_str)
+                                        == Some(actor.id.as_str())
+                            })
+                        });
+                if !own_capture && !manager_capture && !unchanged {
+                    return Err(OpError::new(
+                        "actor_on_leave",
+                        "不可给离岗、交接中或返岗同步中的成员分派新工作",
+                    ));
+                }
+            }
+        }
+    }
+    if name == "task.move"
+        && matches!(
+            operation.get("status").and_then(Value::as_str),
+            Some("planned" | "active")
+        )
+    {
+        let task = operation
+            .get("task_id")
+            .and_then(Value::as_str)
+            .and_then(|id| {
+                document
+                    .tasks
+                    .iter()
+                    .find(|task| task.get("id").and_then(Value::as_str) == Some(id))
+            });
+        if let Some(task) = task.filter(|task| task.get("status") != operation.get("status"))
+            && task
+                .get("assignee")
+                .and_then(Value::as_str)
+                .and_then(|id| actors::find(group, id))
+                .is_some_and(|actor| !actor.availability.is_available())
+        {
+            return Err(OpError::new(
+                "actor_on_leave",
+                "请先将工作交给在岗成员，再重新启用任务",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn authorize(
+    role: Option<ActorRole>,
+    document: &ContextDoc,
+    operation: &Map<String, Value>,
+    by: &str,
+) -> Result<(), OpError> {
+    let Some(role) = role else {
+        return Ok(());
+    };
+    let name = operation.get("op").and_then(Value::as_str).unwrap_or("");
+    match name {
+        "coordination.brief.update" | "meta.merge" if role != ActorRole::Foreman => {
+            return Err(OpError::new(
+                "permission_denied",
+                format!("{name} requires foreman or user"),
+            ));
+        }
+        "agent_state.update" | "agent_state.clear" => {
+            if operation
+                .get("actor_id")
+                .and_then(Value::as_str)
+                .is_some_and(|actor_id| actor_id != by)
+            {
+                return Err(OpError::new(
+                    "permission_denied",
+                    "actors may only update their own state",
+                ));
+            }
+        }
+        "task.create" if role == ActorRole::Peer => {
+            if operation
+                .get("assignee")
+                .and_then(Value::as_str)
+                .is_some_and(|assignee| !assignee.trim().is_empty() && assignee != by)
+            {
+                return Err(OpError::new(
+                    "permission_denied",
+                    "peers may not create tasks assigned to another actor",
+                ));
+            }
+        }
+        "task.update" | "task.move" | "task.restore" | "task.delete" if role == ActorRole::Peer => {
+            let Some(task_id) = operation
+                .get("task_id")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|task_id| !task_id.is_empty())
+            else {
+                return Ok(());
+            };
+            if !document
+                .tasks
+                .iter()
+                .any(|task| task.get("id").and_then(Value::as_str) == Some(task_id))
+            {
+                return Ok(());
+            }
+            let affected_ids = if name == "task.delete" {
+                document.task_subtree_ids(task_id)
+            } else {
+                vec![task_id.to_owned()]
+            };
+            let owns_tasks = document
+                .tasks
+                .iter()
+                .filter(|task| {
+                    task.get("id")
+                        .and_then(Value::as_str)
+                        .is_some_and(|id| affected_ids.iter().any(|affected| affected == id))
+                })
+                .all(|task| {
+                    ["assignee", "handoff_to"]
+                        .iter()
+                        .any(|field| task.get(*field).and_then(Value::as_str) == Some(by))
+                });
+            // Open work nobody holds can be taken up by a peer, for itself only.
+            // History stays with those who held it.
+            let claims_unowned = name == "task.update"
+                && operation.get("assignee").and_then(Value::as_str) == Some(by)
+                && document
+                    .tasks
+                    .iter()
+                    .filter(|task| task.get("id").and_then(Value::as_str) == Some(task_id))
+                    .all(|task| {
+                        matches!(
+                            task.get("status").and_then(Value::as_str),
+                            Some("planned" | "active")
+                        ) && ["assignee", "handoff_to"].iter().all(|field| {
+                            task.get(*field)
+                                .and_then(Value::as_str)
+                                .is_none_or(|value| value.trim().is_empty())
+                        })
+                    });
+            if !owns_tasks && !claims_unowned {
+                return Err(OpError::new(
+                    "permission_denied",
+                    format!("{name} requires the assignee, handoff target, foreman, or user"),
+                ));
+            }
+            if name == "task.update"
+                && operation
+                    .get("assignee")
+                    .and_then(Value::as_str)
+                    .is_some_and(|assignee| !assignee.trim().is_empty() && assignee != by)
+            {
+                return Err(OpError::new(
+                    "permission_denied",
+                    "peers may not reassign tasks to another actor",
+                ));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}

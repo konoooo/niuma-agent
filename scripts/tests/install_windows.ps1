@@ -3,9 +3,9 @@ Set-StrictMode -Version Latest
 
 $rootDir = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
 . (Join-Path $rootDir "scripts\tests\install_windows_concurrency.ps1")
-$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("cccc-install-test-" + [Guid]::NewGuid().ToString("N"))
+$tempRoot = Join-Path ([IO.Path]::GetTempPath()) ("niuma-install-test-" + [Guid]::NewGuid().ToString("N"))
 $target = "x86_64-pc-windows-msvc"
-$binaries = @("cccc.exe")
+$binaries = @("niuma-agent.exe")
 $versionMatch = Select-String -Path (Join-Path $rootDir "Cargo.toml") -Pattern '^version = "([^"]+)"'
 $realVersion = $versionMatch.Matches[0].Groups[1].Value
 $releaseBinaryDir = Join-Path $rootDir "target\release"
@@ -13,8 +13,8 @@ $originalUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 $originalMachinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
 $originalProcessPath = $env:Path
 $originalSecurityProtocol = [Net.ServicePointManager]::SecurityProtocol
-$originalCcccHome = $env:CCCC_HOME
-$originalLauncherPath = $env:CCCC_LAUNCHER_PATH
+$originalNiumaHome = $env:NIUMA_HOME
+$originalLauncherPath = $env:NIUMA_LAUNCHER_PATH
 $machinePathModified = $false
 $installerSource = Get-Content -LiteralPath (Join-Path $rootDir "scripts\install.ps1") -Raw
 $tlsSnapshot = $installerSource.IndexOf('[Net.ServicePointManager]::SecurityProtocol =')
@@ -35,23 +35,23 @@ function Write-ChecksumManifest([string]$ReleaseDir, [string]$Version, [string]$
     -replace '-rc([0-9]+)$', 'rc$1' `
     -replace '-', ''
   $entries = @(
-    "$("0" * 64)  cccc-v$Version-x86_64-unknown-linux-gnu.tar.gz",
-    "$("0" * 64)  cccc-v$Version-aarch64-apple-darwin.tar.gz",
-    "$ArchiveChecksum  cccc-v$Version-$target.zip",
-    "$("0" * 64)  cccc_pair-$wheelVersion-py3-none-manylinux_2_28_x86_64.whl",
-    "$("0" * 64)  cccc_pair-$wheelVersion-py3-none-macosx_11_0_arm64.whl",
-    "$("0" * 64)  cccc_pair-$wheelVersion-py3-none-win_amd64.whl"
+    "$("0" * 64)  niuma-v$Version-x86_64-unknown-linux-gnu.tar.gz",
+    "$("0" * 64)  niuma-v$Version-aarch64-apple-darwin.tar.gz",
+    "$ArchiveChecksum  niuma-v$Version-$target.zip",
+    "$("0" * 64)  niuma_pair-$wheelVersion-py3-none-manylinux_2_28_x86_64.whl",
+    "$("0" * 64)  niuma_pair-$wheelVersion-py3-none-macosx_11_0_arm64.whl",
+    "$("0" * 64)  niuma_pair-$wheelVersion-py3-none-win_amd64.whl"
   )
   Set-Content -LiteralPath (Join-Path $ReleaseDir "SHA256SUMS") -Value $entries
 }
 
-function New-FixtureRelease([string]$Version, [bool]$ValidChecksum, [string]$CcccSource = "") {
-  $package = "cccc-v$Version-$target"
+function New-FixtureRelease([string]$Version, [bool]$ValidChecksum, [string]$NiumaSource = "") {
+  $package = "niuma-v$Version-$target"
   $packageDir = Join-Path $tempRoot "package\$package"
   $releaseDir = Join-Path $tempRoot "releases\download\v$Version"
   New-Item -ItemType Directory -Force -Path $packageDir,$releaseDir | Out-Null
   foreach ($binary in $binaries) {
-    $source = if ($CcccSource) { $CcccSource } else { Join-Path $releaseBinaryDir $binary }
+    $source = if ($NiumaSource) { $NiumaSource } else { Join-Path $releaseBinaryDir $binary }
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
       throw "Build release binaries before running the Windows installer test: missing $source"
     }
@@ -71,15 +71,15 @@ function New-FixtureRelease([string]$Version, [bool]$ValidChecksum, [string]$Ccc
 function New-UnsafeFixtureRelease([string]$Version, [string]$UnsafeKind) {
   Add-Type -AssemblyName System.IO.Compression
   Add-Type -AssemblyName System.IO.Compression.FileSystem
-  $package = "cccc-v$Version-$target"
+  $package = "niuma-v$Version-$target"
   $releaseDir = Join-Path $tempRoot "releases\download\v$Version"
   New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
   $archive = Join-Path $releaseDir "$package.zip"
   $archiveStream = [IO.File]::Open($archive, [IO.FileMode]::Create)
   $zip = [IO.Compression.ZipArchive]::new($archiveStream, [IO.Compression.ZipArchiveMode]::Create, $false)
   try {
-    $binaryEntry = $zip.CreateEntry("$package/cccc.exe")
-    $sourceStream = [IO.File]::OpenRead((Join-Path $releaseBinaryDir "cccc.exe"))
+    $binaryEntry = $zip.CreateEntry("$package/niuma-agent.exe")
+    $sourceStream = [IO.File]::OpenRead((Join-Path $releaseBinaryDir "niuma-agent.exe"))
     $entryStream = $binaryEntry.Open()
     try {
       $sourceStream.CopyTo($entryStream)
@@ -144,21 +144,21 @@ function Invoke-WindowsPowerShellInstaller(
 
 try {
   New-Item -ItemType Directory -Path $tempRoot | Out-Null
-  $env:CCCC_HOME = Join-Path $tempRoot "home"
-  Remove-Item Env:CCCC_LAUNCHER_PATH -ErrorAction SilentlyContinue
+  $env:NIUMA_HOME = Join-Path $tempRoot "home"
+  Remove-Item Env:NIUMA_LAUNCHER_PATH -ErrorAction SilentlyContinue
   New-FixtureRelease $realVersion $true
   $installDir = Join-Path $tempRoot "installed"
   $releaseRoot = (Resolve-Path (Join-Path $tempRoot "releases")).Path
-  $env:CCCC_RELEASE_BASE_URL = ([Uri]$releaseRoot).AbsoluteUri.TrimEnd('/')
-  Remove-Item Env:CCCC_VERSION -ErrorAction SilentlyContinue
+  $env:NIUMA_RELEASE_BASE_URL = ([Uri]$releaseRoot).AbsoluteUri.TrimEnd('/')
+  Remove-Item Env:NIUMA_VERSION -ErrorAction SilentlyContinue
   $versionedInstaller = Join-Path $tempRoot "install.ps1"
-  (Get-Content -LiteralPath (Join-Path $rootDir "scripts\install.ps1") -Raw).Replace("@CCCC_VERSION@", $realVersion) |
+  (Get-Content -LiteralPath (Join-Path $rootDir "scripts\install.ps1") -Raw).Replace("@NIUMA_VERSION@", $realVersion) |
     Set-Content -LiteralPath $versionedInstaller
 
   $machineCommandDir = Join-Path $tempRoot "machine-cccc"
   New-Item -ItemType Directory -Force -Path $machineCommandDir | Out-Null
-  $machineCommand = Join-Path $machineCommandDir "cccc.cmd"
-  Set-Content -LiteralPath $machineCommand -Value '@echo cccc 0.2.0' -Encoding Ascii
+  $machineCommand = Join-Path $machineCommandDir "niuma-agent.cmd"
+  Set-Content -LiteralPath $machineCommand -Value '@echo niuma-agent 0.2.0' -Encoding Ascii
   $machineCommandHash = (Get-FileHash -LiteralPath $machineCommand).Hash
   $machineConflictInstallDir = Join-Path $tempRoot "machine-conflict-installed"
   try {
@@ -174,18 +174,18 @@ try {
       & (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $machineConflictInstallDir
     } catch {
       $message = $_.Exception.Message
-      $isMachineConflict = $message -like "*Machine PATH resolves cccc*"
+      $isMachineConflict = $message -like "*Machine PATH resolves niuma-agent*"
       $identifiesMachineCommand = $message.IndexOf($machineCommand, [StringComparison]::OrdinalIgnoreCase) -ge 0
       $failed = $isMachineConflict -and $identifiesMachineCommand
     }
     if (-not $failed) { throw "installer did not reject a machine PATH command that wins in new terminals" }
-    if (Test-Path -LiteralPath (Join-Path $machineConflictInstallDir "cccc.exe")) {
+    if (Test-Path -LiteralPath (Join-Path $machineConflictInstallDir "niuma-agent.exe")) {
       throw "installer wrote a binary before rejecting the machine PATH conflict"
     }
     $machineBypassInstallDir = Join-Path $tempRoot "machine-conflict-direct-install"
     & (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $machineBypassInstallDir -NoModifyPath
-    $machineBypassVersion = (& (Join-Path $machineBypassInstallDir "cccc.exe") --version | Out-String).Trim()
-    if ($machineBypassVersion -ne "cccc $realVersion") {
+    $machineBypassVersion = (& (Join-Path $machineBypassInstallDir "niuma-agent.exe") --version | Out-String).Trim()
+    if ($machineBypassVersion -ne "niuma-agent $realVersion") {
       throw "-NoModifyPath did not preserve direct installation during a machine PATH conflict"
     }
     if ((Get-FileHash -LiteralPath $machineCommand).Hash -ne $machineCommandHash) {
@@ -200,8 +200,8 @@ try {
 
   $olderCommandDir = Join-Path $tempRoot "older-cccc"
   New-Item -ItemType Directory -Force -Path $olderCommandDir | Out-Null
-  $olderCommand = Join-Path $olderCommandDir "cccc.cmd"
-  Set-Content -LiteralPath $olderCommand -Value '@echo cccc 0.3.0' -Encoding Ascii
+  $olderCommand = Join-Path $olderCommandDir "niuma-agent.cmd"
+  Set-Content -LiteralPath $olderCommand -Value '@echo niuma-agent 0.3.0' -Encoding Ascii
   $olderCommandHash = (Get-FileHash -LiteralPath $olderCommand).Hash
   $env:Path = "$olderCommandDir;$env:Path"
   $testUserPath = if ($originalUserPath) { "$olderCommandDir;$originalUserPath" } else { $olderCommandDir }
@@ -213,7 +213,7 @@ try {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.len() == 1 && args[0] == "--version" {
-        println!("cccc 1.2.3");
+        println!("niuma-agent 1.2.3");
         return;
     }
     if args.len() == 1 && args[0] == "version" {
@@ -227,7 +227,7 @@ fn main() {
   if ($LASTEXITCODE -ne 0) { throw "failed to build version-shaped foreign fixture" }
   $versionShapedInstallDir = Join-Path $tempRoot "version-shaped-foreign-installed"
   New-Item -ItemType Directory -Force -Path $versionShapedInstallDir | Out-Null
-  $versionShapedCli = Join-Path $versionShapedInstallDir "cccc.exe"
+  $versionShapedCli = Join-Path $versionShapedInstallDir "niuma-agent.exe"
   Copy-Item -LiteralPath $versionShapedBinary -Destination $versionShapedCli
   $versionShapedHash = (Get-FileHash -LiteralPath $versionShapedCli).Hash
   $failed = $false
@@ -240,27 +240,27 @@ fn main() {
   if ((Get-FileHash -LiteralPath $versionShapedCli).Hash -ne $versionShapedHash) {
     throw "installer modified a version-shaped foreign command"
   }
-  $allowReplaceBeforeVersionShaped = $env:CCCC_ALLOW_REPLACE_EXISTING
+  $allowReplaceBeforeVersionShaped = $env:NIUMA_ALLOW_REPLACE_EXISTING
   try {
-    $env:CCCC_ALLOW_REPLACE_EXISTING = "1"
+    $env:NIUMA_ALLOW_REPLACE_EXISTING = "1"
     & (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $versionShapedInstallDir -NoModifyPath
   } finally {
     if ($null -eq $allowReplaceBeforeVersionShaped) {
-      Remove-Item Env:CCCC_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
+      Remove-Item Env:NIUMA_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
     } else {
-      $env:CCCC_ALLOW_REPLACE_EXISTING = $allowReplaceBeforeVersionShaped
+      $env:NIUMA_ALLOW_REPLACE_EXISTING = $allowReplaceBeforeVersionShaped
     }
   }
-  if ((& $versionShapedCli --version | Out-String).Trim() -ne "cccc $realVersion") {
-    throw "explicit markerless replacement did not install CCCC"
+  if ((& $versionShapedCli --version | Out-String).Trim() -ne "niuma-agent $realVersion") {
+    throw "explicit markerless replacement did not install 牛马Agent"
   }
-  if ((Get-Content -LiteralPath (Join-Path $versionShapedInstallDir ".cccc-standalone") -Raw).Trim() -ne "standalone-v1") {
+  if ((Get-Content -LiteralPath (Join-Path $versionShapedInstallDir ".niuma-agent-standalone") -Raw).Trim() -ne "standalone-v1") {
     throw "explicit markerless replacement did not write the ownership marker"
   }
 
   $markerlessForeignInstallDir = Join-Path $tempRoot "markerless-foreign-installed"
   New-Item -ItemType Directory -Force -Path $markerlessForeignInstallDir | Out-Null
-  $markerlessForeignCli = Join-Path $markerlessForeignInstallDir "cccc.exe"
+  $markerlessForeignCli = Join-Path $markerlessForeignInstallDir "niuma-agent.exe"
   Set-Content -LiteralPath $markerlessForeignCli -Value "foreign binary" -Encoding Ascii
   $markerlessForeignHash = (Get-FileHash -LiteralPath $markerlessForeignCli).Hash
   $failed = $false
@@ -276,23 +276,23 @@ fn main() {
 
   $pipInstallDir = Join-Path $tempRoot "pip-owned-installed"
   New-Item -ItemType Directory -Force -Path $pipInstallDir | Out-Null
-  $pipCli = Join-Path $pipInstallDir "cccc.exe"
+  $pipCli = Join-Path $pipInstallDir "niuma-agent.exe"
   Set-Content -LiteralPath $pipCli -Value "pip binary" -Encoding Ascii
-  $pipMarker = Join-Path $pipInstallDir ".cccc-standalone"
+  $pipMarker = Join-Path $pipInstallDir ".niuma-agent-standalone"
   Set-Content -LiteralPath $pipMarker -Value "pip-v1" -Encoding Ascii
   $pipHash = (Get-FileHash -LiteralPath $pipCli).Hash
-  $allowReplaceBeforePip = $env:CCCC_ALLOW_REPLACE_EXISTING
+  $allowReplaceBeforePip = $env:NIUMA_ALLOW_REPLACE_EXISTING
   $failed = $false
   try {
-    $env:CCCC_ALLOW_REPLACE_EXISTING = "1"
+    $env:NIUMA_ALLOW_REPLACE_EXISTING = "1"
     & (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $pipInstallDir -NoModifyPath
   } catch {
-    $failed = $_.Exception.Message -like "*managed by pip; run python -m pip uninstall cccc-pair*"
+    $failed = $_.Exception.Message -like "*managed by pip; run python -m pip uninstall niuma-agent*"
   } finally {
     if ($null -eq $allowReplaceBeforePip) {
-      Remove-Item Env:CCCC_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
+      Remove-Item Env:NIUMA_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
     } else {
-      $env:CCCC_ALLOW_REPLACE_EXISTING = $allowReplaceBeforePip
+      $env:NIUMA_ALLOW_REPLACE_EXISTING = $allowReplaceBeforePip
     }
   }
   if (-not $failed) { throw "installer replaced a pip-owned command" }
@@ -305,9 +305,9 @@ fn main() {
 
   $foreignInstallDir = Join-Path $tempRoot "foreign-installed"
   New-Item -ItemType Directory -Force -Path $foreignInstallDir | Out-Null
-  $foreignCli = Join-Path $foreignInstallDir "cccc.exe"
+  $foreignCli = Join-Path $foreignInstallDir "niuma-agent.exe"
   Set-Content -LiteralPath $foreignCli -Value "foreign binary" -Encoding Ascii
-  Set-Content -LiteralPath (Join-Path $foreignInstallDir ".cccc-standalone") -Value "foreign-v1" -Encoding Ascii
+  Set-Content -LiteralPath (Join-Path $foreignInstallDir ".niuma-agent-standalone") -Value "foreign-v1" -Encoding Ascii
   $foreignHash = (Get-FileHash -LiteralPath $foreignCli).Hash
   $failed = $false
   try {
@@ -319,16 +319,16 @@ fn main() {
   if ((Get-FileHash -LiteralPath $foreignCli).Hash -ne $foreignHash) {
     throw "installer modified a command owned by another installation"
   }
-  if ((Get-Content -LiteralPath (Join-Path $foreignInstallDir ".cccc-standalone") -Raw).Trim() -ne "foreign-v1") {
+  if ((Get-Content -LiteralPath (Join-Path $foreignInstallDir ".niuma-agent-standalone") -Raw).Trim() -ne "foreign-v1") {
     throw "installer replaced a foreign ownership marker"
   }
 
   $versionedInstallDir = Join-Path $tempRoot "versioned-installed"
   & $versionedInstaller -InstallDir $versionedInstallDir -NoModifyPath
-  if ((& (Join-Path $versionedInstallDir "cccc.exe") --version | Out-String).Trim() -ne "cccc $realVersion") {
+  if ((& (Join-Path $versionedInstallDir "niuma-agent.exe") --version | Out-String).Trim() -ne "niuma-agent $realVersion") {
     throw "versioned installer did not use its embedded release version"
   }
-  if ((Get-Content -LiteralPath (Join-Path $versionedInstallDir ".cccc-standalone") -Raw).Trim() -ne "standalone-v1") {
+  if ((Get-Content -LiteralPath (Join-Path $versionedInstallDir ".niuma-agent-standalone") -Raw).Trim() -ne "standalone-v1") {
     throw "versioned installer did not write its standalone marker"
   }
 
@@ -341,22 +341,22 @@ fn main() {
       throw "wrong contents for $binary"
     }
   }
-  if ((Get-Content -LiteralPath (Join-Path $installDir ".cccc-standalone") -Raw).Trim() -ne "standalone-v1") {
+  if ((Get-Content -LiteralPath (Join-Path $installDir ".niuma-agent-standalone") -Raw).Trim() -ne "standalone-v1") {
     throw "installer did not write its standalone marker"
   }
   & (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $installDir -NoModifyPath
   $installOutput = (& (Join-Path $rootDir "scripts\install.ps1") -Version $realVersion -InstallDir $installDir *>&1 | Out-String)
-  if (-not $installOutput.Contains("Other CCCC commands were left unchanged:")) {
-    throw "installer did not report the older CCCC command"
+  if (-not $installOutput.Contains("Other 牛马Agent commands were left unchanged:")) {
+    throw "installer did not report the older 牛马Agent command"
   }
   if (-not $installOutput.Contains("Verify installed command directly:")) {
     throw "installer did not provide an absolute verification command"
   }
   if ($installOutput.IndexOf($olderCommand, [StringComparison]::OrdinalIgnoreCase) -lt 0) {
-    throw "installer did not identify the older CCCC command path"
+    throw "installer did not identify the older 牛马Agent command path"
   }
   if ((Get-FileHash -LiteralPath $olderCommand).Hash -ne $olderCommandHash) {
-    throw "installer modified an older CCCC command outside its install directory"
+    throw "installer modified an older 牛马Agent command outside its install directory"
   }
   $updatedUserPath = [Environment]::GetEnvironmentVariable("Path", "User")
   $matchingPathEntries = @($updatedUserPath.Split(';', [StringSplitOptions]::RemoveEmptyEntries)).Where({
@@ -366,7 +366,7 @@ fn main() {
   if (@($updatedUserPath.Split(';', [StringSplitOptions]::RemoveEmptyEntries)).Where({
       $_.TrimEnd('\') -ieq $olderCommandDir.TrimEnd('\')
     }).Count -ne 1) {
-    throw "installer removed or duplicated the older CCCC PATH entry"
+    throw "installer removed or duplicated the older 牛马Agent PATH entry"
   }
   if ($updatedUserPath.Split(';', [StringSplitOptions]::RemoveEmptyEntries)[0].TrimEnd('\') -ine $installDir.TrimEnd('\')) {
     throw "installer did not prepend its user PATH entry"
@@ -378,7 +378,7 @@ fn main() {
   if ($processPathEntries.Where({ $_.TrimEnd('\') -ieq $installDir.TrimEnd('\') }).Count -ne 1) {
     throw "installer duplicated its current-process PATH entry"
   }
-  $doctorReport = (& (Join-Path $installDir "cccc.exe") doctor | Out-String | ConvertFrom-Json)
+  $doctorReport = (& (Join-Path $installDir "niuma-agent.exe") doctor | Out-String | ConvertFrom-Json)
   if ($doctorReport.installation.path_status -ne "ok") {
     throw "Rust doctor did not resolve the installed Windows command"
   }
@@ -397,11 +397,11 @@ fn main() {
     TempRoot = $tempRoot
     InstallDir = Join-Path $tempRoot "stale-installed"
     RealVersion = $realVersion
-    RealBinary = Join-Path $releaseBinaryDir "cccc.exe"
+    RealBinary = Join-Path $releaseBinaryDir "niuma-agent.exe"
   }
   Test-InstallerConcurrentSnapshot @staleParameters
 
-  $lockPath = Join-Path $installDir ".cccc-install.lock"
+  $lockPath = Join-Path $installDir ".niuma-agent-install.lock"
   $lockStream = [IO.File]::Open($lockPath, [IO.FileMode]::OpenOrCreate, [IO.FileAccess]::ReadWrite, [IO.FileShare]::None)
   try {
     $failed = $false
@@ -429,11 +429,11 @@ fn main() {
 use std::{env, fs, process};
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    let state = env::var("CCCC_TEST_DAEMON_STATE").unwrap_or_default();
-    if args == ["--version"] { println!("cccc 9.9.3"); return; }
+    let state = env::var("NIUMA_TEST_DAEMON_STATE").unwrap_or_default();
+    if args == ["--version"] { println!("niuma-agent 9.9.3"); return; }
     if args == ["daemon", "status"] {
         if !state.is_empty() && std::path::Path::new(&state).exists() { return; }
-        eprintln!("Error: ccccd: not running");
+        eprintln!("Error: niumad: not running");
         process::exit(1);
     }
     if args == ["daemon", "stop"] {
@@ -447,11 +447,11 @@ fn main() {
 use std::{env, fs, process};
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    let state = env::var("CCCC_TEST_DAEMON_STATE").unwrap_or_default();
-    if args == ["--version"] { println!("cccc 9.9.4"); return; }
+    let state = env::var("NIUMA_TEST_DAEMON_STATE").unwrap_or_default();
+    if args == ["--version"] { println!("niuma-agent 9.9.4"); return; }
     if args == ["daemon", "status"] {
         if !state.is_empty() && std::path::Path::new(&state).exists() { return; }
-        eprintln!("Error: ccccd: not running");
+        eprintln!("Error: niumad: not running");
         process::exit(1);
     }
     if args == ["daemon", "start"] {
@@ -465,11 +465,11 @@ fn main() {
 use std::{env, process};
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
-    let state = env::var("CCCC_TEST_DAEMON_STATE").unwrap_or_default();
-    if args == ["--version"] { println!("cccc 9.9.2"); return; }
+    let state = env::var("NIUMA_TEST_DAEMON_STATE").unwrap_or_default();
+    if args == ["--version"] { println!("niuma-agent 9.9.2"); return; }
     if args == ["daemon", "status"] {
         if !state.is_empty() && std::path::Path::new(&state).exists() { return; }
-        eprintln!("Error: ccccd: not running");
+        eprintln!("Error: niumad: not running");
         process::exit(1);
     }
     if args == ["daemon", "start"] { process::exit(1); }
@@ -487,10 +487,10 @@ fn main() {
 
   $legacyInstallDir = Join-Path $tempRoot "legacy-powershell-installed"
   New-Item -ItemType Directory -Force -Path $legacyInstallDir | Out-Null
-  Copy-Item -LiteralPath $legacyOldBinary -Destination (Join-Path $legacyInstallDir "cccc.exe")
-  Set-Content -LiteralPath (Join-Path $legacyInstallDir ".cccc-standalone") -Value "standalone-v1" -Encoding Ascii
-  $env:CCCC_TEST_DAEMON_STATE = Join-Path $tempRoot "legacy-powershell-daemon.running"
-  Set-Content -LiteralPath $env:CCCC_TEST_DAEMON_STATE -Value "running" -Encoding Ascii
+  Copy-Item -LiteralPath $legacyOldBinary -Destination (Join-Path $legacyInstallDir "niuma-agent.exe")
+  Set-Content -LiteralPath (Join-Path $legacyInstallDir ".niuma-agent-standalone") -Value "standalone-v1" -Encoding Ascii
+  $env:NIUMA_TEST_DAEMON_STATE = Join-Path $tempRoot "legacy-powershell-daemon.running"
+  Set-Content -LiteralPath $env:NIUMA_TEST_DAEMON_STATE -Value "running" -Encoding Ascii
   $legacyOut = Join-Path $tempRoot "legacy-powershell.out"
   $legacyErr = Join-Path $tempRoot "legacy-powershell.err"
   $legacyExit = Invoke-WindowsPowerShellInstaller `
@@ -498,10 +498,10 @@ fn main() {
   if ($legacyExit -ne 0) {
     throw "Windows PowerShell 5.1 upgrade failed:`n$(Get-Content -LiteralPath $legacyErr -Raw)"
   }
-  if ((& (Join-Path $legacyInstallDir "cccc.exe") --version | Out-String).Trim() -ne "cccc $legacyVersion") {
+  if ((& (Join-Path $legacyInstallDir "niuma-agent.exe") --version | Out-String).Trim() -ne "niuma-agent $legacyVersion") {
     throw "Windows PowerShell 5.1 upgrade installed the wrong binary"
   }
-  if (-not (Test-Path -LiteralPath $env:CCCC_TEST_DAEMON_STATE -PathType Leaf)) {
+  if (-not (Test-Path -LiteralPath $env:NIUMA_TEST_DAEMON_STATE -PathType Leaf)) {
     throw "Windows PowerShell 5.1 upgrade did not restart the daemon"
   }
 
@@ -513,30 +513,30 @@ fn main() {
   New-FixtureRelease $restartFailureVersion $true $restartFailureBinary
   $restartFailureInstallDir = Join-Path $tempRoot "restart-failure-installed"
   New-Item -ItemType Directory -Force -Path $restartFailureInstallDir | Out-Null
-  Copy-Item -LiteralPath $legacyOldBinary -Destination (Join-Path $restartFailureInstallDir "cccc.exe")
-  Set-Content -LiteralPath (Join-Path $restartFailureInstallDir ".cccc-standalone") -Value "standalone-v1" -Encoding Ascii
-  $env:CCCC_TEST_DAEMON_STATE = Join-Path $tempRoot "restart-failure-daemon.running"
-  Set-Content -LiteralPath $env:CCCC_TEST_DAEMON_STATE -Value "running" -Encoding Ascii
+  Copy-Item -LiteralPath $legacyOldBinary -Destination (Join-Path $restartFailureInstallDir "niuma-agent.exe")
+  Set-Content -LiteralPath (Join-Path $restartFailureInstallDir ".niuma-agent-standalone") -Value "standalone-v1" -Encoding Ascii
+  $env:NIUMA_TEST_DAEMON_STATE = Join-Path $tempRoot "restart-failure-daemon.running"
+  Set-Content -LiteralPath $env:NIUMA_TEST_DAEMON_STATE -Value "running" -Encoding Ascii
   $restartOut = Join-Path $tempRoot "restart-failure.out"
   $restartErr = Join-Path $tempRoot "restart-failure.err"
   $restartExit = Invoke-WindowsPowerShellInstaller `
     (Join-Path $rootDir "scripts\install.ps1") $restartFailureVersion $restartFailureInstallDir $restartOut $restartErr
   if ($restartExit -eq 0) {
-    $restartStateExists = Test-Path -LiteralPath $env:CCCC_TEST_DAEMON_STATE -PathType Leaf
-    $restartInstalledVersion = (& (Join-Path $restartFailureInstallDir "cccc.exe") --version | Out-String).Trim()
+    $restartStateExists = Test-Path -LiteralPath $env:NIUMA_TEST_DAEMON_STATE -PathType Leaf
+    $restartInstalledVersion = (& (Join-Path $restartFailureInstallDir "niuma-agent.exe") --version | Out-String).Trim()
     $restartOutput = Get-Content -LiteralPath $restartOut -Raw -ErrorAction SilentlyContinue
     $restartError = Get-Content -LiteralPath $restartErr -Raw -ErrorAction SilentlyContinue
     throw "daemon restart failure unexpectedly reported success; state_exists=$restartStateExists; installed=$restartInstalledVersion; stdout=$restartOutput; stderr=$restartError"
   }
   $restartDiagnostic = Get-Content -LiteralPath $restartErr -Raw
-  if ($restartDiagnostic -notlike "*CCCC v$restartFailureVersion was installed, but its daemon could not restart*" -or
+  if ($restartDiagnostic -notlike "*牛马Agent v$restartFailureVersion was installed, but its daemon could not restart*" -or
       $restartDiagnostic -notlike "*exit code 1*") {
     throw "daemon restart failure lost its null-safe diagnostic: $restartDiagnostic"
   }
-  if ((& (Join-Path $restartFailureInstallDir "cccc.exe") --version | Out-String).Trim() -ne "cccc $restartFailureVersion") {
+  if ((& (Join-Path $restartFailureInstallDir "niuma-agent.exe") --version | Out-String).Trim() -ne "niuma-agent $restartFailureVersion") {
     throw "daemon restart failure rolled back a validated binary"
   }
-  Remove-Item Env:CCCC_TEST_DAEMON_STATE -ErrorAction SilentlyContinue
+  Remove-Item Env:NIUMA_TEST_DAEMON_STATE -ErrorAction SilentlyContinue
 
   foreach ($invalidInstallDir in @("relative-path", "C:\valid;C:\injected")) {
     $failed = $false
@@ -572,7 +572,7 @@ fn main() {
     $failed = $_.Exception.Message -like "*Checksum mismatch*"
   }
   if (-not $failed) { throw "installer accepted a bad checksum" }
-  if (Test-Path -LiteralPath (Join-Path $badInstallDir "cccc.exe")) { throw "bad download was installed" }
+  if (Test-Path -LiteralPath (Join-Path $badInstallDir "niuma-agent.exe")) { throw "bad download was installed" }
 
   $hashesBefore = @{}
   foreach ($binary in $binaries) {
@@ -601,7 +601,7 @@ use std::env;
 fn main() {
     let args = env::args().skip(1).collect::<Vec<_>>();
     if args.len() == 1 && args[0] == "--version" {
-        println!("cccc 9.9.5");
+        println!("niuma-agent 9.9.5");
         return;
     }
     if args.len() == 2 && args[0] == "daemon" && args[1] == "start" {
@@ -616,28 +616,28 @@ fn main() {
   $readonlyMarkerInstall = Join-Path $tempRoot "readonly-marker-installed"
   $readonlyMarkerHome = Join-Path $tempRoot "readonly-marker-home"
   New-Item -ItemType Directory -Force -Path $readonlyMarkerInstall | Out-Null
-  Copy-Item -LiteralPath (Join-Path $releaseBinaryDir "cccc.exe") -Destination (Join-Path $readonlyMarkerInstall "cccc.exe")
-  $readonlyMarkerPath = Join-Path $readonlyMarkerInstall ".cccc-standalone"
+  Copy-Item -LiteralPath (Join-Path $releaseBinaryDir "niuma-agent.exe") -Destination (Join-Path $readonlyMarkerInstall "niuma-agent.exe")
+  $readonlyMarkerPath = Join-Path $readonlyMarkerInstall ".niuma-agent-standalone"
   Set-Content -LiteralPath $readonlyMarkerPath -Value "foreign-v1" -Encoding Ascii
   (Get-Item -LiteralPath $readonlyMarkerPath).IsReadOnly = $true
-  $homeBeforeReadonlyMarker = $env:CCCC_HOME
-  $allowReplaceBeforeReadonlyMarker = $env:CCCC_ALLOW_REPLACE_EXISTING
+  $homeBeforeReadonlyMarker = $env:NIUMA_HOME
+  $allowReplaceBeforeReadonlyMarker = $env:NIUMA_ALLOW_REPLACE_EXISTING
   try {
-    $env:CCCC_HOME = $readonlyMarkerHome
-    $env:CCCC_ALLOW_REPLACE_EXISTING = "1"
-    & (Join-Path $readonlyMarkerInstall "cccc.exe") daemon start
+    $env:NIUMA_HOME = $readonlyMarkerHome
+    $env:NIUMA_ALLOW_REPLACE_EXISTING = "1"
+    & (Join-Path $readonlyMarkerInstall "niuma-agent.exe") daemon start
     if ($LASTEXITCODE -ne 0) { throw "failed to start the read-only marker fixture daemon" }
     & (Join-Path $rootDir "scripts\install.ps1") -Version $readonlyMarkerVersion -InstallDir $readonlyMarkerInstall -NoModifyPath
   } finally {
-    $env:CCCC_HOME = $homeBeforeReadonlyMarker
+    $env:NIUMA_HOME = $homeBeforeReadonlyMarker
     if ($null -eq $allowReplaceBeforeReadonlyMarker) {
-      Remove-Item Env:CCCC_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
+      Remove-Item Env:NIUMA_ALLOW_REPLACE_EXISTING -ErrorAction SilentlyContinue
     } else {
-      $env:CCCC_ALLOW_REPLACE_EXISTING = $allowReplaceBeforeReadonlyMarker
+      $env:NIUMA_ALLOW_REPLACE_EXISTING = $allowReplaceBeforeReadonlyMarker
     }
   }
-  $readonlyMarkerReported = (& (Join-Path $readonlyMarkerInstall "cccc.exe") --version | Out-String).Trim()
-  if ($readonlyMarkerReported -ne "cccc $readonlyMarkerVersion") {
+  $readonlyMarkerReported = (& (Join-Path $readonlyMarkerInstall "niuma-agent.exe") --version | Out-String).Trim()
+  if ($readonlyMarkerReported -ne "niuma-agent $readonlyMarkerVersion") {
     throw "installer did not replace the read-only foreign marker fixture"
   }
   if ((Get-Content -LiteralPath $readonlyMarkerPath -Raw).Trim() -ne "standalone-v1") {
@@ -650,10 +650,10 @@ fn main() {
 use std::{env, fs, thread, time::Duration};
 fn main() {
     if env::args().any(|arg| arg == "--version") {
-        if let Ok(path) = env::var("CCCC_TEST_VERSION_SIGNAL") {
+        if let Ok(path) = env::var("NIUMA_TEST_VERSION_SIGNAL") {
             fs::write(path, b"ready").expect("write version signal");
         }
-        println!("cccc 9.9.8");
+        println!("niuma-agent 9.9.8");
         thread::sleep(Duration::from_secs(5));
     }
 }
@@ -662,7 +662,7 @@ fn main() {
   if ($LASTEXITCODE -ne 0) { throw "failed to build locked rollback fixture" }
   $lockedVersion = "9.9.6"
   New-FixtureRelease $lockedVersion $true $slowBinary
-  $oldHash = (Get-FileHash (Join-Path $installDir "cccc.exe")).Hash
+  $oldHash = (Get-FileHash (Join-Path $installDir "niuma-agent.exe")).Hash
   $childOut = Join-Path $tempRoot "locked-rollback.out"
   $childErr = Join-Path $tempRoot "locked-rollback.err"
   $versionSignal = Join-Path $tempRoot "locked-rollback-version-probe"
@@ -671,11 +671,11 @@ fn main() {
     "-NoProfile", "-File", (Join-Path $rootDir "scripts\install.ps1"),
     "-Version", $lockedVersion, "-InstallDir", $installDir, "-NoModifyPath"
   )
-  $env:CCCC_TEST_VERSION_SIGNAL = $versionSignal
+  $env:NIUMA_TEST_VERSION_SIGNAL = $versionSignal
   try {
     $child = Start-Process -FilePath $hostExecutable -PassThru -NoNewWindow -ArgumentList $childArguments -RedirectStandardOutput $childOut -RedirectStandardError $childErr
   } finally {
-    Remove-Item Env:CCCC_TEST_VERSION_SIGNAL -ErrorAction SilentlyContinue
+    Remove-Item Env:NIUMA_TEST_VERSION_SIGNAL -ErrorAction SilentlyContinue
   }
   $heldBinary = $null
   $deadline = [DateTime]::UtcNow.AddSeconds(15)
@@ -685,7 +685,7 @@ fn main() {
     if (Test-Path -LiteralPath $versionSignal -PathType Leaf) {
       try {
         $heldBinary = [IO.File]::Open(
-          (Join-Path $installDir "cccc.exe"),
+          (Join-Path $installDir "niuma-agent.exe"),
           [IO.FileMode]::Open,
           [IO.FileAccess]::Read,
           [IO.FileShare]::Read
@@ -706,8 +706,8 @@ fn main() {
     throw "failed to acquire the replacement binary lock. Child output:`n$childLogs"
   }
   $child.WaitForExit()
-  $backupDir = Join-Path $installDir (".cccc-backup-" + $child.Id)
-  $backupBinary = Join-Path $backupDir "cccc.exe"
+  $backupDir = Join-Path $installDir (".niuma-agent-backup-" + $child.Id)
+  $backupBinary = Join-Path $backupDir "niuma-agent.exe"
   if ($child.ExitCode -eq 0) { throw "locked rollback fixture unexpectedly succeeded" }
   if (-not (Test-Path -LiteralPath $backupBinary -PathType Leaf)) { throw "rollback deleted its only old binary backup" }
   if ((Get-FileHash $backupBinary).Hash -ne $oldHash) { throw "retained rollback backup has the wrong bytes" }
@@ -717,16 +717,16 @@ fn main() {
     throw "rollback did not report its retained backup"
   }
   $probe = [IO.File]::Open(
-    (Join-Path $installDir ".cccc-install.lock"),
+    (Join-Path $installDir ".niuma-agent-install.lock"),
     [IO.FileMode]::OpenOrCreate,
     [IO.FileAccess]::ReadWrite,
     [IO.FileShare]::None
   )
   $probe.Dispose()
-  Remove-Item -LiteralPath (Join-Path $installDir ".cccc-install.lock") -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath (Join-Path $installDir ".niuma-agent-install.lock") -Force -ErrorAction SilentlyContinue
   $heldBinary.Dispose()
-  Remove-Item -LiteralPath (Join-Path $installDir "cccc.exe") -Force
-  Move-Item -LiteralPath $backupBinary -Destination (Join-Path $installDir "cccc.exe")
+  Remove-Item -LiteralPath (Join-Path $installDir "niuma-agent.exe") -Force
+  Move-Item -LiteralPath $backupBinary -Destination (Join-Path $installDir "niuma-agent.exe")
   Remove-Item -LiteralPath $backupDir -Recurse -Force
 
   Write-Host "OK: Windows installer"
@@ -737,7 +737,7 @@ fn main() {
   [Environment]::SetEnvironmentVariable("Path", $originalUserPath, "User")
   $env:Path = $originalProcessPath
   [Net.ServicePointManager]::SecurityProtocol = $originalSecurityProtocol
-  if ($null -eq $originalCcccHome) { Remove-Item Env:CCCC_HOME -ErrorAction SilentlyContinue } else { $env:CCCC_HOME = $originalCcccHome }
-  if ($null -eq $originalLauncherPath) { Remove-Item Env:CCCC_LAUNCHER_PATH -ErrorAction SilentlyContinue } else { $env:CCCC_LAUNCHER_PATH = $originalLauncherPath }
+  if ($null -eq $originalNiumaHome) { Remove-Item Env:NIUMA_HOME -ErrorAction SilentlyContinue } else { $env:NIUMA_HOME = $originalNiumaHome }
+  if ($null -eq $originalLauncherPath) { Remove-Item Env:NIUMA_LAUNCHER_PATH -ErrorAction SilentlyContinue } else { $env:NIUMA_LAUNCHER_PATH = $originalLauncherPath }
   Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }

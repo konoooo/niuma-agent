@@ -664,7 +664,7 @@ export function WebAccessTab({
     } finally {
       api.setForceTokenLogin();
       api.clearAuthToken();
-      document.cookie = "cccc_access_token=; path=/; max-age=0";
+      document.cookie = "niuma_access_token=; path=/; max-age=0";
     }
     setSession((prev) =>
       prev
@@ -778,8 +778,8 @@ export function WebAccessTab({
                   isWildcardHost(effectiveHost) ? "<your-lan-ip>" : effectiveHost,
                   effectivePort,
                 ),
-            restartCommand: "cccc",
-            standaloneCommand: "cccc web",
+            restartCommand: "niuma-agent",
+            standaloneCommand: "niuma-agent web",
           });
           pushHint(t("webAccess.restartRequired"));
         }
@@ -950,7 +950,7 @@ export function WebAccessTab({
       }
       setPendingDeleteTokenId(null);
       if (resp.result?.deleted_current_session || !resp.result?.access_tokens_remain) {
-        document.cookie = "cccc_access_token=; path=/; max-age=0";
+        document.cookie = "niuma_access_token=; path=/; max-age=0";
         api.clearAuthToken();
         if (!endConnectFrame()) window.location.reload();
         return;

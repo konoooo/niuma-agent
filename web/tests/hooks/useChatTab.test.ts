@@ -114,7 +114,7 @@ describe("dedupeStreamingEvents", () => {
       kind: "chat.message",
       by: "user",
       data: {
-        text: "[CCCC] INTERNAL CONTROL",
+        text: "[NIUMA] INTERNAL CONTROL",
         to: ["architect"],
         refs: [
           {

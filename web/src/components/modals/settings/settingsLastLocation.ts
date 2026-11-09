@@ -1,6 +1,6 @@
 import type { GlobalTabId, GroupTabId, SettingsScope } from "./types";
 
-const STORAGE_KEY = "cccc.settings.lastLocation.v1";
+const STORAGE_KEY = "niuma-agent.settings.lastLocation.v1";
 
 const groupTabIds = new Set<GroupTabId>([
   "automation",

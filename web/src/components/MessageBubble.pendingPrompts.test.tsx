@@ -63,7 +63,7 @@ const betweenMembers: LedgerEvent = {
 
 afterEach(() => {
   useUIStore.setState({ showPendingPrompts: true });
-  localStorage.removeItem("cccc-pending-prompts");
+  localStorage.removeItem("niuma-pending-prompts");
 });
 
 it("marks a request to the user only while the 'Waiting for you' indicators are shown", async () => {

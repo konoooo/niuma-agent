@@ -47,7 +47,7 @@ describe("message row grouping", () => {
   it("tells apart writers who share one relay sender", () => {
     const remote = (user: string, group = "g_remote") =>
       message("connect:i_remote", "2026-11-02T15:00:00Z", {
-        source_platform: "cccc_connect",
+        source_platform: "niuma_connect",
         source_user_id: user,
         src_group_id: group,
       });

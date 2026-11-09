@@ -1,23 +1,23 @@
 # Web UI Guide
 
-The CCCC Web UI is a mobile-first control plane for managing your AI agents.
+The 牛马Agent Web UI is a mobile-first control plane for managing your AI agents.
 
 ## Accessing the Web UI
 
-After starting CCCC:
+After starting 牛马Agent:
 
 ```bash
-cccc
+niuma-agent
 ```
 
 Open http://127.0.0.1:8848/ in your browser.
 
-`cccc` is the single owner of the default local app session: it starts the daemon and Web together, and pressing `Ctrl+C` stops both together. If another `cccc` session is already running for the same `CCCC_HOME`, a second `cccc` command will refuse to start instead of silently sharing the old daemon.
+`niuma-agent` is the single owner of the default local app session: it starts the daemon and Web together, and pressing `Ctrl+C` stops both together. If another `niuma-agent` session is already running for the same `NIUMA_HOME`, a second `niuma-agent` command will refuse to start instead of silently sharing the old daemon.
 
 If the Web server and its daemon report different versions, a dismissible notice
 shows both and says that some features may not work. A difference does not by
 itself establish that they are incompatible. If version information is unavailable,
-the notice is not shown. `cccc daemon start`, `cccc web` and `cccc --headless`
+the notice is not shown. `niuma-agent daemon start`, `niuma-agent web` and `niuma-agent --headless`
 also report a different running daemon version when they reuse one; they do not
 replace that daemon. Dismissing
 the notice remembers that pair of versions in this browser's site storage; a
@@ -25,8 +25,8 @@ different pair can show a new notice. If storage is unavailable, dismissal lasts
 until the page reloads.
 
 If **Waiting for you** says that the running daemon does not support it, finish
-current work before restarting: on the CCCC host, use the same `CCCC_HOME` to run
-`cccc daemon stop`, then start CCCC from the intended installation. Restarting
+current work before restarting: on the 牛马Agent host, use the same `NIUMA_HOME` to run
+`niuma-agent daemon stop`, then start 牛马Agent from the intended installation. Restarting
 only the Web can leave the old daemon running. If services are managed separately,
 use their service manager to restart them as appropriate; remote users should ask
 the administrator. Stopping the daemon can interrupt work still in progress.
@@ -40,8 +40,8 @@ The Web UI has these main areas:
 - **Main Area**: Group message history or a paginated terminal view
 - **Input**: Message composer with @mention support
 
-The local Group list scrolls independently from the collapsible **CCCC Connect**
-section and the Voice dock below it. CCCC Connect starts collapsed; click its heading
+The local Group list scrolls independently from the collapsible **牛马Agent Connect**
+section and the Voice dock below it. 牛马Agent Connect starts collapsed; click its heading
 to expand or collapse the instance list. The section's information button opens the full
 local instance name and public address. Group rows are more compact, while their
 ordering stays unchanged; connection counts and action menus keep fixed positions,
@@ -146,7 +146,7 @@ Use **Connect sessions** above the Group list to admit user-owned Codex, Claude 
 
 On desktop, Group editing, search, context and runtime controls stay directly in the header.
 **Group connections** is available under the current Group’s settings and in each Group’s sidebar **⋮** menu, including remote Groups
-in CCCC Connect. The settings entry manages the current Group; the sidebar menu manages the Group
+in 牛马Agent Connect. The settings entry manages the current Group; the sidebar menu manages the Group
 whose menu you opened. Only incoming invitations ask which local Group should accept
 the connection.
 **Settings and more** opens with your account, where your access includes it, and the full
@@ -311,7 +311,7 @@ until you leave it. A failed load or an unknown or stale count does not trigger 
 and a small pin follows its time. The **Pinned** tab shows how many the Group has and lists them in
 full, in conversation order, each with **Show in chat**. A message unpinned there stays listed, so
 you can pin it again, until you leave the tab or come back to the page, when the list is read again.
-Pins belong to the Group and are kept by the daemon: everyone who uses the Group in this CCCC's Web
+Pins belong to the Group and are kept by the daemon: everyone who uses the Group in this 牛马Agent's Web
 UI shares them, on any browser or device, and each page reads them again when the Group opens or the
 page becomes visible. A read-only exhibit neither shows nor changes them, and agents do not receive
 them in messages or tools. A Group keeps up to 100 pins. When a pinned message can no longer be
@@ -441,7 +441,7 @@ inspection. The view uses saved content; unsaved drafts remain intact when switc
 views. **Refresh directory** refreshes the current Git view as well. Lists are read
 on entry and after local writes while visible, without periodic background scanning.
 
-Changes is read-only: CCCC does not stage, discard, commit or push on behalf of the
+Changes is read-only: 牛马Agent does not stage, discard, commit or push on behalf of the
 user. These remain terminal operations because agents may share the repository's
 index. Large lists/diffs show an explicit limit; Git failures are not shown as a
 clean workspace. Phones retain their existing read-only Files behavior and can view
@@ -449,7 +449,7 @@ Git changes in the same full-screen surface.
 
 Symbolic links have a link icon. If the target is missing, outside the workspace,
 or inaccessible, its row explains why and disables content actions; you can still
-copy its path, or rename/remove the link on desktop without changing its target. CCCC does not repair links created by other tools or download files
+copy its path, or rename/remove the link on desktop without changing its target. 牛马Agent does not repair links created by other tools or download files
 outside the workspace. After fixing a link on disk, use **Refresh directory**.
 
 An empty file panel shows **No files to display** after loading completes. If ignored
@@ -487,10 +487,10 @@ controls whether the URL is on the media element or a nested `source`.
 HTML does not load external resources. Workspace paths, including percent-encoded
 names, still undergo the same permission and scope checks. Root-relative document
 links refer to the workspace root. Office documents and other unsupported formats
-can be downloaded; CCCC does not upload them to an online document viewer.
+can be downloaded; 牛马Agent does not upload them to an online document viewer.
 
 Media and PDFs stream directly from the selected workspace and support byte ranges;
-CCCC does not transcode or upload files to cloud storage. Each request checks the
+牛马Agent does not transcode or upload files to cloud storage. Each request checks the
 Group permissions and opened workspace identity. Remote playback uses
 the instance's upload bandwidth. Public Cloudflare Tunnel access remains subject
 to Cloudflare's video/large-file distribution terms; preview support does not
@@ -538,7 +538,7 @@ with work already underway for a voice conversation or a background notification
 answer may also be returned through voice.
 
 Text sent through Chet's main input, observed voice transcripts and voice delegations, and their
-available work receipts and results are retained on the machine running CCCC as Chet's history. Drafts that have not
+available work receipts and results are retained on the machine running 牛马Agent as Chet's history. Drafts that have not
 been sent stay in this browser and are shared by tabs using the same Web address; editing the draft
 concurrently in two tabs can overwrite a change. A receipt means work was accepted, not that it
 finished; if the outcome cannot be confirmed, Chet says so and does not automatically replay it.
@@ -558,7 +558,7 @@ arrive independently, so their display order does not establish a one-to-one rel
 #### Messages from Groups
 
 A Group member can address Chet with `@chet` as the only recipient, using **Send** or
-**Request reply**; Mail is not available for Chet. In the Web UI, a CCCC administrator can choose
+**Request reply**; Mail is not available for Chet. In the Web UI, a 牛马Agent administrator can choose
 `@chet` in a Group's recipient row. If a member's ID or title is `chet`, `@chet` is ambiguous and
 the send is refused. Chet's messages in a Group are labelled **Chet**, and a reply to one without
 other recipients goes back to Chet. Chet writes to a Group directly; it does not forward
@@ -574,7 +574,7 @@ your typed or spoken requests go ahead of Group messages still
 waiting, and a Group turn already running is not interrupted. Once Chet has finished, the entry
 links the reply it finds in the Group, which **View reply** opens, or says that no reply is seen
 yet; a reply in the Group does not show that the sender has read it. A Group message whose
-submission cannot be confirmed is not resent automatically. While the CCCC Web service is
+submission cannot be confirmed is not resent automatically. While the 牛马Agent Web service is
 stopped, messages to Chet wait in their Groups and are taken up when it starts again; while
 Chet's Runtime is unavailable, they wait as well. A message whose sender has left the Group or
 been replaced by the time it is taken up can remain only in its Group. A message in Chet's
@@ -596,7 +596,7 @@ During a call, a message Chet sends to a Group while the call is recording count
 handoff, so the member's reply can be read aloud. The recording state approximates this; it does not
 show which input started Chet's turn. A request you typed during the call can therefore be
 included, and a handoff Chet sends after the call has ended is not read aloud, although a
-member's reply to it can still be taken up by Chet when the CCCC Web service and Chet's Runtime
+member's reply to it can still be taken up by Chet when the 牛马Agent Web service and Chet's Runtime
 are available.
 
 During a call, investigations include a bounded recent excerpt so Chet
@@ -633,15 +633,15 @@ the selected service and each service's voice independently. Microphone and spea
 shared with Voice Secretary. Switching service does not change the independent Chet runtime or
 its retained conversation. Spoken instructions can override expression defaults.
 
-On the CCCC host, **Codex Voice** uses `codex login`; **Grok Voice** uses a first-party Grok Build
-subscription login (`grok login`) and requires `grok` on CCCC's PATH. Neither path requires an extra
+On the 牛马Agent host, **Codex Voice** uses `codex login`; **Grok Voice** uses a first-party Grok Build
+subscription login (`grok login`) and requires `grok` on 牛马Agent's PATH. Neither path requires an extra
 API key. The console distinguishes a missing Grok executable from a missing login and offers a status
 refresh. Status reads do not start a CLI or refresh login; Start uses Grok's native authentication
 manager, including its credential lock, and gives the browser only a short-lived connection secret.
 Grok uses `grok-voice-3.0`, direct browser WebSocket audio and server voice-activity detection. The
 browser resamples its microphone to 24 kHz PCM and plays output through the shared selected speaker.
 An interrupted response stops locally at once. An investigation tool acknowledges reception after
-CCCC accepts it; the actual result returns later through the same global Chet.
+牛马Agent accepts it; the actual result returns later through the same global Chet.
 
 The host advertises each service's supported voices and default; Web has no second voice allowlist.
 Codex offers 25 voices, including Himari, Miko, Rindo and Rivage, with Cove as its default. Grok
@@ -649,7 +649,7 @@ currently offers 28 built-in voices with Eve as its default. The menu shows docu
 hints for new Codex voices and supports searching by language; these hints do not restrict the
 conversation language. A saved choice is preserved until the
 host catalog confirms it is unavailable. Account eligibility, service availability and subscription
-limits remain provider-owned; CCCC does not promise free or unlimited voice usage.
+limits remain provider-owned; 牛马Agent does not promise free or unlimited voice usage.
 
 #### Message notifications and source links
 
@@ -700,16 +700,16 @@ Chet session remains unconfirmed rather than being silently executed again by it
 The text and voice interfaces use the same assistant:
 
 - **Realtime Voice** owns the low-latency spoken conversation, interruption, and clarification.
-- **Chet** uses a managed Runtime session for file inspection, tools, current CCCC facts,
+- **Chet** uses a managed Runtime session for file inspection, tools, current 牛马Agent facts,
   and substantial analysis. Voice delegations can return progress and results to the spoken
   conversation. Under local user authority the Runtime has tools to list Groups and query an explicitly named Group;
   this first slice does not yet provide the planned cross-Group summary and hand-off receipts.
   See [Runtimes](runtimes.md) for supported modes and their validation limits.
 
-CCCC starts Chet in one stable neutral directory at
-`CCCC_HOME/state/codex_voice/analyst-workdir/`. It is not a repository, Working Group, implicit MCP
+牛马Agent starts Chet in one stable neutral directory at
+`NIUMA_HOME/state/codex_voice/analyst-workdir/`. It is not a repository, Working Group, implicit MCP
 target, or authorization boundary. Voice therefore starts without a selected Group or attached
-repository and never changes identity when the sidebar selection changes. Chet's CCCC MCP
+repository and never changes identity when the sidebar selection changes. Chet's 牛马Agent MCP
 session has global user authority and the full tool catalog, but it receives no default `group_id`;
 every Group, agent, task, ledger, or repository operation must resolve and pass an explicit target.
 Repository modification remains work for the target Group's Foreman or peer rather than work rooted
@@ -719,14 +719,14 @@ An embedding application can provide optional `application_context` in
 `POST /api/v1/codex_voice/calls`: `{ "id": "work:123", "instructions": "Reply in Japanese for the current work." }`.
 The ID is 1–128 ASCII letters, digits, `-`, `_`, `.`, or `:`; instructions are
 nonempty UTF-8 text up to 24 KiB (24,576 bytes), without control characters except newline and tab.
-The same byte limit applies to assistant and persona modes. CCCC rejects oversized text
+The same byte limit applies to assistant and persona modes. 牛马Agent rejects oversized text
 instead of truncating it. This is a local input size limit, not a provider token limit;
 token counts vary with the text and model, and provider limits still apply.
-CCCC holds this context unchanged for that call. In assistant mode, it includes the context
+牛马Agent holds this context unchanged for that call. In assistant mode, it includes the context
 in Realtime startup instructions and every assistant delegation, and uses a context-aware greeting.
 Replaying the same client session and SDP with different context returns busy rather
 than silently reusing the old call. Omitting the field preserves the global Voice behavior.
-Context is not authentication, a selected CCCC Group, a tool permission, or an isolated
+Context is not authentication, a selected 牛马Agent Group, a tool permission, or an isolated
 Chet session. The host application remains responsible for authorization, business
 records and any session reset needed when changing subjects. Do not include credentials.
 
@@ -746,13 +746,13 @@ For host-defined roleplay, set `application_context.mode` to `"persona"`:
 ```
 
 The default mode is `"assistant"`; explicitly specifying it behaves like omitting it.
-In persona mode CCCC supplies only the host's instructions, without its assistant role,
+In persona mode 牛马Agent supplies only the host's instructions, without its assistant role,
 routing instructions or saved expression preferences. It does not resolve, launch, attach
 or reset Chet's Runtime. Incoming delegation events are ignored; agent/Group notifications
 are neither consumed nor spoken. An existing Chet session and its pending notifications remain
 available for later assistant calls. Authorization checks, the single-call microphone lease,
 heartbeats and disconnect cleanup still apply. The host decides the opening behavior in
-its instructions; CCCC sends only a neutral call-start cue.
+its instructions; 牛马Agent sends only a neutral call-start cue.
 
 Check `GET /api/v1/codex_voice/calls/active` first: `readiness.supported_modes` advertises
 `["assistant", "persona"]`. For persona, check `realtime_credentials_available`; do not
@@ -765,22 +765,22 @@ managed global Chet session, if one exists. A different mode with the same clien
 returns busy, just like a changed context or SDP. Stop the old call before changing modes.
 
 **Experimental provider boundary:** persona startup omits the quicksilver `delegation`
-configuration and CCCC enforces no local delegation execution. Omission must not be treated
+configuration and 牛马Agent enforces no local delegation execution. Omission must not be treated
 as proof that the upstream model cannot emit delegation events. [Public GPT-Live documentation](https://developers.openai.com/api/docs/guides/live-delegation#configure-responses-delegation) describes
-`delegation: null` as client mode, not as a disabling setting; CCCC's experimental quicksilver
+`delegation: null` as client mode, not as a disabling setting; 牛马Agent's experimental quicksilver
 v2 behavior and both opening directions require real-call acceptance before production use.
 The host instructions do not override the provider's own system rules.
 
-CCCC reads the existing Codex credential only in the native process that creates the provider call;
+牛马Agent reads the existing Codex credential only in the native process that creates the provider call;
 the browser receives the WebRTC answer and bounded session events, not the credential. Use the
 console to mute the microphone, resume browser-blocked playback, or stop the call.
-Chet uses the configured Runtime under the same local user authority as CCCC. Its
+Chet uses the configured Runtime under the same local user authority as 牛马Agent. Its
 authentication and model provider are independent from the Realtime login: the default launch
 inherits the normal Codex configuration, while Custom or Runtime Profile settings can select Codex,
 Claude Code, Grok, OpenCode, Kilo, or official ACP for Antigravity, Copilot, Devin and Cursor,
 and configure that runtime's provider home, model provider, or API key without
 changing the Realtime credential path. The two sides exchange only
-delegations, progress, and results through the CCCC controller. The Runtime's actual permission
+delegations, progress, and results through the 牛马Agent controller. The Runtime's actual permission
 behavior follows its selected command and mode.
 
 For a pure ACP Runtime, **Activity** shows structured output instead of a terminal.
@@ -808,9 +808,9 @@ the agent-only submit field does not alter the Voice host. Historical Profiles w
 and normalized to the canonical argument array when next saved.
 
 Antigravity is supported only in official ACP mode and shares the agent adapter and separate
-CCCC-managed Google login. It shows structured progress, results, queued input and one-time
+牛马Agent-managed Google login. It shows structured progress, results, queued input and one-time
 permission requests instead of a terminal. An existing Antigravity TUI Profile is not eligible.
-Run `cccc setup --runtime antigravity --runtime-mode acp --login` once before using it.
+Run `niuma-agent setup --runtime antigravity --runtime-mode acp --login` once before using it.
 The Voice console gives this command when the ACP component is not installed;
 native `agy` availability and its login do not satisfy this prerequisite. Reading status does not
 download the component or start authentication. An explicit
@@ -820,31 +820,31 @@ queue of up to 32; cancellation clears current and queued inputs, except Group m
 waiting behind your own request. Other Runtime input behavior
 and Realtime credentials stay unchanged.
 
-For Codex, CCCC removes conflicting host flags and pins app-server,
+For Codex, 牛马Agent removes conflicting host flags and pins app-server,
 `shell_environment_policy.inherit=all`, `approval_policy=never`,
-`sandbox_mode=danger-full-access`, the neutral Voice workspace, and the global CCCC MCP binding. For
-Grok, CCCC accepts a direct root command with supported global provider/model options, then owns the
+`sandbox_mode=danger-full-access`, the neutral Voice workspace, and the global 牛马Agent MCP binding. For
+Grok, 牛马Agent accepts a direct root command with supported global provider/model options, then owns the
 private leader socket, ACP controller, native TUI attachment, YOLO policy, workspace, and per-session
 MCP binding. Grok subcommands, wrappers, prompt tails, and user-owned topology/session flags are
 rejected rather than routed through a second PTY path. OpenCode V2 uses a private `serve --stdio` HTTP/SSE backend with its native
 `--server --session` TUI. Kilo uses its own ACP process and `kilo attach`.
-CCCC owns the session, authenticated loopback backend, one-time permissions
+牛马Agent owns the session, authenticated loopback backend, one-time permissions
 and scoped MCP injection. Supported model, agent and logging choices remain
 configurable; pure mode is Kilo-only. Kilo's official Windows npm entrypoint
 uses Node and the installed launcher. Custom wrappers, subcommands, prompt tails,
 and user-owned topology or session flags fail explicitly. OpenCode requires
 V2 2.1.4 or newer; old V1 receipts and history are retained for explicit migration
 or a deliberate New session.
-These CCCC-owned values cannot be overridden.
+These 牛马Agent-owned values cannot be overridden.
 
-For Claude Code, CCCC requires both the launcher and background worker to report version 2.1.259
+For Claude Code, 牛马Agent requires both the launcher and background worker to report version 2.1.259
 or newer. Their versions can differ after a Claude update; an upgraded supervisor may retain older
-workers or migrate idle sessions without changing the managed session's identity. CCCC owns the Agent View
+workers or migrate idle sessions without changing the managed session's identity. 牛马Agent owns the Agent View
 background session, authenticated control channel, transcript lifecycle,
 native `claude attach`, session identity, MCP binding, autonomy, and resume
 arguments. Supported model, effort, agent, tool, plugin, and settings options
 remain configurable. Private Profile environment is merged into a protected
-CCCC settings file so the background worker receives it without exposing raw
+牛马Agent settings file so the background worker receives it without exposing raw
 values in the job record or Web API. Claude wrappers, renamed binaries, prompt
 tails, print mode, remote-control mode, and user-owned background/session
 arguments fail explicitly; there is no Hook, PTY-paste, or `claude -p` fallback.
@@ -853,11 +853,11 @@ For runtimes with a native terminal, the controller and TUI are separate process
 app-server and remote TUI receive the same executable, model, Profile, supported `-c` overrides, YOLO
 policy, and private environment. Claude's Agent View controller, transcript follower, and native TUI
 share one background session and one effective launch identity. Grok's leader, ACP client, and TUI share one resolved provider
-configuration, private environment, and exact session; CCCC adds topology arguments only to the
+configuration, private environment, and exact session; 牛马Agent adds topology arguments only to the
 processes that accept them. OpenCode V2 uses its HTTP/SSE controller; Kilo uses ACP. Both attach a native TUI to
-one authenticated provider backend and exact session. CCCC injects the scoped MCP binding when it creates the
+one authenticated provider backend and exact session. 牛马Agent injects the scoped MCP binding when it creates the
 managed session,
-so the model reached from either client has the same CCCC tools. Opening the embedded terminal
+so the model reached from either client has the same 牛马Agent tools. Opening the embedded terminal
 therefore observes and controls the existing Chet session instead of starting another model
 conversation.
 
@@ -868,7 +868,7 @@ can quote conversation content or credentials and are not logged. A stopped
 audio call does not discard the warm Chet session. Provider diagnostics do
 not retry requests or change the existing disconnect policy.
 
-For startup or later connection failures, keep the CCCC and Runtime versions
+For startup or later connection failures, keep the 牛马Agent and Runtime versions
 alongside the first server-log diagnostic. Realtime startup reports its stage,
 elapsed time, and available request/TLS categories and OS error code. Managed
 Codex disconnects report the session generation, child-process state and
@@ -885,7 +885,7 @@ are bound to a concrete Group and agent MCP identity, while Chet uses the global
 identity and its neutral workspace. These are separate roles over the same adapter, not divergent
 session paths. Agent messages enter the native TUI immediately, leaving queue-versus-steer
 behavior to the receiving Runtime. Realtime Voice decides whether a spoken request needs Chet,
-but it does not schedule Chet's process. CCCC attempts each correlated delegation immediately:
+but it does not schedule Chet's process. 牛马Agent attempts each correlated delegation immediately:
 Codex can append an explicit in-flight correction through exact-turn steering, while the other
 admitted Runtimes receive the exact input through their verified native terminal and own whether it
 steers or queues. Busy state alone never drops or delays a delegation for these runtimes. Antigravity ACP has no native busy-input surface, so its additional inputs instead enter the visible bounded queue described above.
@@ -893,7 +893,7 @@ All admitted Runtime commands fail explicitly when they cannot join the managed
 session instead of falling back to a second execution path.
 
 Custom non-secret settings live in `settings.yaml`; custom private values live in
-`CCCC_HOME/state/secrets/codex_voice_analyst.json`. Profile secrets remain owned by the Runtime
+`NIUMA_HOME/state/secrets/codex_voice_analyst.json`. Profile secrets remain owned by the Runtime
 Profile store, and Web receives key names only. Applying a valid setting while idle restarts the
 managed host and resumes the same materialized Chet session. Runtime settings cannot change while
 Realtime Voice is connected. If Chet still has active or queued work after voice stops, Web
@@ -935,13 +935,13 @@ them is not guaranteed. A later call reuses the warm
 Chet session. If the selected Runtime supports a native TUI, Activity embeds it for that same
 session; otherwise Activity shows structured output. It stays available after the call stops and does
 not create an agent or a second session. Codex creates its resumable rollout lazily, so its terminal appears when the first real
-investigation starts; Claude, Grok, OpenCode, and Kilo managed TUIs can attach as soon as their sessions are ready. CCCC does not
+investigation starts; Claude, Grok, OpenCode, and Kilo managed TUIs can attach as soon as their sessions are ready. 牛马Agent does not
 create a token-consuming placeholder task. **New session** is the explicit reset action and is
 available only after the call stops. Raw local paths, provider session IDs, loopback endpoints, and
 external terminal commands are deliberately not part of the product surface.
 
 The embedded native TUI remains writable while managed work is active. The receiving Runtime owns
-whether new terminal input steers the current turn or queues for the next one; CCCC registers exact
+whether new terminal input steers the current turn or queues for the next one; 牛马Agent registers exact
 Voice input before writing it and uses the Runtime's authoritative echo to associate the result with
 the correct delegation. OpenCode V2 Chet results follow consumed inbox IDs, model output and terminal
 execution events on the same ordered backend stream. Prompt admission alone is
@@ -950,11 +950,11 @@ the native terminal to interrupt, or stop the owning session. A completed Voice
 turn with no result is reported as failed instead of silently returning an empty answer.
 
 The session manager keeps at most one voice call and one warm Chet Runtime per interactive
-Web host. The normal launcher permits one such Web process per `CCCC_HOME`, while the call also uses
+Web host. The normal launcher permits one such Web process per `NIUMA_HOME`, while the call also uses
 the existing daemon-owned global recording lease shared with Voice Secretary. Hiding the details
 panel, switching Groups, or leaving the tab in the background does not stop or retarget the call.
 Application-level heartbeats keep the otherwise idle event WebSocket alive through ordinary proxies.
-Explicit cross-Group CCCC queries do not retarget the neutral Chet workspace. Use **Stop voice**
+Explicit cross-Group 牛马Agent queries do not retarget the neutral Chet workspace. Use **Stop voice**
 to disconnect explicitly.
 Closing or reloading the owning page or losing its browser transport ends only the live call and
 releases the recording lease. Stopping Web also stops the warm Chet process and embedded TUI while
@@ -1010,7 +1010,7 @@ intend to restart the dedicated browser; its saved profile and delivery target a
 ### Creating and editing a Group
 
 Click **+ New** in the sidebar, select the workspace directory and create the
-Group. You can also run `cccc attach /path/to/project` on the CCCC host.
+Group. You can also run `niuma-agent attach /path/to/project` on the 牛马Agent host.
 Select a Group in the sidebar to open it; use the pencil beside its header name
 to edit its title and description.
 
@@ -1024,7 +1024,7 @@ remain separate from **This instance** settings.
 
 Use the **+** in the Agent bar near the composer to add an Agent. Choose an
 installed Runtime, set its agent ID and review the configuration before adding it.
-The Runtime selector reports detection on the machine running CCCC, rather than
+The Runtime selector reports detection on the machine running 牛马Agent, rather than
 the browser device. Use **Check again** after installing a Runtime; a failed check
 is shown separately from a Runtime that was not detected. Detection does not
 confirm provider login or successful task execution. Antigravity reports its native
@@ -1040,7 +1040,7 @@ semantics; use the action's explanation before discarding a session.
 
 ### 临时离岗与召回
 
-点击成员头像，在成员操作中选择「临时离岗」。目前支持 CCCC 托管的 Codex 和
+点击成员头像，在成员操作中选择「临时离岗」。目前支持 牛马Agent 托管的 Codex 和
 Claude 成员；外部原生会话仍由原拥有者管理。离岗保留成员身份、头像、模型设置与
 原会话，永久移除仍使用原有删除入口。
 
@@ -1060,7 +1060,7 @@ Claude 成员；外部原生会话仍由原拥有者管理。离岗保留成员�
 交接进入提交阶段后只能继续协调，不能撤销已经开始提交的移交。总结或任务内容
 变化时，接手人需要重新确认。聊天中的口头承诺不代替系统回执。
 
-成员使用 `cccc_actor_leave` 查询交接、提交总结、分配任务、确认接手和确认返岗；
+成员使用 `niuma_actor_leave` 查询交接、提交总结、分配任务、确认接手和确认返岗；
 离岗与召回由用户发起。信息不足或运行失败时保留待处理状态，不标记交接完成。
 下班期间发起的交接或召回会保存，等团队上班后继续；不会自动重做离岗前的旧消息，
 也不会代替用户批准待确认事项。
@@ -1073,10 +1073,10 @@ Claude 成员；外部原生会话仍由原拥有者管理。离岗保留成员�
 On first launch, managed Claude may ask you to trust its workspace or acknowledge
 its bypass-permissions disclaimer. The existing agent terminal stays available,
 and agent details show a persistent **Awaiting your confirmation in the terminal**
-notice. Make the choice yourself in that terminal and keep it open. CCCC does not
+notice. Make the choice yourself in that terminal and keep it open. 牛马Agent does not
 answer the prompt or grant approval for you.
 
-CCCC treats changes to Claude's confirmation files as a reason to retry the managed
+牛马Agent treats changes to Claude's confirmation files as a reason to retry the managed
 Agent View launch. It reconnects and resumes message delivery only after that
 retry succeeds; the waiting notice clears when the updated runtime state arrives.
 If you decline or exit the prompt, the agent stays stopped for the current daemon
@@ -1140,7 +1140,7 @@ address it explicitly; `@foreman` also wakes the coordinator. An explicit target
 wakes when combined with a broadcast. Mail leaves disabled agents stopped.
 
 Messages larger than 64 KiB after UTF-8 encoding are sent as UTF-8 text attachments for
-same-group and CCCC Connect reply targets. Local cross-group text remains inline because its two
+same-group and 牛马Agent Connect reply targets. Local cross-group text remains inline because its two
 local ledgers cannot share one attachment path; the bounded daemon IPC limit covers that JSON route.
 This applies to typed, pasted, dictated, suggested, and restored drafts. Slash commands still require
 inline text and therefore reject an automatically attached oversized body.
@@ -1199,9 +1199,9 @@ Choose **Reply** on a message to quote it and reply in the composer.
 reply at once without the composer: **Agree, go ahead**, **Explain why**, **Try another way** or
 **Give me choices**, each led by an emoji under the caption **Quick reply · sends immediately**.
 It goes to that agent alone, quotes the message, and a notice confirms it.
-Chet's messages, messages from or sent to another Group or CCCC instance and
+Chet's messages, messages from or sent to another Group or 牛马Agent instance and
 questions answered in their own card have no quick replies; reply to them in the composer. When
-CCCC cannot confirm that a quick reply was sent, the notice says so and offers **Retry**; check
+牛马Agent cannot confirm that a quick reply was sent, the notice says so and offers **Retry**; check
 the messages first, because a retry can send the reply twice.
 
 ## Project Context
@@ -1268,7 +1268,7 @@ Enter/Space. Switching sections retains summary/file drafts and task filters.
   instruction discovery and precedence. Saving does not reload running sessions;
   the optional team notification asks relevant agents to re-read the file.
   This editor does not represent all instruction files loaded by every agent.
-  Web Model and Dots agents can read files through `cccc_file` when needed.
+  Web Model and Dots agents can read files through `niuma_file` when needed.
 - **Agent State** shows the latest saved reports, including their timestamps and
   staleness. Focus, next action and blockers remain visible. Expand working context
   or recovery cues when needed. A task named in a report does not prove that its
@@ -1286,8 +1286,8 @@ Open settings from **Settings and more** in the header:
 
 Use **Settings → This instance → Notifications** to enable notifications in
 each browser or installed app where you want them. This is available in the
-private Web UI, not exhibit mode. Keep the CCCC Web service running; closing
-the CCCC page does not stop the service on your server. While requests wait
+private Web UI, not exhibit mode. Keep the 牛马Agent Web service running; closing
+the 牛马Agent page does not stop the service on your server. While requests wait
 for you in a Group, and this browser could show notifications for your account
 but they are not on yet, its messages page also offers them above the message
 box: **Turn on…** opens this settings page, and **Not now** hides the offer in
@@ -1295,8 +1295,8 @@ that browser. No offer appears when the browser cannot use notifications, when
 they are blocked, when the server cannot send them, or when their state cannot
 be confirmed.
 
-1. Open CCCC over HTTPS, or use localhost on the same computer. On iPhone or
-   iPad, first add CCCC to the Home Screen and open it from there; Web Push
+1. Open 牛马Agent over HTTPS, or use localhost on the same computer. On iPhone or
+   iPad, first add 牛马Agent to the Home Screen and open it from there; Web Push
    requires iOS or iPadOS 16.4 or later. See [WebKit's setup guidance](https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/).
 2. Select **Enable notifications** and allow notifications when the browser
    asks. If **Finish enabling** appears, select it to complete the subscription.
@@ -1325,10 +1325,10 @@ requests per browser are retried while the service runs; older requests may
 be dropped. The push service and device may also delay or discard notifications.
 Check **Waiting for you** if a notification does not open its request. On
 Safari 18.5 or later for Mac, and in iPhone or iPad Home Screen apps on iOS 18.4
-or later, opening a notification tries to load CCCC at its message; in a Home
+or later, opening a notification tries to load 牛马Agent at its message; in a Home
 Screen app this can reload the open page, and unsent text in it is then lost.
 Message previews may be visible on the lock screen. The server stores a private
-signing key and subscription secrets in `CCCC_HOME`, so keep it accessible only
+signing key and subscription secrets in `NIUMA_HOME`, so keep it accessible only
 to trusted accounts; on Windows file access depends on the directory's
 permissions.
 
@@ -1342,7 +1342,7 @@ from this page.
 
 Use **Copy Groups** when you need to duplicate, migrate, or back up a working group.
 
-- **Export group copy** downloads a zip containing durable CCCC group state: ledger history, agents, memory, attachments, automation, and group settings.
+- **Export group copy** downloads a zip containing durable 牛马Agent group state: ledger history, agents, memory, attachments, automation, and group settings.
 - The copy package does **not** include the workspace repository/project files. Copy or clone the workspace separately, then choose the workspace root during import. The folder chooser can also create an empty directory if needed.
 - System credentials, browser sessions, provider auth, and live runtime state are excluded. The package still contains user content such as ledger history, memory, and attachments; treat it as sensitive. Imported agents are stopped and the imported group starts idle.
 - If a group id already exists, import creates a new copy instead of replacing the existing group.
@@ -1402,13 +1402,13 @@ To access from outside your local network:
 ### LAN / Private Network
 
 ```bash
-CCCC_WEB_HOST=0.0.0.0 cccc
+NIUMA_WEB_HOST=0.0.0.0 niuma-agent
 ```
 
 This keeps localhost access working while also letting other devices on the same network open `http://YOUR_LAN_IP:8848/ui/`.
 The native launcher also honors the binding saved in **Settings > This instance > Web Access**, including the 0.4.35 `settings.yaml` during migration. Explicit `--host` / `--port` flags still take precedence.
 
-If CCCC is running inside WSL2's default NAT networking, this is the exception: `0.0.0.0` only opens the port inside the Linux VM. For true LAN access from other devices, enable WSL mirrored networking or add a Windows `netsh interface portproxy` rule plus matching firewall allow.
+If 牛马Agent is running inside WSL2's default NAT networking, this is the exception: `0.0.0.0` only opens the port inside the Linux VM. For true LAN access from other devices, enable WSL mirrored networking or add a Windows `netsh interface portproxy` rule plus matching firewall allow.
 
 ### Cloudflare Tunnel (Recommended)
 
@@ -1419,13 +1419,13 @@ cloudflared tunnel --url http://127.0.0.1:8848
 ### Tailscale
 
 ```bash
-CCCC_WEB_HOST=$(tailscale ip -4) cccc
+NIUMA_WEB_HOST=$(tailscale ip -4) niuma-agent
 ```
 
 ### Security
 
 Direct browser access through `localhost`, `127.0.0.1`, or `::1` is passwordless and does not
-create an Access Token. CCCC grants that request an in-memory local administrator principal only
+create an Access Token. 牛马Agent grants that request an in-memory local administrator principal only
 when the reconstructed browser-facing origin is loopback. Unsafe writes and WebSockets must also
 carry the exact same loopback Origin; non-local proxy client addresses are rejected. This local
 principal is never persisted and is not valid through LAN, Reach, a public URL, or a reverse proxy.
@@ -1436,16 +1436,16 @@ the verified localhost Web page also signs that browser in. Enabling hosted Remo
 Access from that local page covers installations linked before this automatic
 setup existed. Existing Tokens are preserved. When first configuring through a
 remote address instead, read `web_bootstrap_token` inside the host's effective
-`CCCC_HOME` (default `~/.cccc`) and enter that one-time code. The file is mode
+`NIUMA_HOME` (default `~/.niuma-agent`) and enter that one-time code. The file is mode
 `0600` on Unix and is removed once administrator setup completes.
 
 The Web Access panel keeps LAN/public `Save`, `Apply now`, and remote-endpoint copying disabled until an Admin Access Token exists. The native daemon and Web boundary enforce the same rule at remote start, apply, and listener boundaries, so direct API calls and stale saved settings cannot bypass the panel. Group-scoped tokens do not satisfy this administrator recovery requirement. Switching back to localhost-only remains available so an incomplete remote setup can be recovered safely.
 
 In **Settings > This instance > Web Access**, `127.0.0.1` means local-only and `0.0.0.0` means localhost plus your LAN IP on a normal local host. On WSL2 NAT, it still stays inside the VM until Windows networking forwards it outward.
 
-`Save` stores the target binding. If Web was started by `cccc` or `cccc web`, use `Apply now` in **Settings > This instance > Web Access** to perform the short supervised restart. If Web is managed by Docker, systemd, or another external supervisor, restart that service instead.
+`Save` stores the target binding. If Web was started by `niuma-agent` or `niuma-agent web`, use `Apply now` in **Settings > This instance > Web Access** to perform the short supervised restart. If Web is managed by Docker, systemd, or another external supervisor, restart that service instead.
 
-Before an address change restarts the supervised Web service, CCCC attempts to
+Before an address change restarts the supervised Web service, 牛马Agent attempts to
 stop its active Voice work and Chet. If their cleanup cannot be confirmed,
 the current Web remains available and the saved address has not yet taken
 effect. Check the Voice state and retry **Apply now** after cleanup. A Voice
@@ -1454,12 +1454,12 @@ being recovered; retry after cleanup, and if the condition persists, review the
 process records as described below. If Chet reset fails after cleanup
 began, refresh the Voice state before deciding whether to try again.
 
-On Unix, CCCC records the processes it starts so that it can clean them up
+On Unix, 牛马Agent records the processes it starts so that it can clean them up
 after a crash. When it cannot confirm that processes from an earlier Web or
 daemon run have ended, Voice does not start, and the Secretary may hold back new
 tasks and the automatic recovery of unfinished documents. The Voice error then
 offers **Review earlier processes**, and the Secretary panel shows **Review**.
-The review lists each record and why CCCC is still waiting:
+The review lists each record and why 牛马Agent is still waiting:
 
 - **Check again** retries cleanup for that record only.
 - **Accept** stops waiting for that record. It does not stop the old work: if
@@ -1470,16 +1470,16 @@ The review lists each record and why CCCC is still waiting:
   accepts them one at a time and stops as soon as anything changes; it is not
   one transaction.
 
-Some records need offline review. Stop CCCC safely, then run
-`cccc daemon process-recovery --owner daemon list` (or `--owner web`),
+Some records need offline review. Stop 牛马Agent safely, then run
+`niuma-agent daemon process-recovery --owner daemon list` (or `--owner web`),
 followed by `retry --id <id> --version <version>` or
-`accept --id <id> --version <version> --accept-risk`. While CCCC Web is
+`accept --id <id> --version <version> --accept-risk`. While 牛马Agent Web is
 running, these commands refuse to change Web's records. Do not delete files
-under `CCCC_HOME` by hand.
+under `NIUMA_HOME` by hand.
 
-Use one `CCCC_HOME` on one host or container at a time. Before moving or
+Use one `NIUMA_HOME` on one host or container at a time. Before moving or
 copying it elsewhere, make sure the work started from it has ended. On that
-basis, CCCC releases records from an earlier boot without signalling anything
+basis, 牛马Agent releases records from an earlier boot without signalling anything
 when it can identify that boot; this does not prove that remote requests ended.
 
 On Linux, cleanup prefers the strongest process identity the system offers and
@@ -1488,25 +1488,25 @@ matching, which can misjudge. On macOS, the crash watchdog still judges
 processes approximately, by process group number and start time to the second: a
 reused number, or the gap between that check and the signal, could stop another
 process by mistake. How often this happens is unknown; earlier versions behave
-the same way. At the next start, CCCC on macOS signals nothing: it releases a
+the same way. At the next start, 牛马Agent on macOS signals nothing: it releases a
 record from this version once its process and its process group have both ended,
 or a record from an earlier version once its process group has ended, and keeps
 the others for review.
 
-For the default local app flow, prefer restarting from the owning `cccc` session itself: `Ctrl+C` to stop the whole app, then run `cccc` again. That keeps daemon and Web on the same fresh code/runtime.
+For the default local app flow, prefer restarting from the owning `niuma-agent` session itself: `Ctrl+C` to stop the whole app, then run `niuma-agent` again. That keeps daemon and Web on the same fresh code/runtime.
 
 `Start` / `Stop` are only for Tailscale remote access and do not rebind the already-running Web socket.
 
-CCCC keeps the token policy simple:
+牛马Agent keeps the token policy simple:
 
 - localhost-only: direct loopback browser requests are passwordless and use a non-persistent local administrator principal
 - LAN/private network and public URL/tunnel/reverse proxy: an Admin Access Token is mandatory before exposure
 
-`CCCC_WEB_ALLOW_UNAUTHENTICATED=1` is only an unsafe listener override; it never grants API authorization or bypasses first-admin bootstrap. Plain HTTP manual LAN exposure is allowed by default for private-network use, but still requires an Admin Access Token before remote APIs can be used. Prefer an HTTPS reverse proxy, tunnel, or encrypted overlay for untrusted networks.
+`NIUMA_WEB_ALLOW_UNAUTHENTICATED=1` is only an unsafe listener override; it never grants API authorization or bypasses first-admin bootstrap. Plain HTTP manual LAN exposure is allowed by default for private-network use, but still requires an Admin Access Token before remote APIs can be used. Prefer an HTTPS reverse proxy, tunnel, or encrypted overlay for untrusted networks.
 
-CCCC adds `frame-ancestors 'self'`, `SAMEORIGIN`, `nosniff`, `no-referrer`, a restrictive permissions policy, and HSTS on HTTPS responses. Supervised CCCC Web processes trust reverse-proxy forwarding headers automatically only while the effective listener is loopback. A supervised LAN/wildcard listener or externally managed reverse proxy must explicitly set `CCCC_WEB_TRUST_PROXY_HEADERS=1` and must overwrite—not append—client-supplied `Forwarded` and `X-Forwarded-*` headers. Direct public listeners should leave this flag unset.
+牛马Agent adds `frame-ancestors 'self'`, `SAMEORIGIN`, `nosniff`, `no-referrer`, a restrictive permissions policy, and HSTS on HTTPS responses. Supervised 牛马Agent Web processes trust reverse-proxy forwarding headers automatically only while the effective listener is loopback. A supervised LAN/wildcard listener or externally managed reverse proxy must explicitly set `NIUMA_WEB_TRUST_PROXY_HEADERS=1` and must overwrite—not append—client-supplied `Forwarded` and `X-Forwarded-*` headers. Direct public listeners should leave this flag unset.
 
-Enter the Access Token in the Web sign-in form. CCCC validates it through the
+Enter the Access Token in the Web sign-in form. 牛马Agent validates it through the
 `Authorization` header and establishes an HttpOnly, `SameSite=Lax` session
 cookie. The cookie has a rolling 30-day lifetime and is refreshed when the Web
 session is checked, avoiding repeated token entry after mobile browsers reclaim
@@ -1515,14 +1515,14 @@ the cookie is established. Access tokens are not accepted in ordinary API, SSE,
 or WebSocket query strings and should never be placed in shared URLs.
 
 For managed remote access, open **Settings → This instance → Web Access** and link this installation
-to your CCCC account in the Reach section. Approve the request on the website,
+to your 牛马Agent account in the Reach section. Approve the request on the website,
 then return to the same local panel. If an administrator Access Token already
 exists, reuse it; otherwise complete the displayed token prerequisite. Choose
 **Turn on remote access** explicitly. Account registration only reserves the
 device address; enabling Reach creates its DNS record and tunnel.
 
-Once enabled, Reach restores automatically when CCCC restarts and its Web
-listener is ready. Keep CCCC running on this computer; opening the settings
+Once enabled, Reach restores automatically when 牛马Agent restarts and its Web
+listener is ready. Keep 牛马Agent running on this computer; opening the settings
 panel is not required. Temporary network/account failures retry in the
 background, with a delay of up to one minute between failed attempts. An
 already-running tunnel helper handles its own network reconnection.
@@ -1530,13 +1530,13 @@ Turning Reach off, unlinking the account, or cutting the device prevents
 automatic restoration. If unlinking cannot complete because the account service
 is unavailable, Reach stays off and the device credential is retained so you can
 retry unlinking. If the installed helper is missing or no longer matches
-this CCCC version, install it explicitly with `cccc reach install`; automatic
+this 牛马Agent version, install it explicitly with `niuma-agent reach install`; automatic
 restoration does not download or upgrade executables.
 
 The panel confirms the connection with at most six status checks over 45 seconds.
 It pauses checks while hidden and never restarts or provisions a tunnel as a
 retry. If confirmation ends without a connection, check this computer's network
-and CCCC process, then use **Check connection**. A stopped helper offers an
+and 牛马Agent process, then use **Check connection**. A stopped helper offers an
 explicit startup retry in addition to daemon recovery. **Turn off** remains available, and other provider/binding
 settings remain locked while Reach is enabled even if the tunnel disconnects.
 
@@ -1560,12 +1560,12 @@ Cookie-authenticated Rust Web writes and WebSocket connections require an exact 
 same-origin `Referer` accepted only as a fallback. This check is independent of
 CORS and blocks same-site sibling domains from submitting state-changing forms.
 
-Cross-origin browser clients can opt in through `CCCC_WEB_CORS_ORIGINS`, a
+Cross-origin browser clients can opt in through `NIUMA_WEB_CORS_ORIGINS`, a
 comma-separated list of exact origins (scheme, host and port). Named origins
 support credentials and are also accepted by Cookie write and Cookie-authenticated
 WebSocket origin checks. Include only trusted client sites.
 
-`CCCC_WEB_ALLOW_ANY_ORIGIN=1` instead enables wildcard HTTP CORS without
+`NIUMA_WEB_ALLOW_ANY_ORIGIN=1` instead enables wildcard HTTP CORS without
 credentials, for clients that explicitly supply an `Authorization: Bearer ...`
 access token and omit browser credentials. It does not bypass Cookie write or
 Cookie-authenticated WebSocket origin checks, create an authenticated principal, or expose the local
@@ -1575,12 +1575,12 @@ WebSocket clients using cookies still need a same-origin connection or a named
 trusted origin. Explicit Bearer-authenticated WebSocket clients do not require an
 Origin match; token and Group permissions still apply.
 If both settings are present, wildcard HTTP CORS takes precedence; use only
-`CCCC_WEB_CORS_ORIGINS` for cross-origin Cookie sessions. Both settings are off
+`NIUMA_WEB_CORS_ORIGINS` for cross-origin Cookie sessions. Both settings are off
 by default and require restarting the Web process to change CORS responses.
 
 #### Reverse proxy headers
 
-When a reverse proxy terminates HTTPS or exposes CCCC under another host, it
+When a reverse proxy terminates HTTPS or exposes 牛马Agent under another host, it
 must overwrite the browser-facing host and protocol headers. These values are
 used by every browser WebSocket (realtime events, terminal, Voice Secretary, projected browser)
 and by Cookie-authenticated write protection:
@@ -1595,12 +1595,12 @@ proxy_set_header Connection "upgrade";
 ```
 
 Do not pass through client-supplied `X-Forwarded-*` values. The trusted proxy
-must overwrite them. CCCC also accepts RFC 7239 `Forwarded` with `host` and
+must overwrite them. 牛马Agent also accepts RFC 7239 `Forwarded` with `host` and
 `proto`, and handles comma-separated multi-proxy `X-Forwarded-*` chains by
 using the first browser-facing value. A mismatch is rejected with
 `csrf_origin_invalid` for Cookie-authenticated writes and WebSockets. If a proxy
 cannot preserve the public host, configure its exact browser origin in
-`CCCC_WEB_CORS_ORIGINS` instead of disabling source protection.
+`NIUMA_WEB_CORS_ORIGINS` instead of disabling source protection.
 
 A token scoped to selected Groups receives global stream
 metadata only for those Groups, and the global stream never carries message
@@ -1609,7 +1609,7 @@ the same scope check. Administrative capability changes require an Admin token.
 
 Same-origin browser requests carrying `Sec-Fetch-Site: same-origin` satisfy the
 Cookie CSRF check even when a reverse proxy rewrites Host or terminates HTTPS.
-This does not require `CCCC_WEB_CORS_ORIGINS` or global proxy-header trust.
+This does not require `NIUMA_WEB_CORS_ORIGINS` or global proxy-header trust.
 Proxies should preserve this browser-generated header, never manufacture it for
 cross-origin requests. `same-site`, `cross-site`, `none`, and missing metadata
 continue through the existing Origin/Referer and configured-origin checks.
@@ -1623,8 +1623,8 @@ proxy makes the origin server read every `https://` page back as `http://`.
 Host and port must still match exactly — a different host, port, or subdomain
 is rejected — and the scheme alone adds nothing, since an attacker able to
 serve a page from this host would already control the site. Proxies that
-rewrite `Host` still need `CCCC_WEB_TRUST_PROXY_HEADERS=1` or an explicit
-`CCCC_WEB_CORS_ORIGINS` entry.
+rewrite `Host` still need `NIUMA_WEB_TRUST_PROXY_HEADERS=1` or an explicit
+`NIUMA_WEB_CORS_ORIGINS` entry.
 
 ### Shared realtime connection
 

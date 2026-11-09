@@ -16,25 +16,25 @@ from scripts.verify_native_wheel import verify
 def _project(root: Path) -> None:
     root.joinpath("pyproject.toml").write_text(
         """[project]
-name = "cccc-pair"
+name = "niuma-agent"
 version = "0.4.36rc1"
-description = "Rust-only CCCC fixture"
+description = "Rust-only 牛马Agent fixture"
 readme = { file = "README.md", content-type = "text/markdown" }
 """,
         encoding="utf-8",
     )
     root.joinpath("LICENSE").write_text("fixture license\n", encoding="utf-8")
     root.joinpath("README.md").write_text(
-        "# CCCC fixture\n\nNative product description.\n", encoding="utf-8"
+        "# 牛马Agent fixture\n\nNative product description.\n", encoding="utf-8"
     )
 
 
 @pytest.mark.parametrize(
     ("platform_tag", "executable"),
     [
-        ("manylinux_2_28_x86_64", "cccc"),
-        ("macosx_11_0_arm64", "cccc"),
-        ("win_amd64", "cccc.exe"),
+        ("manylinux_2_28_x86_64", "niuma-agent"),
+        ("macosx_11_0_arm64", "niuma-agent"),
+        ("win_amd64", "niuma-agent.exe"),
     ],
 )
 def test_builds_dependency_free_rust_only_wheel(
@@ -48,7 +48,7 @@ def test_builds_dependency_free_rust_only_wheel(
     payload = verify(wheel, platform_tag=platform_tag, binary=binary)
 
     assert payload == binary.read_bytes()
-    assert wheel.name == f"cccc_pair-0.4.36rc1-py3-none-{platform_tag}.whl"
+    assert wheel.name == f"niuma_pair-0.4.36rc1-py3-none-{platform_tag}.whl"
     with zipfile.ZipFile(wheel) as archive:
         assert any(
             name.endswith(f".data/scripts/{executable}") for name in archive.namelist()
@@ -56,19 +56,19 @@ def test_builds_dependency_free_rust_only_wheel(
         pip_marker = next(
             name
             for name in archive.namelist()
-            if name.endswith(".data/scripts/.cccc-standalone")
+            if name.endswith(".data/scripts/.niuma-agent-standalone")
         )
         assert archive.read(pip_marker) == b"pip-v1\n"
-        metadata = archive.read("cccc_pair-0.4.36rc1.dist-info/METADATA").decode()
+        metadata = archive.read("niuma_pair-0.4.36rc1.dist-info/METADATA").decode()
     assert "Requires-Dist:" not in metadata
     assert "Programming Language :: Rust" in metadata
     assert "Description-Content-Type: text/markdown" in metadata
-    assert "# CCCC fixture" in metadata
+    assert "# 牛马Agent fixture" in metadata
 
 
 def test_wheel_is_reproducible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"deterministic payload")
     monkeypatch.setenv("SOURCE_DATE_EPOCH", "1770000000")
 
@@ -93,7 +93,7 @@ def test_wheel_is_reproducible(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
 def test_rejects_a_universal_platform_tag(tmp_path: Path) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"payload")
 
     with pytest.raises(ValueError, match="unsupported release wheel platform tag"):
@@ -102,7 +102,7 @@ def test_rejects_a_universal_platform_tag(tmp_path: Path) -> None:
 
 def test_rejects_retired_macos_intel_platform_tag(tmp_path: Path) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"payload")
 
     with pytest.raises(ValueError, match="unsupported release wheel platform tag"):
@@ -127,7 +127,7 @@ def test_source_pep517_build_fails_instead_of_installing_an_empty_wheel() -> Non
 
 def test_rejects_an_extra_fully_recorded_wheel_member(tmp_path: Path) -> None:
     _project(tmp_path)
-    binary = tmp_path / "cccc"
+    binary = tmp_path / "niuma-agent"
     binary.write_bytes(b"native payload")
     wheel = build(
         binary,
@@ -142,7 +142,7 @@ def test_rejects_an_extra_fully_recorded_wheel_member(tmp_path: Path) -> None:
     record_name = next(
         info.filename for info, _ in entries if info.filename.endswith("/RECORD")
     )
-    unexpected = "cccc_pair-0.4.36rc1.data/unexpected.bin"
+    unexpected = "niuma_pair-0.4.36rc1.data/unexpected.bin"
     rewritten = []
     for info, data in entries:
         if info.filename == record_name:

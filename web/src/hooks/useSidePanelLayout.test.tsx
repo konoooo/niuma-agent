@@ -92,7 +92,7 @@ it("resizes Files too, saves on release and restores each Group independently", 
   expect(layout.width).toBe(360);
   await render("a", "files");
   expect(layout.width).toBe(460);
-  expect(JSON.parse(localStorage.getItem("cccc-chat-sessions")!).a.sidePanelWidth).toBe(460);
+  expect(JSON.parse(localStorage.getItem("niuma-chat-sessions")!).a.sidePanelWidth).toBe(460);
 });
 it("snaps into compact slots without shrinking Files or forgetting the expanded width", async () => {
   await render();

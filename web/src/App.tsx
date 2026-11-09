@@ -372,7 +372,7 @@ export default function App({
   const {
     canManageGroups,
     webModeKnown,
-    ccccHome,
+    niumaHome,
     daemonVersionMismatch,
     dismissDaemonVersionMismatch,
     webUpdateAvailable,
@@ -604,7 +604,7 @@ export default function App({
               textScale={textScale}
               readOnly={webReadOnly}
               notificationsAllowed={webModeKnown && !webReadOnly && !connectEmbedded}
-              ccccHome={ccccHome}
+              niumaHome={niumaHome}
               composerRef={composerRef}
               onStartReply={startReply}
               onNativeActorCreated={onNativeActorCreated}

@@ -22,7 +22,7 @@ describe("sendSlashSkillMessageRequest", () => {
     await expect(
       sendSlashSkillMessageRequest({
         selectedGroupId: "g1",
-        message: "/install cccc",
+        message: "/install niuma-agent",
         command: "",
         capabilityId: "",
         toTokens: ["@all"],
@@ -33,7 +33,7 @@ describe("sendSlashSkillMessageRequest", () => {
 
     expect(apiMocks.sendMessage).toHaveBeenCalledWith(
       "g1",
-      "/install cccc",
+      "/install niuma-agent",
       ["@all"],
       undefined,
       "send",
@@ -106,8 +106,8 @@ describe("sendSlashSkillMessageRequest", () => {
     await sendSlashSkillMessageRequest({
       selectedGroupId: "g1",
       message: DEFAULT_CAPSULE_SKILL_TASK_TEXT,
-      command: "/cccc-self-evolution",
-      capabilityId: "skill:agent_self_proposed:cccc-self-evolution",
+      command: "/niuma-self-evolution",
+      capabilityId: "skill:agent_self_proposed:niuma-self-evolution",
       toTokens: ["@all"],
       localId: "local-default",
       replyTarget: null,

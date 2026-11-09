@@ -197,7 +197,7 @@ type Props = {
   onClose: () => void;
 };
 
-/** Review of process records CCCC could not confirm as ended. Reads only when opened. */
+/** Review of process records 牛马Agent could not confirm as ended. Reads only when opened. */
 export function ProcessRecoveryDialog(props: Props) {
   if (!props.isOpen || props.owners.length === 0) return null;
   return <ProcessRecoveryReview {...props} />;
@@ -514,7 +514,7 @@ function ProcessRecoveryReview({ owners: requestedOwners, isDark, onClose }: Pro
   ) => {
     if (diagnostics.length === 0) return null;
     const offline = diagnostics.some((diagnostic) => diagnostic.hint === "use_offline_review");
-    const command = `cccc daemon process-recovery --owner ${owner}`;
+    const command = `niuma-agent daemon process-recovery --owner ${owner}`;
     return (
       <div className="mt-3 space-y-2 text-xs leading-5 text-[var(--color-text-secondary)]">
         {diagnostics.map((diagnostic, index) => (

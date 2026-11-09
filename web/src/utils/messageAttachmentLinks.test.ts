@@ -17,8 +17,8 @@ describe("message attachment links", () => {
       fallbackLabel: "file",
     });
 
-    const preview = new URL(links.previewHref, "https://cccc.example");
-    const download = new URL(links.downloadHref, "https://cccc.example");
+    const preview = new URL(links.previewHref, "https://niuma-agent.example");
+    const download = new URL(links.downloadHref, "https://niuma-agent.example");
     expect(preview.pathname).toBe("/api/v1/groups/g%20demo/blobs/content-hash");
     expect(preview.searchParams.get("filename")).toBe("分析 报告.txt");
     expect(preview.searchParams.get("download")).toBeNull();

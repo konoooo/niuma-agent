@@ -1,6 +1,6 @@
 # Telegram Setup
 
-Connect your CCCC working group to Telegram for mobile access.
+Connect your 牛马Agent working group to Telegram for mobile access.
 
 ## Overview
 
@@ -13,15 +13,15 @@ Telegram is the easiest platform to set up. It's ideal for:
 ## Prerequisites
 
 - A Telegram account
-- CCCC installed and running
+- 牛马Agent installed and running
 
 ## Step 1: Create a Bot
 
 1. Open Telegram and search for `@BotFather`
 2. Start a chat and send `/newbot`
 3. Follow the prompts:
-   - Choose a display name (e.g., "My CCCC Bot")
-   - Choose a username (must end in `bot`, e.g., `my_cccc_bot`)
+   - Choose a display name (e.g., "My 牛马Agent Bot")
+   - Choose a username (must end in `bot`, e.g., `my_niuma_bot`)
 4. BotFather will give you a token like:
    ```
    123456789:ABCdefGHIjklMNOpqrsTUVwxyz
@@ -38,11 +38,11 @@ If you plan to use the bot in group chats, disable group privacy so the bot can 
 The bot still stays silent on unrelated group traffic while the chat is unauthorized or paused. Use a bot command such as `/subscribe` or `/resume`, or explicitly @mention the bot, when you need feedback.
 :::
 
-## Step 2: Configure CCCC
+## Step 2: Configure 牛马Agent
 
 ### Option A: Via Web UI (Recommended)
 
-1. Open the CCCC Web UI at `http://127.0.0.1:8848/`
+1. Open the 牛马Agent Web UI at `http://127.0.0.1:8848/`
 2. Go to **Settings** (gear icon in header)
 3. Navigate to the **IM Bridge** tab
 4. Select **Telegram** as the platform
@@ -51,7 +51,7 @@ The bot still stays silent on unrelated group traffic while the chat is unauthor
    - Or enter an environment variable name (e.g., `TELEGRAM_BOT_TOKEN`)
 6. Click **Save Config**
 
-![CCCC IM Bridge Configuration](/images/cccc-im-bridge-telegram.png)
+![牛马Agent IM Bridge Configuration](/images/niuma-im-bridge-telegram.png)
 
 ::: tip Security Best Practice
 For production use, store the token in an environment variable instead of pasting it directly:
@@ -68,10 +68,10 @@ Then enter `TELEGRAM_BOT_TOKEN` in the Web UI. Never commit tokens to git.
 
 ```bash
 # Using environment variable name
-cccc im set telegram --token-env TELEGRAM_BOT_TOKEN
+niuma-agent im set telegram --token-env TELEGRAM_BOT_TOKEN
 
 # Verify configuration
-cccc im config
+niuma-agent im config
 ```
 
 Both methods save the configuration to your group's `group.yaml`:
@@ -91,13 +91,13 @@ im:
 **Via CLI**:
 
 ```bash
-cccc im start
+niuma-agent im start
 ```
 
 Verify it's running:
 
 ```bash
-cccc im status
+niuma-agent im status
 ```
 
 ### Authorize in Telegram
@@ -111,15 +111,15 @@ New chats must be authorized before they can use the bot:
    abc123xyz
    ```
 4. **Authorize the chat** (choose one):
-   - **Web (recommended):** Open **CCCC Web → Settings → IM Bridge**, find it in **Pending Requests**, and click **Approve** (or paste the key in **Bind**)
+   - **Web (recommended):** Open **牛马Agent Web → Settings → IM Bridge**, find it in **Pending Requests**, and click **Approve** (or paste the key in **Bind**)
    - **Foreman-assisted:** If foreman is online, send the key to foreman and ask foreman to bind it
-   - **CLI:** Run `cccc im bind --key <key>` on the server
+   - **CLI:** Run `niuma-agent im bind --key <key>` on the server
 5. Once authorized, the chat can immediately send and receive messages — no further commands needed
 
 For group chats:
 1. Add the bot to your group
 2. Follow the same authorization flow above
-3. All authorized chats receive messages from CCCC
+3. All authorized chats receive messages from 牛马Agent
 
 ## Usage
 
@@ -148,7 +148,7 @@ Please implement the login feature
 ::: tip Implicit Send
 When you @mention the bot (in groups) or send a direct message, plain text is automatically treated as `/send` to the foreman. You only need the explicit `/send` command when targeting specific agents like `@all` or `@peers`.
 
-Recognized CCCC commands such as `/send`, `/status`, and `/subscribe` may be sent in a group without @mentioning the bot. Commands for other bots or unknown integrations remain ignored unless the CCCC bot is explicitly addressed.
+Recognized 牛马Agent commands such as `/send`, `/status`, and `/subscribe` may be sent in a group without @mentioning the bot. Commands for other bots or unknown integrations remain ignored unless the 牛马Agent bot is explicitly addressed.
 :::
 
 ### Targeting Specific Agents
@@ -174,7 +174,7 @@ Agent output is updated progressively in one Telegram message when possible. Com
 
 ### File Attachments
 
-Attach files to your message. They're downloaded and stored in CCCC's blob storage, then forwarded to agents. Agent-generated images and files are also uploaded back to every authorized Telegram target.
+Attach files to your message. They're downloaded and stored in 牛马Agent's blob storage, then forwarded to agents. Agent-generated images and files are also uploaded back to every authorized Telegram target.
 
 ## Commands Reference
 
@@ -198,12 +198,12 @@ Attach files to your message. They're downloaded and stored in CCCC's blob stora
 
 1. Check if the bridge is running:
    ```bash
-   cccc im status
+   niuma-agent im status
    ```
 
 2. Check logs for errors:
    ```bash
-   cccc im logs -f
+   niuma-agent im logs -f
    ```
 
 3. Verify token is correct — re-check with BotFather (`/mybots` → select bot → **API Token**)
@@ -215,13 +215,13 @@ Your token is invalid. Get a new one from BotFather:
 1. Send `/mybots` to BotFather
 2. Select your bot
 3. Click **API Token** → **Revoke current token**
-4. Update your token in CCCC Settings (Web UI) or environment variable
+4. Update your token in 牛马Agent Settings (Web UI) or environment variable
 
 ### Messages not delivered
 
 1. Ensure the chat is authorized (run `/subscribe` → bind the key via Web, foreman-assisted bind, or CLI)
-2. Check that the CCCC daemon is running
-3. Verify the bridge status in Web UI or via `cccc im status`
+2. Check that the 牛马Agent daemon is running
+3. Verify the bridge status in Web UI or via `niuma-agent im status`
 
 ### Rate limiting
 
@@ -237,4 +237,4 @@ Telegram has rate limits. If you're sending many messages:
 - The bot can see all messages in groups where it's added
 - **New chats require key-based authorization** before they can interact with the bot — send `/subscribe` to generate a one-time key, then confirm it from the server side (Web Settings > IM Bridge, foreman-assisted bind, or CLI); once bound, the chat is fully authorized
 - Binding keys expire after **10 minutes**; generate a new one with `/subscribe` if it lapses
-- The bind operation must be performed via CCCC Web Settings (IM Bridge), foreman-assisted bind, or `cccc im bind --key` on the server — Telegram users cannot self-authorize
+- The bind operation must be performed via 牛马Agent Web Settings (IM Bridge), foreman-assisted bind, or `niuma-agent im bind --key` on the server — Telegram users cannot self-authorize

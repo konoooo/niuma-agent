@@ -174,7 +174,7 @@ describe("settings pages on the kit", () => {
       render(
         <SettingsNavigation
           groupId="g1"
-          groupTitle="cccc"
+          groupTitle="niuma-agent"
           scope="group"
           scopeRootUrl=""
           globalEnabled={globalEnabled}

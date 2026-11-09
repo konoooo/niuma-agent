@@ -1453,7 +1453,7 @@ export async function exportGroupCopy(
     }
     const filename = filenameFromContentDisposition(
       resp.headers.get("content-disposition") || "",
-      `cccc-group-${groupId}.zip`,
+      `niuma-group-${groupId}.zip`,
     );
     return { ok: true, result: { blob: await resp.blob(), filename } };
   } catch (error) {

@@ -1,8 +1,8 @@
 # Mattermost Feature Map
 
-This map compares Mattermost with the user-facing capabilities of CCCC's native IM connectors, originally inspected at `2a38ad78700a4a188b45f515434b74cc315b91ec` on September 7, 2026. It does not claim support for every platform SDK API or every Web/TUI capability.
+This map compares Mattermost with the user-facing capabilities of 牛马Agent's native IM connectors, originally inspected at `2a38ad78700a4a188b45f515434b74cc315b91ec` on September 7, 2026. It does not claim support for every platform SDK API or every Web/TUI capability.
 
-The [specification](mattermost-im.md) defines current behavior. The [acceptance record](mattermost-im-acceptance.md) separates historical live checks from current integration tests. F01–F34 and T01–T20 retain their original identifiers for traceability; the [original review history](https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-features.md) remains available.
+The [specification](mattermost-im.md) defines current behavior. The [acceptance record](mattermost-im-acceptance.md) separates historical live checks from current integration tests. F01–F34 and T01–T20 retain their original identifiers for traceability; the [original review history](https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/docs/specs/mattermost-im-features.md) remains available.
 
 All directly supported or equivalent capabilities below are included. A platform difference must be explicit; it is not grounds for silently omitting the underlying capability. Guide text alone is not implementation evidence.
 
@@ -15,7 +15,7 @@ All directly supported or equivalent capabilities below are included. A platform
 | F03 | Channels, DMs and threads; [C6], [C7], [C8] | `channel_id` plus `root_id`; private channels and group DMs require actual Bot membership | T06 |
 | F04 | Explicit channel addressing and implicit DM input; [C6], [C8], [C9] | Actual Bot username; prefix commands with @Bot to avoid native slash interception | T07, T08 |
 | F05 | Default and explicit recipients; [C10] | Reuse daemon addressing; mentions inside the body do not add recipients | T07 |
-| F06 | @all and @peers; [C10] | CCCC aliases, without requiring corresponding Mattermost accounts | T07 |
+| F06 | @all and @peers; [C10] | 牛马Agent aliases, without requiring corresponding Mattermost accounts | T07 |
 | F07 | Subscribe aliases and 10-minute pairing keys; [C9] | Request access to the exact chat/thread and show the target Group | T05, T08 |
 | F08 | Pending approvals, bind, reject and revoke; [C2], [C3], [C4] | Existing Web/CLI authorization workflow and storage | T05 |
 | F09 | Unsubscribe aliases; [C9] | Remove the target subscription without deleting the Group | T05, T08 |
@@ -28,7 +28,7 @@ All directly supported or equivalent capabilities below are included. A platform
 | F16 | Final fallback and Unicode chunks; [C12], [C13], [C15] | Suppress matching final text only after every terminal chunk succeeds; partial failure retains full fallback | T11, T12 |
 | F17 | Inbound files and Blob metadata; [C16], [C17] | Authenticated download, ownership/size checks, stage all files before saving; clean temporary files on failure | T13, T14; staging regressions |
 | F18 | Outbound files; [C12], [C13], [C18] | Prepare files from this Group, upload, then post file IDs with channel/thread routing | T13, T14 |
-| F19 | Source and reply correlation; [C10], [C19] | Real user/post/thread IDs, stable client ID and corresponding CCCC event; no nickname identity | T06, T15 |
+| F19 | Source and reply correlation; [C10], [C19] | Real user/post/thread IDs, stable client ID and corresponding 牛马Agent event; no nickname identity | T06, T15 |
 | F20 | Submission and event deduplication; [C10], [C20] | Stable daemon request identity plus bounded source-post cache; control decisions and attempted failure notices are remembered | T15; replay regressions |
 | F21 | Loop prevention; [C1], [C6], [C8] | Filter human/IM inbound from outbound, and self/Bot/system/unrelated input | T10, T15 |
 | F22 | Processing reactions; [C19], [C21] | Modify only this Bot's reactions; correlate completion; cleanup is not cancellation | T16 |
@@ -58,7 +58,7 @@ All directly supported or equivalent capabilities below are included. A platform
 - Dedicated Bot identity per Group is a deployment requirement, not enforced cross-Group/instance uniqueness.
 - Channel and thread authorization remain distinct. DMs share Group context with its other approved subscriptions.
 - Server permissions determine private-channel and group-DM support. Do not elevate the Bot to work around restrictions.
-- Real-client command checks must use the @Bot prefix; a slash command swallowed by the client is not successful CCCC delivery.
+- Real-client command checks must use the @Bot prefix; a slash command swallowed by the client is not successful 牛马Agent delivery.
 - Outgoing file MIME is classified by Mattermost. A `refs` entry is not an uploaded attachment.
 - Full read receipts, Actor TUI state, meeting control, custom slash-command registration and interactive control consoles are outside the native IM contract.
 - Inbound server-cache replay and outbound ledger catch-up do not promise cross-restart replay, a durable outbox or exactly-once delivery.
@@ -67,35 +67,35 @@ All directly supported or equivalent capabilities below are included. A platform
 
 ## Implementation references
 
-[C1]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime.rs
-[C2]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/routes/im.rs
-[C3]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-daemon/src/ops/im.rs
-[C4]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-cli/src/args/integrations.rs
-[C5]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/worker.rs
-[C6]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/slack.rs
-[C7]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/feishu.rs
-[C8]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/discord.rs
-[C9]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/commands.rs
-[C10]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/state.rs
-[C11]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/outbound_message.rs
-[C12]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/slack_outbound.rs
-[C13]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/discord_outbound.rs
-[C14]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/dingtalk_streaming.rs
-[C15]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/outbound_chunks.rs
-[C16]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/inbound_attachments.rs
-[C17]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/telegram_inbound.rs
-[C18]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/outbound_attachment.rs
-[C19]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/processing_reactions.rs
-[C20]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/discord_dedup.rs
-[C21]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/discord_reactions.rs
-[C22]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-core/src/im_state.rs
-[C23]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/weixin_inbound.rs
-[C24]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/wecom_message.rs
+[C1]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime.rs
+[C2]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/routes/im.rs
+[C3]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-daemon/src/ops/im.rs
+[C4]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-cli/src/args/integrations.rs
+[C5]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/worker.rs
+[C6]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/slack.rs
+[C7]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/feishu.rs
+[C8]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/discord.rs
+[C9]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/commands.rs
+[C10]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/state.rs
+[C11]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/outbound_message.rs
+[C12]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/slack_outbound.rs
+[C13]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/discord_outbound.rs
+[C14]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/dingtalk_streaming.rs
+[C15]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/outbound_chunks.rs
+[C16]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/inbound_attachments.rs
+[C17]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/telegram_inbound.rs
+[C18]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/outbound_attachment.rs
+[C19]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/processing_reactions.rs
+[C20]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/discord_dedup.rs
+[C21]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/discord_reactions.rs
+[C22]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-core/src/im_state.rs
+[C23]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/weixin_inbound.rs
+[C24]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/wecom_message.rs
 [C25]: ../guide/im-bridge/index.md
-[C26]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/web/src/components/modals/settings/imBridgeConfig.ts
-[C27]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/discord_gateway_proxy.rs
-[C28]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/weixin_login.rs
-[C29]: https://github.com/ChesterRa/cccc/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/cccc-web/src/im_runtime/wecom_client.rs
+[C26]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/web/src/components/modals/settings/imBridgeConfig.ts
+[C27]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/discord_gateway_proxy.rs
+[C28]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/weixin_login.rs
+[C29]: https://github.com/konoooo/niuma-agent/blob/ea00093b07a21d947982a252af42f2755bc9ac0f/crates/niuma-web/src/im_runtime/wecom_client.rs
 
 ## Platform references
 

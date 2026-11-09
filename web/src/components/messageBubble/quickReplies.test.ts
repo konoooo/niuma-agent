@@ -48,11 +48,11 @@ describe("sendQuickReply", () => {
     // The daemon may have recorded a request whose answer it dropped.
     replyMessage.mockResolvedValueOnce({
       ok: false,
-      error: { code: "daemon_unavailable", message: "CCCC daemon unavailable" },
+      error: { code: "daemon_unavailable", message: "牛马Agent daemon unavailable" },
     });
     expect(await sendQuickReply(target, "why", "Why?")).toEqual({
       status: "failed",
-      message: "CCCC daemon unavailable",
+      message: "牛马Agent daemon unavailable",
       unknown: true,
     });
     replyMessage.mockResolvedValueOnce({

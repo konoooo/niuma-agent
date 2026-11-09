@@ -75,7 +75,7 @@ function sample(trace: Trace, expectedAt: number, phase: "initial" | "after_resp
     if (noteworthy) {
       // Do not log IDs, URLs, server messages or message contents.
       console.warn(
-        "[CCCC message jump]",
+        "[牛马Agent message jump]",
         JSON.stringify({
           phase,
           source: trace.source,

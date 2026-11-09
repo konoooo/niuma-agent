@@ -33,7 +33,7 @@ export const i18nReady = i18n
     detection: {
       order: ["querystring", "localStorage", "navigator"],
       lookupQuerystring: "lang",
-      lookupLocalStorage: "cccc-language",
+      lookupLocalStorage: "niuma-language",
       caches: ["localStorage"],
     },
     supportedLngs: SUPPORTED_LANGUAGES,

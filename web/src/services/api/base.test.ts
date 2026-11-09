@@ -142,13 +142,13 @@ describe("normalizePresentationBrowserSurfaceState", () => {
     const state = normalizePresentationBrowserSurfaceState({
       active: true,
       state: "ready",
-      metadata: { display: ":123", display_owned: true, display_owner: "cccc_xvfb", adopted: true },
+      metadata: { display: ":123", display_owned: true, display_owner: "niuma_xvfb", adopted: true },
     });
 
     expect(state.metadata).toEqual({
       display: ":123",
       display_owned: true,
-      display_owner: "cccc_xvfb",
+      display_owner: "niuma_xvfb",
       adopted: true,
     });
   });
@@ -210,7 +210,7 @@ describe("authenticated URLs", () => {
   it("removes the consumed token from browser history without dropping other URL state", () => {
     const replaceState = vi.fn();
     vi.stubGlobal("window", {
-      location: { href: "https://d-1.cccc.foo/ui/?token=acc_secret&view=group#actor" },
+      location: { href: "https://d-1.niuma-agent.foo/ui/?token=acc_secret&view=group#actor" },
       history: { state: { preserved: true }, replaceState },
     });
 
@@ -225,13 +225,13 @@ describe("normalizePresentationBrowserSurfaceState", () => {
     const state = normalizePresentationBrowserSurfaceState({
       active: true,
       state: "ready",
-      metadata: { display: ":123", display_owned: true, display_owner: "cccc_xvfb", adopted: true },
+      metadata: { display: ":123", display_owned: true, display_owner: "niuma_xvfb", adopted: true },
     });
 
     expect(state.metadata).toEqual({
       display: ":123",
       display_owned: true,
-      display_owner: "cccc_xvfb",
+      display_owner: "niuma_xvfb",
       adopted: true,
     });
   });
@@ -240,10 +240,10 @@ describe("normalizePresentationBrowserSurfaceState", () => {
 describe("filenameFromContentDisposition", () => {
   it("decodes a Chinese group package from the RFC 5987 parameter", () => {
     const header =
-      'attachment; filename="cccc-group--______--g_0e88539bb583.zip"; ' +
-      "filename*=UTF-8''cccc%2Dgroup%2D%2D%E5%AE%89%E5%8D%93%E6%96%B0%E8%AE%BE%E5%A4%87%2D%2Dg%5F0e88539bb583%2Ezip";
+      'attachment; filename="niuma-group--______--g_0e88539bb583.zip"; ' +
+      "filename*=UTF-8''niuma%2Dgroup%2D%2D%E5%AE%89%E5%8D%93%E6%96%B0%E8%AE%BE%E5%A4%87%2D%2Dg%5F0e88539bb583%2Ezip";
     expect(filenameFromContentDisposition(header, "fallback.zip")).toBe(
-      "cccc-group--安卓新设备--g_0e88539bb583.zip",
+      "niuma-group--安卓新设备--g_0e88539bb583.zip",
     );
   });
 

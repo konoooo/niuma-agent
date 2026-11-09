@@ -1,8 +1,8 @@
-# CCCC Connect
+# 牛马Agent Connect
 
-CCCC Connect brings instances linked to the same membership account into one
+牛马Agent Connect brings instances linked to the same membership account into one
 workspace while each instance keeps its own Groups, files, agents and history.
-Local CCCC use continues to work without an account. For collaboration between
+Local 牛马Agent use continues to work without an account. For collaboration between
 selected Groups without the account service, see
 [Direct connections](#direct-connections-without-an-account).
 
@@ -84,23 +84,23 @@ The same tools serve account connections and Direct connections. They are part
 of the ordinary agent's core MCP catalog; no capability installation or Access
 Token is needed for Agent messaging.
 
-1. Call `cccc_connect()` in the local Group. Check both `instances` (same account)
+1. Call `niuma_connect()` in the local Group. Check both `instances` (same account)
    and `external_groups` (connections granted to this specific Group).
-2. For a same-account instance, call `cccc_connect(instance_id="...")`. For an
+2. For a same-account instance, call `niuma_connect(instance_id="...")`. For an
    `external_groups` entry, also set `target_group_id` to that entry's `group_id`.
    The result includes the Group's agents. Follow `next` with `after` if present.
    Instance/Group names are labels; use the returned IDs to address messages.
-3. Send with `cccc_message_send(dst_instance_id="...", dst_group_id="...",
+3. Send with `niuma_message_send(dst_instance_id="...", dst_group_id="...",
    to=["@foreman"], text="...", insight="...", mode="send")`. Use an agent ID
    for a specific recipient. `mode="send"` requests immediate delivery; the
    MCP default `mode="mail"` leaves Mail for the recipient to read.
-   `cccc_file_send(...)` supports the same qualified destination for small
+   `niuma_file_send(...)` supports the same qualified destination for small
    attachments.
-4. On receipt, call `cccc_message_reply(event_id="...", text="...", insight="...")`
+4. On receipt, call `niuma_message_reply(event_id="...", text="...", insight="...")`
    using the **local Event ID** in the incoming message. Omit `to` to reply to
    the original sender. Replies use the existing connection automatically.
 
-`cccc_group` and `cccc_actor` manage local Groups; they do not enumerate or
+`niuma_group` and `niuma_actor` manage local Groups; they do not enumerate or
 administer remote instances. Cached directory freshness describes metadata age,
 not live reachability. An empty `instances` list does not imply there are no
 Direct connections: check `external_groups` too.
@@ -108,14 +108,14 @@ Direct connections: check `external_groups` too.
 The CLI provides the same discovery and message routes:
 
 ```bash
-cccc connect --group LOCAL_GROUP
-cccc connect --group LOCAL_GROUP --instance REMOTE_INSTANCE --target-group REMOTE_GROUP
-cccc send "Hello" --group LOCAL_GROUP --dst-instance REMOTE_INSTANCE \
+niuma-agent connect --group LOCAL_GROUP
+niuma-agent connect --group LOCAL_GROUP --instance REMOTE_INSTANCE --target-group REMOTE_GROUP
+niuma-agent send "Hello" --group LOCAL_GROUP --dst-instance REMOTE_INSTANCE \
   --dst-group REMOTE_GROUP --to @foreman --insight "Confirming the connection"
-cccc reply LOCAL_EVENT_ID "Received" --group LOCAL_GROUP --insight "Ready to collaborate"
+niuma-agent reply LOCAL_EVENT_ID "Received" --group LOCAL_GROUP --insight "Ready to collaborate"
 ```
 
-Inside a CCCC agent, `--group` and `--by` default to its injected Group and agent
+Inside a 牛马Agent agent, `--group` and `--by` default to its injected Group and agent
 identity. Outside an agent, the active Group and `user` are used. Supply a stable
 `--idempotency-key` (MCP: `idempotency_key`) when retrying unchanged content after
 an uncertain response; do not create a new message merely because a receipt is
@@ -139,7 +139,7 @@ Context or arbitrary remote tools. Other Groups do not inherit the connection.
    HTTPS route in **Settings → This instance → Account → Remote Access**.
 2. The recipient opens **Group connections** on the account website and copies
    their **Member ID**.
-3. The sender opens the intended Group in native CCCC Web as an administrator,
+3. The sender opens the intended Group in native 牛马Agent Web as an administrator,
    opens **Group connections** in that Group’s settings or sidebar **⋮** menu, and
    chooses **Invite to connect**. On the account website, check the selected Group,
    paste the recipient's Member ID and submit the invitation.
@@ -148,7 +148,7 @@ Context or arbitrary remote tools. Other Groups do not inherit the connection.
    there as an administrator if needed, choose the local Group, then click
    **Review invitation on website**. Check both Groups and confirm.
 5. Allow up to two minutes for both online instances to synchronize. Their agents
-   can now use `cccc_connect` to discover the connected Group and its agents,
+   can now use `niuma_connect` to discover the connected Group and its agents,
    then use the normal message, reply and file tools described above.
 
 An invitation expires after 24 hours. If either instance is offline, reconnect it
@@ -156,11 +156,11 @@ and submit the retained confirmation form again before expiry. The selected Grou
 and recipient remain visible; retry still checks current ownership and invitation
 state. Retrying the same submitted form does not
 create another invitation. If a selected Group was deleted or replaced, select it
-again in CCCC; if the inviting Group changed, ask its owner for a new invitation.
+again in 牛马Agent; if the inviting Group changed, ask its owner for a new invitation.
 A temporary local configuration read failure does not revoke an existing
 connection: correct the configuration and the same connection can recover.
 For a new invitation after cancellation or expiry,
-select the Group again in CCCC. A Group can have multiple connections; there is
+select the Group again in 牛马Agent. A Group can have multiple connections; there is
 only one active connection for any exact pair.
 
 Either member can cancel a pending invitation, decline an incoming one, or
@@ -200,7 +200,7 @@ Cross-member communication does not grant terminals or a remote Workbench view.
 
 ## Direct connections without an account
 
-Choose this when you want two selected Groups to communicate without the CCCC
+Choose this when you want two selected Groups to communicate without the 牛马Agent
 account service. It shares the same message, reply, file and receipt behavior as
 account Group connections. It does not expose the remote workspace, terminals,
 history or arbitrary tools. No Web Access Token is exchanged.
@@ -208,12 +208,12 @@ history or arbitrary tools. No Web Access Token is exchanged.
 Only one instance needs to accept an incoming connection. You can keep both
 management Web interfaces on localhost, or manage the connection through the CLI.
 The receiving daemon must be reachable from the joining machine, through a local
-network, an existing VPN or an explicitly configured network route. CCCC does not
+network, an existing VPN or an explicitly configured network route. 牛马Agent does not
 provide a relay, discover devices or change firewall/router settings.
 
 1. On the receiving instance, open the intended Group's **⋮ → Group connections →
    Direct connection** as its administrator. The same panel is in Group settings.
-2. Click **Invite another Group**. CCCC selects a real address from the machine
+2. Click **Invite another Group**. 牛马Agent selects a real address from the machine
    running the daemon, or retains its saved receiving address. On a shared LAN,
    you normally do not need to type an IP. **Change** offers other local addresses
    (including VPN interfaces) and a custom address for an existing forwarded route.
@@ -221,7 +221,7 @@ provide a relay, discover devices or change firewall/router settings.
    isolated VM/container/WSL networks, use an address and port the other machine
    can actually reach. The browser's Web URL is not used as a Direct address.
    **Advanced settings** contains the local listen IP/port and instance name.
-3. Click **Create invitation**. CCCC enables receiving if necessary, waits briefly
+3. Click **Create invitation**. 牛马Agent enables receiving if necessary, waits briefly
    for the port to start, then creates the invitation. No second confirmation is
    needed after the port becomes ready. Failure shows a corrective next step;
    nothing creates invitations later from background polling. Receiving is shared
@@ -250,7 +250,7 @@ provide a relay, discover devices or change firewall/router settings.
 5. Return to the receiving panel. Check the requesting instance and Group,
    verify its identity with the other administrator, then approve it. This side
    explicitly shows that it is waiting for **your** approval. Both panels
-   should show **Connected**. Agents can now use `cccc_connect`, then ordinary
+   should show **Connected**. Agents can now use `niuma_connect`, then ordinary
    message/file/reply tools with the returned qualified destination.
 
 The first invitation or join uses the current account instance name when
@@ -259,7 +259,7 @@ precedence. Peer names and software versions are recorded at pairing time;
 keys and Group generations authorize the connection.
 
 Both administrators select their own Group. Pairing and queued messages survive
-restarts and closed browsers. Do not copy one running `CCCC_HOME` into a second
+restarts and closed browsers. Do not copy one running `NIUMA_HOME` into a second
 simultaneously running instance: that copies its cryptographic identity.
 
 Use **Disconnect** on either side to revoke that Group pair. A revoked grant
@@ -290,23 +290,23 @@ panel during preparation stops further browser steps, but a confirmed receiving
 configuration remains enabled. An uncertain request is read back, never silently
 retried; inspect the refreshed status before creating another invitation.
 
-For headless administration, `cccc direct --help` provides the equivalent flow:
+For headless administration, `niuma-agent direct --help` provides the equivalent flow:
 
 ```bash
-cccc direct listen --bind 0.0.0.0:8847 --address 192.168.1.10:8847 --name Office
-cccc direct invite GROUP_A
+niuma-agent direct listen --bind 0.0.0.0:8847 --address 192.168.1.10:8847 --name Office
+niuma-agent direct invite GROUP_A
 # On the other machine: paste the invitation on stdin, then end input.
-cccc direct join GROUP_B
-cccc direct status GROUP_A
-cccc direct approve GROUP_A DIRECT_CONNECTION_ID
-cccc direct revoke GROUP_A DIRECT_CONNECTION_ID
+niuma-agent direct join GROUP_B
+niuma-agent direct status GROUP_A
+niuma-agent direct approve GROUP_A DIRECT_CONNECTION_ID
+niuma-agent direct revoke GROUP_A DIRECT_CONNECTION_ID
 ```
 
-Run each command against the correct instance's `CCCC_HOME`. Invitation import
+Run each command against the correct instance's `NIUMA_HOME`. Invitation import
 uses stdin to avoid putting secrets into command arguments or shell history.
 
 If an interrupted deletion left records for a missing Group, administrators can
-use `cccc direct status OLD_GROUP_ID`, revoke each connection with
-`cccc direct revoke OLD_GROUP_ID CONNECTION_ID`, then remove it with
-`cccc direct remove OLD_GROUP_ID CONNECTION_ID`. These cleanup commands do not
+use `niuma-agent direct status OLD_GROUP_ID`, revoke each connection with
+`niuma-agent direct revoke OLD_GROUP_ID CONNECTION_ID`, then remove it with
+`niuma-agent direct remove OLD_GROUP_ID CONNECTION_ID`. These cleanup commands do not
 recreate the Group or grant access to a different Group.

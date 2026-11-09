@@ -7,7 +7,7 @@ import { daemonVersionDifference, type DaemonVersionDifference } from "../utils/
 import { MOBILE_VIEWPORT_MEDIA_QUERY } from "../utils/responsiveLayout";
 import { loadedWebEntry, webEntryDifference } from "../utils/runtimeBuildInfo";
 
-const DISMISSED_VERSION_KEY = "cccc.daemonVersionMismatch.dismissed";
+const DISMISSED_VERSION_KEY = "niuma-agent.daemonVersionMismatch.dismissed";
 
 function readDismissedVersion(): string {
   try {
@@ -33,7 +33,7 @@ type UseAppChromeOptions = {
 type UseAppChromeResult = {
   canManageGroups: boolean;
   webModeKnown: boolean;
-  ccccHome: string;
+  niumaHome: string;
   daemonVersionMismatch: DaemonVersionDifference | null;
   dismissDaemonVersionMismatch: () => void;
   webUpdateAvailable: boolean;
@@ -56,7 +56,7 @@ export function useAppChrome({
   editingActor,
   sseStatus,
 }: UseAppChromeOptions): UseAppChromeResult {
-  const [ccccHome, setCcccHome] = useState("");
+  const [niumaHome, setNiumaHome] = useState("");
   const [webModeKnown, setWebModeKnown] = useState(false);
   const [versionDifference, setVersionDifference] = useState<DaemonVersionDifference | null>(null);
   const [dismissedVersionDifference, setDismissedVersionDifference] =
@@ -219,22 +219,22 @@ export function useAppChrome({
     }
   }, [setDirSuggestions, showError]);
 
-  const loadCcccHome = useCallback(async () => {
-    if (ccccHome) return;
+  const loadNiumaHome = useCallback(async () => {
+    if (niumaHome) return;
     try {
       const resp = await api.fetchPing({ includeHome: true });
       if (resp.ok) {
-        setCcccHome(String(resp.result?.home || "").trim());
+        setNiumaHome(String(resp.result?.home || "").trim());
       }
     } catch {
       /* ignore */
     }
-  }, [ccccHome]);
+  }, [niumaHome]);
 
   useEffect(() => {
     if (!groupEditOpen) return;
-    void loadCcccHome();
-  }, [groupEditOpen, loadCcccHome]);
+    void loadNiumaHome();
+  }, [groupEditOpen, loadNiumaHome]);
 
   useEffect(() => {
     if (!addActorOpen && !editingActor) return;
@@ -260,7 +260,7 @@ export function useAppChrome({
   return {
     canManageGroups: canAccessGlobalSettings === true,
     webModeKnown,
-    ccccHome,
+    niumaHome,
     daemonVersionMismatch:
       versionDifferenceKey && versionDifferenceKey !== dismissedVersionDifference
         ? versionDifference

@@ -25,7 +25,7 @@
 }
 
 /* ============================================
-   CCCC Web UI - Shared Theme Tokens
+   牛马Agent Web UI - Shared Theme Tokens
    ============================================ */
 
 /* CSS Custom Properties for theming */
@@ -326,7 +326,7 @@ body {
 /* Native select dropdowns are rendered by the OS and are only lightly stylable.
    Force option text to follow our theme tokens without overriding the system
    highlight background (so hover/selected stays natural). */
-select.cccc-group-select option {
+select.niuma-agent-group-select option {
   background-color: var(--color-bg-elevated);
   color: var(--color-text-primary);
 }

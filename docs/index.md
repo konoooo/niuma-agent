@@ -2,12 +2,12 @@
 layout: home
 
 hero:
-  name: CCCC
+  name: 牛马Agent
   text: Coordinate coding agents like a group chat
   tagline: Read receipts, delivery tracking, and phone-side ops across 17 first-class runtimes, including Claude Code, Cline, Codex, and ChatGPT Web — local-first, one native product
   image:
     src: /logo.svg
-    alt: CCCC
+    alt: 牛马Agent
   actions:
     - theme: brand
       text: Start in 10 Minutes

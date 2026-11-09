@@ -15,9 +15,9 @@ RESOLVER = "scripts/resolve_docs_installer_version.mjs"
 
 def _release(version: str, *, complete: bool) -> dict[str, object]:
     names = [
-        f"cccc-v{version}-aarch64-apple-darwin.tar.gz",
-        f"cccc-v{version}-x86_64-pc-windows-msvc.zip",
-        f"cccc-v{version}-x86_64-unknown-linux-gnu.tar.gz",
+        f"niuma-v{version}-aarch64-apple-darwin.tar.gz",
+        f"niuma-v{version}-x86_64-pc-windows-msvc.zip",
+        f"niuma-v{version}-x86_64-unknown-linux-gnu.tar.gz",
         "SHA256SUMS",
         "install.ps1",
         "install.sh",
@@ -38,7 +38,7 @@ def _resolve(metadata: Path, output: Path | None = None) -> subprocess.Completed
         ["node", RESOLVER, "--metadata", str(metadata)]
         + (["--output", str(output)] if output is not None else []),
         cwd=ROOT,
-        env={**os.environ, "GITHUB_REPOSITORY": "ChesterRa/cccc"},
+        env={**os.environ, "GITHUB_REPOSITORY": "konoooo/niuma-agent"},
         capture_output=True,
         text=True,
     )
@@ -68,7 +68,7 @@ def test_release_index_publishes_only_complete_channels_from_the_same_snapshot(t
     assert resolved.stdout.strip() == "1.2.0"
     assert json.loads(output.read_text(encoding="utf-8")) == {
         "schema_version": 1,
-        "repository": "ChesterRa/cccc",
+        "repository": "konoooo/niuma-agent",
         "channels": {"stable": resolved.stdout.strip(), "rc": "1.2.0-rc10"},
     }
     assert list(output.parent.glob("*.tmp")) == []
@@ -137,7 +137,7 @@ def test_release_index_uses_authenticated_paginated_ci_metadata(
       process.argv = ['node', {json.dumps(RESOLVER)}, '--output', {json.dumps(str(output))}];
       globalThis.fetch = async (url, options) => {{
         calls += 1;
-        assert.equal(url, `https://api.github.com/repos/ChesterRa/cccc/releases?per_page=100&page=${{calls}}`);
+        assert.equal(url, `https://api.github.com/repos/konoooo/niuma-agent/releases?per_page=100&page=${{calls}}`);
         assert.equal(options.headers.Authorization, 'Bearer fixture-token');
         assert.ok(options.signal instanceof AbortSignal);
         if (calls === failedPage) return new Response('rate limited', {{status: 403}});
@@ -151,7 +151,7 @@ def test_release_index_uses_authenticated_paginated_ci_metadata(
     """
     resolved = subprocess.run(
         ["node", "--input-type=module", "--eval", script], cwd=ROOT,
-        env={**os.environ, "GITHUB_REPOSITORY": "ChesterRa/cccc", "GITHUB_TOKEN": "fixture-token"},
+        env={**os.environ, "GITHUB_REPOSITORY": "konoooo/niuma-agent", "GITHUB_TOKEN": "fixture-token"},
         capture_output=True, text=True,
     )
     if failed_page is None:
@@ -256,12 +256,12 @@ def test_docs_installer_resolver_rejects_an_incomplete_release_set(tmp_path: Pat
 
 
 def test_rust_only_pip_guidance_cannot_fall_back_to_a_python_release() -> None:
-    stable_command = 'python -m pip install -U "cccc-pair>=0.4.36"'
+    stable_command = 'python -m pip install -U "niuma-agent>=0.4.36"'
     active_guides = [
         "README.md",
         "README.zh-CN.md",
         "README.ja.md",
-        "crates/cccc-cli/README.md",
+        "crates/niuma-cli/README.md",
         "docs/rust-migration.md",
         "docs/guide/faq.md",
         "docs/guide/getting-started/index.md",
@@ -271,7 +271,7 @@ def test_rust_only_pip_guidance_cannot_fall_back_to_a_python_release() -> None:
     for relative_path in active_guides:
         contents = (ROOT / relative_path).read_text(encoding="utf-8")
         assert stable_command in contents, relative_path
-        assert "python -m pip install -U cccc-pair" not in contents, relative_path
+        assert "python -m pip install -U niuma-agent" not in contents, relative_path
 
     with (ROOT / "pyproject.toml").open("rb") as stream:
         version = str(tomllib.load(stream)["project"]["version"])
@@ -287,9 +287,9 @@ def test_rust_only_pip_guidance_cannot_fall_back_to_a_python_release() -> None:
     ):
         contents = (ROOT / relative_path).read_text(encoding="utf-8")
         if preparing_0_4_36:
-            assert '"cccc-pair>=0.4.36rc0"' in contents, relative_path
+            assert '"niuma-agent>=0.4.36rc0"' in contents, relative_path
         else:
-            assert '"cccc-pair>=0.4.36rc0"' not in contents, relative_path
+            assert '"niuma-agent>=0.4.36rc0"' not in contents, relative_path
 
 
 def test_prepublication_notice_cannot_survive_the_stable_0_4_36_bump() -> None:

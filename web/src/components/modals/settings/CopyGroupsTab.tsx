@@ -137,7 +137,7 @@ export function CopyGroupsTab({ groupId, groupTitle }: CopyGroupsTabProps) {
         return;
       }
       downloadBlobFile(
-        resp.result.filename || `cccc-group--${groupTitle || groupId}.zip`,
+        resp.result.filename || `niuma-group--${groupTitle || groupId}.zip`,
         resp.result.blob,
       );
       if (requestId !== previewRequestSeqRef.current) return;

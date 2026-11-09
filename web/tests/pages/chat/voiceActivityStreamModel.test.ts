@@ -39,7 +39,7 @@ describe("voice activity stream model", () => {
           mode: "prompt",
           updatedAt: 1000,
         },
-        "Stop the recording in CCCC",
+        "Stop the recording in 牛马Agent",
         "interim",
       ),
     ).toBe(false);

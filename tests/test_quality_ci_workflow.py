@@ -100,12 +100,12 @@ def test_native_empty_session_smoke_is_enabled_without_provider_secrets() -> Non
     assert "@kilocode/cli@7.5.14" in install["run"]
     smoke = next(step for step in steps if step.get("name") == "Verify native sessions without external model access")
     assert smoke["timeout-minutes"] == "5"
-    assert smoke["env"]["CCCC_CODEX_EMPTY_LIVE"] == "1"
-    assert smoke["env"]["CCCC_CLAUDE_EMPTY_LIVE"] == "1"
-    assert smoke["env"]["CCCC_KILO_MANAGED_LIVE"] == "1"
-    assert smoke["env"]["CCCC_KILO_MODEL_SYNC_LIVE"] == "1"
-    assert smoke["env"]["CCCC_LAUNCHER_PATH"].endswith("/target/debug/cccc")
-    assert "cargo build --package cccc --bin cccc --locked" in smoke["run"]
+    assert smoke["env"]["NIUMA_CODEX_EMPTY_LIVE"] == "1"
+    assert smoke["env"]["NIUMA_CLAUDE_EMPTY_LIVE"] == "1"
+    assert smoke["env"]["NIUMA_KILO_MANAGED_LIVE"] == "1"
+    assert smoke["env"]["NIUMA_KILO_MODEL_SYNC_LIVE"] == "1"
+    assert smoke["env"]["NIUMA_LAUNCHER_PATH"].endswith("/target/debug/niuma-agent")
+    assert "cargo build --package niuma-agent --bin niuma-agent --locked" in smoke["run"]
     assert "live_codex_empty_actor_and_analyst_resume_with_native_terminal" in smoke["run"]
     assert "live_claude_empty_session_resumes_without_a_prompt" in smoke["run"]
     assert "live_kilo -- --test-threads=1" in smoke["run"]
@@ -118,7 +118,7 @@ def test_windows_installer_job_is_a_nightly_native_fixture() -> None:
     uses = {step.get("uses", "") for step in installer["steps"]}
 
     assert installer["needs"] == "web-bundle"
-    assert "cargo build --release --locked -p cccc --bin cccc" in runs
+    assert "cargo build --release --locked -p niuma-agent --bin niuma-agent" in runs
     assert "scripts/tests/install_windows.ps1" in runs
     assert any(item.startswith("actions/download-artifact") for item in uses)
     assert any(item.startswith("dtolnay/rust-toolchain") for item in uses)
@@ -138,7 +138,7 @@ def test_rust_linux_job_is_python_free_and_reuses_one_workspace() -> None:
     # One workspace build serves every test step: a single-package selection
     # resolves dependency features differently and recompiles the workspace.
     assert "cargo nextest run --workspace --locked --profile ci\n" in test_runs
-    assert "--package cccc-pair-daemon" not in test_runs
+    assert "--package niuma-agent-daemon" not in test_runs
     assert "cargo test --workspace --lib --locked -- --list" in test_runs
     nextest = next(step for step in job["steps"] if step.get("name") == "Install cargo-nextest")
     assert nextest["uses"].startswith("taiki-e/install-action@")
@@ -151,11 +151,11 @@ def test_rust_linux_job_is_python_free_and_reuses_one_workspace() -> None:
     # serial lifecycle step owns its tests.
     assert ci_filter == f"not ({chrome_filter}) & not test(/^daemon_self_launch::/)"
     # Fixtures are listed one by one so a fast test added beside them stays in PR CI.
-    assert chrome_filter.startswith("package(cccc-pair-web) & ( test(=")
+    assert chrome_filter.startswith("package(niuma-agent-web) & ( test(=")
     assert "test(/" not in chrome_filter
     # Real Chrome must never reach PR CI unnoticed, and nightly launches one at a time.
     test_step = next(step for step in job["steps"] if step.get("name") == "Test Rust workspace")
-    assert test_step["env"]["CCCC_TEST_FORBID_REAL_CHROME"] == "1"
+    assert test_step["env"]["NIUMA_TEST_FORBID_REAL_CHROME"] == "1"
     assert profile["profile"]["chrome"]["test-threads"] == 1
 
     assert "python_interop_" not in test_runs
@@ -165,7 +165,7 @@ def test_rust_linux_job_is_python_free_and_reuses_one_workspace() -> None:
     assert "cargo fmt --all --check" in test_runs
     assert "cargo clippy --workspace --all-targets --locked -- -D warnings" in test_runs
     windows_runs = _runs(jobs["windows-smoke"])
-    assert "cargo test --package cccc --test integration --locked" in windows_runs
+    assert "cargo test --package niuma-agent --test integration --locked" in windows_runs
     assert (
         "daemon_self_launch::combined_web_bind_failure_stops_its_owned_daemon"
         in windows_runs
@@ -204,22 +204,22 @@ def test_nightly_failure_reaches_the_team_without_committing_the_webhook() -> No
 
 def test_retired_python_product_and_cross_language_suites_are_absent() -> None:
     retired_sources = {
-        "crates/cccc-core/tests/context_python_interop.rs",
-        "crates/cccc-core/tests/group_bridge_identity_interop.rs",
-        "crates/cccc-core/tests/ledger_python_interop.rs",
-        "crates/cccc-core/tests/membership_interop.rs",
-        "crates/cccc-core/tests/runtime_hook_identity_interop.rs",
-        "crates/cccc-core/tests/runtime_hook_interop.rs",
-        "crates/cccc-core/tests/shared_integration_state_interop.rs",
-        "crates/cccc-daemon/tests/python_storage_interop.rs",
+        "crates/niuma-core/tests/context_python_interop.rs",
+        "crates/niuma-core/tests/group_bridge_identity_interop.rs",
+        "crates/niuma-core/tests/ledger_python_interop.rs",
+        "crates/niuma-core/tests/membership_interop.rs",
+        "crates/niuma-core/tests/runtime_hook_identity_interop.rs",
+        "crates/niuma-core/tests/runtime_hook_interop.rs",
+        "crates/niuma-core/tests/shared_integration_state_interop.rs",
+        "crates/niuma-daemon/tests/python_storage_interop.rs",
     }
     actual_sources = {
         path.relative_to(ROOT).as_posix()
         for path in ROOT.glob("crates/*/tests/*.rs")
-        if "CCCC_TEST_PYTHON" in path.read_text(encoding="utf-8")
+        if "NIUMA_TEST_PYTHON" in path.read_text(encoding="utf-8")
     }
     assert actual_sources == set()
-    assert not (ROOT / "src" / "cccc").exists()
+    assert not (ROOT / "src" / "niuma-agent").exists()
     assert all(not (ROOT / relative_path).exists() for relative_path in retired_sources)
 
 
@@ -240,10 +240,10 @@ def test_nightly_rust_dist_and_manual_verifiers_cover_replacement_smoke() -> Non
 
     assert dist["needs"] == "web-bundle"
     assert (
-        "cargo build --workspace --release --locked --features cccc/standalone"
+        "cargo build --workspace --release --locked --features niuma-agent/standalone"
         in runs
     )
-    assert "scripts/tests/smoke_rust_replacement.sh target/release/cccc" in runs
+    assert "scripts/tests/smoke_rust_replacement.sh target/release/niuma-agent" in runs
     assert "smoke_rust_replacement.sh" in unix_verifier
     assert '"method":"initialize"' in windows_verifier
     assert "Daemon:      stopped" in windows_verifier
@@ -293,7 +293,7 @@ def test_package_job_exercises_only_the_rust_only_release_shape() -> None:
     assert "scripts/build_native_wheel.py" in runs
     assert "scripts/verify_native_wheel.py" in runs
     assert "tests/test_build_native_wheel.py" in runs
-    assert ".data/scripts/cccc" in runs
+    assert ".data/scripts/niuma-agent" in runs
 
 
 def test_nightly_workflow_owns_slow_native_verification() -> None:
@@ -418,7 +418,7 @@ def test_release_builds_one_atomic_rust_only_set() -> None:
     assert "scripts/package_release_assets.sh" in prepare_runs
     assert "scripts/verify_release_set.py artifacts" in prepare_runs
     assert "scripts/upload_wheel_release.py" in _runs(jobs["publish"])
-    assert "cccc rust" not in release_runs
+    assert "niuma-agent rust" not in release_runs
     assert not (ROOT / ".github/workflows/release-rust.yml").exists()
     assert not (ROOT / "setup.py").exists()
     for source_test in ("cargo test", "pytest", "context_python_interop", "python_storage_interop"):
@@ -576,7 +576,7 @@ def test_docs_publish_stable_installers_from_the_canonical_scripts() -> None:
         "scripts/resolve_docs_installer_version.mjs",
     } <= paths
     assert docs_workflow["on"]["workflow_run"] == {
-        "workflows": ["Release CCCC"],
+        "workflows": ["Release 牛马Agent"],
         "types": ["completed"],
     }
     assert "workflow_run.conclusion == 'success'" in docs_workflow["jobs"]["build"]["if"]
@@ -607,7 +607,7 @@ def test_docs_publish_stable_installers_from_the_canonical_scripts() -> None:
         for step in docs_workflow["jobs"]["build"]["steps"]
         if step.get("name") == "Build with VitePress"
     )
-    assert "CCCC_DOCS_INSTALL_VERSION" not in build.get("env", {})
+    assert "NIUMA_DOCS_INSTALL_VERSION" not in build.get("env", {})
     assert package["scripts"]["prebuild"] == "npm run prepare:installers"
     assert package["scripts"]["prepare:installers"] == "node ../scripts/prepare_docs_installers.mjs"
 
@@ -619,8 +619,8 @@ def test_docs_publish_stable_installers_from_the_canonical_scripts() -> None:
     tls_bootstrap = "[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12"
     assert tls_bootstrap in powershell_installer
     assert powershell_installer.index(tls_bootstrap) < powershell_installer.index("Invoke-WebRequest")
-    assert "@CCCC_" not in shell_installer
-    assert "@CCCC_" not in powershell_installer
+    assert "@NIUMA_" not in shell_installer
+    assert "@NIUMA_" not in powershell_installer
 
 
 def test_source_helpers_use_one_native_product_path() -> None:
@@ -628,9 +628,9 @@ def test_source_helpers_use_one_native_product_path() -> None:
     package_unix = (ROOT / "scripts/build_package.sh").read_text(encoding="utf-8")
     package_windows = (ROOT / "scripts/build_package.ps1").read_text(encoding="utf-8-sig")
 
-    assert "cargo build --locked -p cccc --bin cccc" in start
+    assert "cargo build --locked -p niuma-agent --bin niuma-agent" in start
     assert "uv pip" not in start
-    assert "cccc.daemon_main" not in start
+    assert "niuma-agent.daemon_main" not in start
     for script in (package_unix, package_windows):
         assert "build_standalone_archive.py" in script
         assert "--install-deps" in script
@@ -657,13 +657,13 @@ def test_standalone_installers_do_not_probe_markerless_version_for_ownership() -
     ]
 
     for installer in shell_installers:
-        assert "CCCC_TRUSTED_EXISTING_CLI" in installer
-        assert "is_existing_cccc_command" not in installer
-        assert "is_cccc_version_output" not in installer
+        assert "NIUMA_TRUSTED_EXISTING_CLI" in installer
+        assert "is_existing_niuma_command" not in installer
+        assert "is_niuma_version_output" not in installer
     for installer in powershell_installers:
-        assert "CCCC_TRUSTED_EXISTING_CLI" in installer
-        assert "Test-ExistingCcccCommand" not in installer
-        assert "Test-CcccVersionOutput" not in installer
+        assert "NIUMA_TRUSTED_EXISTING_CLI" in installer
+        assert "Test-ExistingNiumaCommand" not in installer
+        assert "Test-NiumaVersionOutput" not in installer
 
 
 def test_windows_install_command_supports_cmd_and_legacy_powershell_tls() -> None:
@@ -671,7 +671,7 @@ def test_windows_install_command_supports_cmd_and_legacy_powershell_tls() -> Non
         "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \""
         "[Net.ServicePointManager]::SecurityProtocol = "
         "[Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; "
-        "Invoke-RestMethod 'https://chesterra.github.io/cccc/install.ps1' | Invoke-Expression\""
+        "Invoke-RestMethod 'https://chesterra.github.io/niuma-agent/install.ps1' | Invoke-Expression\""
     )
     documentation = [
         "README.md",
@@ -680,17 +680,17 @@ def test_windows_install_command_supports_cmd_and_legacy_powershell_tls() -> Non
         "docs/rust-migration.md",
         "docs/guide/getting-started/index.md",
         "docs/guide/faq.md",
-        "crates/cccc-cli/README.md",
+        "crates/niuma-cli/README.md",
     ]
 
     for relative_path in documentation:
         contents = (ROOT / relative_path).read_text(encoding="utf-8")
         assert command in contents, relative_path
-        assert "irm https://chesterra.github.io/cccc/install.ps1 | iex" not in contents, relative_path
+        assert "irm https://chesterra.github.io/niuma-agent/install.ps1 | iex" not in contents, relative_path
 
 
 def test_rust_workspace_cannot_create_a_second_registry_distribution() -> None:
-    manifests = sorted((ROOT / "crates").glob("cccc-*/Cargo.toml"))
+    manifests = sorted((ROOT / "crates").glob("niuma-*/Cargo.toml"))
 
     assert manifests
     for manifest in manifests:

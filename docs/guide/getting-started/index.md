@@ -1,10 +1,10 @@
 # Getting Started
 
-Get CCCC running in 10 minutes.
+Get 牛马Agent running in 10 minutes.
 
 ## Choose Your Approach
 
-CCCC offers two ways to get started:
+牛马Agent offers two ways to get started:
 
 <div class="vp-card-container">
 
@@ -41,10 +41,7 @@ CCCC offers two ways to get started:
 
 ## Prerequisites
 
-The website installer does not require Python or a Rust toolchain. You need
-Linux x86-64 with glibc 2.28+, Apple Silicon macOS 11+, or Windows x86-64, plus
-at least one AI agent CLI. CCCC v0.4.37 is the final archived release for Intel
-Macs.
+从源码构建需要 Rust 1.88+、Node.js 24 和 npm。运行成员需要安装并登录至少一种智能体 CLI。
 
 - At least one AI agent CLI:
   - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) (recommended)
@@ -59,12 +56,12 @@ Macs.
 - Or a ChatGPT account with remote MCP connector support for the ChatGPT Web Model runtime
 - Or a custom runtime command if you wire MCP manually
 
-The MCP JavaScript code mode (`cccc_code_exec` / `cccc_code_wait`) additionally
-requires Node.js on the CCCC host. The standalone Rust build does not invoke a
+The MCP JavaScript code mode (`niuma_code_exec` / `niuma_code_wait`) additionally
+requires Node.js on the 牛马Agent host. The standalone Rust build does not invoke a
 Python backend.
 
 The ChatGPT Web Model also needs a system Google Chrome or Microsoft Edge browser. On native Linux,
-install `Xvfb` so CCCC can keep projected browser windows off the host desktop; `x11vnc` is optional
+install `Xvfb` so 牛马Agent can keep projected browser windows off the host desktop; `x11vnc` is optional
 and enables the VNC viewer instead of the built-in CDP screencast fallback:
 
 ```bash
@@ -78,118 +75,41 @@ sudo dnf install xorg-x11-server-Xvfb x11vnc
 sudo pacman -S xorg-server-xvfb x11vnc
 ```
 
-Run `cccc doctor` to verify these dependencies. CCCC does not install OS packages automatically.
+Run `niuma-agent doctor` to verify these dependencies. 牛马Agent does not install OS packages automatically.
 
-## Installation
+## 从源码安装
 
-### Upgrading from older versions
-
-If you have an older version of cccc-pair installed (e.g., 0.3.x), uninstall
-it using the method that installed it. For a pipx installation:
+本仓库通过源码构建分发。需要 Rust 1.88+、Node.js 24 和 npm。
 
 ```bash
-pipx uninstall cccc-pair
+git clone https://github.com/konoooo/niuma-agent.git
+cd niuma-agent
+npm ci --prefix web
+cargo build --release --locked -p niuma-agent --bin niuma-agent
+./target/release/niuma-agent --headless
 ```
 
-For a pip installation, use pip in the original Python environment:
-
-```bash
-pip uninstall cccc-pair
-```
-
-If a command remains, check its path and which installation owns it before
-removing any leftover. For example, `command -v cccc` shows the command your
-shell would run; a file at a familiar path may belong to a different or newer
-installation.
-
-::: warning Version 0.4.x Breaking Changes
-Version 0.4.x has a completely different command structure from 0.3.x. The old `init`, `run`, `bridge` commands are replaced with `attach`, `daemon`, `mcp`, etc.
-:::
-
-### Website installer (recommended)
-
-macOS or Linux:
-
-```bash
-curl -fsSL https://chesterra.github.io/cccc/install.sh | sh
-```
-
-Windows CMD or PowerShell:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12; Invoke-RestMethod 'https://chesterra.github.io/cccc/install.ps1' | Invoke-Expression"
-```
-
-The installer downloads a checksum-verified native executable and refuses to
-overwrite a command it does not own.
-
-The website installer resolves the latest stable GitHub Release each time it
-runs, including when upgrading an existing standalone installation. It does not
-select prereleases. To install a specific version, set `CCCC_VERSION` on the
-installer process, for example:
-
-```bash
-curl -fsSL https://chesterra.github.io/cccc/install.sh | CCCC_VERSION=0.4.44 sh
-```
-
-On Windows, set `$env:CCCC_VERSION` before running the installer. If latest-release
-resolution fails, installation stops without falling back to an older version.
-
-### From PyPI (v0.4.36+)
-
-```bash
-python -m pip install -U "cccc-pair>=0.4.36"
-```
-
-The native platform wheel installs the same Rust `cccc` executable through pip.
-The lower bound prevents pip from silently selecting a historical Python-only
-release when 0.4.36 has no wheel for the current platform. It contains no Python
-daemon, product package, launcher, or fallback. Unsupported platforms therefore
-fail resolution rather than receiving a portable Python wheel. Generic
-`pip install .` and editable `pip install -e .` source builds are rejected
-instead of installing an empty package; use the source workflow below.
-
-The pip wheel and website installer record distinct ownership beside the
-executable. To switch a command directory from pip to the website installer,
-first run `python -m pip uninstall cccc-pair`; the installer will not overwrite
-pip-owned files, even when `CCCC_ALLOW_REPLACE_EXISTING=1` is set.
-
-### From Source
-
-Source packaging requires Rust 1.88+, Node.js 24 with npm, and Python 3.11+
-only for the archive helper. Python is not included in the built product.
-
-```bash
-git clone https://github.com/ChesterRa/cccc
-cd cccc
-./scripts/build_package.sh
-./target/release/cccc --version
-./target/release/cccc
-```
-
-Use `cargo run --locked --features standalone -p cccc --bin cccc -- --port 0`
-for an iterative debug build. On Windows, run
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_package.ps1`
-and then `.\target\release\cccc.exe`.
+Windows 使用 `target\release\niuma-agent.exe`。默认 Web 地址为 `http://127.0.0.1:8848/ui/`。
+迁移已有数据见 [项目说明](../../../README.md#迁移旧数据)。
 
 ## Verify Installation
 
 ```bash
-cccc status
-cccc doctor
+niuma-agent status
+niuma-agent doctor
 ```
 
 `status` shows the native product, daemon, groups, agents, and detected agent
 runtimes. `doctor` checks the installation, agent runtimes, system
-configuration, invoked CCCC executable, PATH resolution, and duplicate `cccc`
+configuration, invoked 牛马Agent executable, PATH resolution, and duplicate `niuma-agent`
 commands.
 
 ## Next Steps
 
 - [Web UI Quick Start](./web) - Get started with the visual interface
 - [CLI Quick Start](./cli) - Get started with the command line
-- [Docker Deployment](./docker) - Deploy CCCC in a Docker container
-- [SDK Overview](/sdk/) - Integrate CCCC into external apps/services
+- [Docker Deployment](./docker) - Deploy 牛马Agent in a Docker container
+- [SDK Overview](/sdk/) - Integrate 牛马Agent into external apps/services
 - [Use Cases](/guide/use-cases) - Learn high-ROI real-world patterns
-- [Operations Runbook](/guide/operations) - Run CCCC with operator-grade reliability
-- [Positioning](/reference/positioning) - Decide where CCCC should sit in your stack
+- [Operations Runbook](/guide/operations) - Run 牛马Agent with operator-grade reliability
+- [Positioning](/reference/positioning) - Decide where 牛马Agent should sit in your stack

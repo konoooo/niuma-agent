@@ -538,20 +538,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc"
+name = "niuma-agent"
 version = "0.4.49"
 dependencies = [
  "anyhow",
  "base64",
- "cccc-pair-client",
- "cccc-pair-contracts",
- "cccc-pair-core",
- "cccc-pair-daemon",
- "cccc-pair-mcp",
- "cccc-pair-runtime",
- "cccc-pair-web",
- "cccc-windows-console",
- "cccc-windows-process",
+ "niuma-agent-client",
+ "niuma-agent-contracts",
+ "niuma-agent-core",
+ "niuma-agent-daemon",
+ "niuma-agent-mcp",
+ "niuma-agent-runtime",
+ "niuma-agent-web",
+ "niuma-windows-console",
+ "niuma-windows-process",
  "clap",
  "crossterm",
  "crossterm_winapi",
@@ -575,18 +575,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-client"
+name = "niuma-agent-client"
 version = "0.4.49"
 dependencies = [
- "cccc-pair-contracts",
- "cccc-pair-core",
+ "niuma-agent-contracts",
+ "niuma-agent-core",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
 ]
 
 [[package]]
-name = "cccc-pair-contracts"
+name = "niuma-agent-contracts"
 version = "0.4.49"
 dependencies = [
  "chrono",
@@ -596,14 +596,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-core"
+name = "niuma-agent-core"
 version = "0.4.49"
 dependencies = [
  "aws-lc-rs",
  "base64",
- "cccc-pair-contracts",
- "cccc-pair-runtime",
- "cccc-windows-process",
+ "niuma-agent-contracts",
+ "niuma-agent-runtime",
+ "niuma-windows-process",
  "chrono",
  "chrono-tz",
  "cron",
@@ -635,17 +635,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-daemon"
+name = "niuma-agent-daemon"
 version = "0.4.49"
 dependencies = [
  "anyhow",
  "axum",
  "base64",
- "cccc-pair-client",
- "cccc-pair-contracts",
- "cccc-pair-core",
- "cccc-pair-notebooklm",
- "cccc-pair-runtime",
+ "niuma-agent-client",
+ "niuma-agent-contracts",
+ "niuma-agent-core",
+ "niuma-agent-notebooklm",
+ "niuma-agent-runtime",
  "chrono",
  "fs2",
  "futures-util",
@@ -677,17 +677,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-mcp"
+name = "niuma-agent-mcp"
 version = "0.4.49"
 dependencies = [
  "anyhow",
  "axum",
  "base64",
- "cccc-pair-client",
- "cccc-pair-contracts",
- "cccc-pair-core",
- "cccc-pair-daemon",
- "cccc-pair-runtime",
+ "niuma-agent-client",
+ "niuma-agent-contracts",
+ "niuma-agent-core",
+ "niuma-agent-daemon",
+ "niuma-agent-runtime",
  "chrono",
  "globset",
  "mime_guess",
@@ -704,7 +704,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-notebooklm"
+name = "niuma-agent-notebooklm"
 version = "0.4.49"
 dependencies = [
  "cookie",
@@ -717,11 +717,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-runtime"
+name = "niuma-agent-runtime"
 version = "0.4.49"
 dependencies = [
- "cccc-pair-contracts",
- "cccc-windows-process",
+ "niuma-agent-contracts",
+ "niuma-windows-process",
  "dunce",
  "filedescriptor",
  "futures-util",
@@ -741,17 +741,17 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-sherpa-onnx"
-version = "1.13.4-cccc.1"
+name = "niuma-agent-sherpa-onnx"
+version = "1.13.4-niuma.1"
 dependencies = [
- "cccc-pair-sherpa-onnx-sys",
+ "niuma-agent-sherpa-onnx-sys",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "cccc-pair-sherpa-onnx-sys"
-version = "1.13.4-cccc.1"
+name = "niuma-agent-sherpa-onnx-sys"
+version = "1.13.4-niuma.1"
 dependencies = [
  "bzip2 0.4.4",
  "sha2 0.10.9",
@@ -760,7 +760,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-pair-web"
+name = "niuma-agent-web"
 version = "0.4.49"
 dependencies = [
  "aes",
@@ -772,13 +772,13 @@ dependencies = [
  "base64",
  "bzip2 0.6.1",
  "cbc",
- "cccc-pair-client",
- "cccc-pair-contracts",
- "cccc-pair-core",
- "cccc-pair-daemon",
- "cccc-pair-mcp",
- "cccc-pair-runtime",
- "cccc-pair-sherpa-onnx",
+ "niuma-agent-client",
+ "niuma-agent-contracts",
+ "niuma-agent-core",
+ "niuma-agent-daemon",
+ "niuma-agent-mcp",
+ "niuma-agent-runtime",
+ "niuma-agent-sherpa-onnx",
  "chromiumoxide",
  "chrono",
  "crc32fast",
@@ -819,14 +819,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "cccc-windows-console"
+name = "niuma-windows-console"
 version = "0.4.49"
 dependencies = [
  "windows-sys 0.61.2",
 ]
 
 [[package]]
-name = "cccc-windows-process"
+name = "niuma-windows-process"
 version = "0.4.49"
 dependencies = [
  "windows-sys 0.61.2",

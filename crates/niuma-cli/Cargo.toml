@@ -1,0 +1,72 @@
+[package]
+name = "niuma-agent"
+default-run = "niuma-agent"
+version.workspace = true
+edition.workspace = true
+resolver = "3"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Collaborative multi-agent control plane and CLI"
+readme = "README.md"
+keywords = ["ai", "agents", "collaboration", "mcp", "automation"]
+categories = ["command-line-utilities", "development-tools"]
+publish = false
+
+[features]
+# Standalone Linux archives cannot rely on the target host's OpenSSL package.
+# This direct optional edge enables the transitive openssl-sys vendored build.
+standalone = ["dep:openssl-sys"]
+
+[dependencies]
+anyhow.workspace = true
+base64.workspace = true
+niuma-client = { package = "niuma-agent-client", version = "=0.4.49", path = "../niuma-client" }
+niuma-contracts = { package = "niuma-agent-contracts", version = "=0.4.49", path = "../niuma-contracts" }
+niuma-core = { package = "niuma-agent-core", version = "=0.4.49", path = "../niuma-core" }
+niuma-daemon = { package = "niuma-agent-daemon", version = "=0.4.49", path = "../niuma-daemon" }
+niuma-mcp = { package = "niuma-agent-mcp", version = "=0.4.49", path = "../niuma-mcp" }
+niuma-runtime = { package = "niuma-agent-runtime", version = "=0.4.49", path = "../niuma-runtime" }
+niuma-web = { package = "niuma-agent-web", version = "=0.4.49", path = "../niuma-web" }
+clap.workspace = true
+crossterm = "0.29"
+fs2.workspace = true
+ratatui = { version = "0.30.2", default-features = false, features = ["crossterm"] }
+reqwest.workspace = true
+rustls.workspace = true
+semver.workspace = true
+sha2.workspace = true
+serde_json.workspace = true
+shell-words.workspace = true
+tokio.workspace = true
+tempfile.workspace = true
+unicode-width.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+portable-pty.workspace = true
+retach.workspace = true
+
+[target.'cfg(unix)'.dev-dependencies]
+nix = { workspace = true, features = ["term"] }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+rustix = { version = "1.1.4", features = ["event", "process"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+openssl-sys = { version = "0.9", features = ["vendored"], optional = true }
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+niuma-windows-console = { path = "../niuma-windows-console" }
+niuma-windows-process = { path = "../niuma-windows-process" }
+crossterm_winapi = "0.9"
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "niuma-agent"
+path = "src/main.rs"
